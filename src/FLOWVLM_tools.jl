@@ -71,6 +71,41 @@ function get_barc(self)
   return barc
 end
 
+"""
+Receives a Wing or WingsSystem and return the planform area, which is the
+area of the projection on the xy-plane of its local coordinate system.
+"""
+function planform_area(wing)
+  area = 0.0
+
+  # Calculates the area of each wing
+  if typeof(wing)==vlm.WingSystem
+    for _wing in wing.wings
+      area += planform_area(_wing)
+    end
+
+  # Calculates the area of each panel
+  else
+    ip = wing.Oaxis[1,:]
+    jp = wing.Oaxis[2,:]
+    for i in 1:get_m(wing)
+      # Obtains the points
+      Ap, A, B, Bp, CP, infDA, infDB, Gamma = getHorseshoe(wing, i)
+      # Projects the points to the xy-plane
+      _A = dot(A,ip)*ip + dot(A,jp)*jp
+      _B = dot(B,ip)*ip + dot(B,jp)*jp
+      _CP = dot(CP,ip)*ip + dot(CP,jp)*jp
+      # Calculates the area of the trapezoid
+      CPab = (_A+_B)/2
+      lcp = norm(CPab-_CP)/(pm-pn) # Chord at the control point
+      h = sqrt( (_A[2]-_B[2])^2 + (_A[3]-_B[3])^2 ) # Trapezoid height
+      Apnl = lcp*h # Area of the panel
+
+      area += Apnl
+    end
+  end
+  return area
+end
 
 
 ################################################################################
@@ -118,7 +153,7 @@ end
  Generates the following files:
  * `[filename]_dom.vtk`
 """
-function savedomain(self::Wing, filename::String;
+function save(self::Wing, filename::String;
                   save_horseshoes::Bool=true,
                   path::String="", comment::String="",
                   num=nothing)
@@ -175,10 +210,10 @@ function savedomain(self::Wing, filename::String;
 
     # Calculates how long to extend the semi-infinite vortices
     # factor = (x_vor_end - Ap[1])/infDA[1]
-    factor = (x_vor_end - self._xtwingdcr[i])/infDA[1]
+    factor = (x_vor_end - self._xtwingdcr[i])/dot(infDA, self.Oaxis[1,:])
     Apinf = Ap + factor*infDA
     # factor = (x_vor_end - Bp[1])/infDB[1]
-    factor = (x_vor_end - self._xtwingdcr[i+1])/infDB[1]
+    factor = (x_vor_end - self._xtwingdcr[i+1])/dot(infDB, self.Oaxis[1,:])
     Bpinf = Bp + factor*infDB
 
     for point in [Apinf, Ap, A, B, Bp, Bpinf]
@@ -253,11 +288,7 @@ function savedomain(self::Wing, filename::String;
       write(f, string("\n\n", "SCALARS ", field_name," float"))
       write(f, string("\n", "LOOKUP_TABLE default"))
       for i in 1:n-1+ncp+nhs
-            if field_name=="Gamma"
-              sclr = self.sol[field_name][(i-1)%ncp+1][6]
-            else
-              sclr = self.sol[field_name][(i-1)%ncp+1]
-            end
+            sclr = self.sol[field_name][(i-1)%ncp+1]
             try
               line = string(isnan(sclr) ? -1 : sclr)
             catch
@@ -308,58 +339,84 @@ end
 # ALGEBRA
 ################################################################################
 """
-  Rotates and translates the vector V.
+Rotates and translates the vector V.
 
-  Receives the i', j', k' unit vectors of an euclidean system with origin T, and
-  returns V'.
+Receives the i', j', k' unit vectors of an euclidean system with origin T, and
+returns V'. (In this version, the unit vectors have been organized as a matrix
+M)
 """
 function transform(V::typeof(Float64[]),
-                    ip::typeof(Float64[]), jp::typeof(Float64[]),
-                    kp::typeof(Float64[]), T::typeof(Float64[]))
-  M = zeros(3,3)
-  units = [ip, jp, kp]
-  for i in 1:3
-    for j in 1:3
-      M[i,j] = units[i][j]
-    end
-  end
+                    M::Array{Int64,2}, T::typeof(Float64[]))
   return M*(V-T)
 end
 
 function transform(Vs::Array{Array{Float64,1},1},
-                    ip::typeof(Float64[]), jp::typeof(Float64[]),
-                    kp::typeof(Float64[]), T::typeof(Float64[]))
+                    M::Array{Int64,2}, T::typeof(Float64[]))
   out = Array{Float64,1}[]
   for V in Vs
-    push!(out, transform(V, ip, jp, kp, T))
+    push!(out, transform(V, M, T))
   end
   return out
 end
 
 """
-  Rotates and translates back a vector V' that had been rotated and translated
-  into the system (i', j', k') with origin T, and
-  returns the original V.
+Rotates and translates back a vector V' that had been rotated and translated
+into the system (i', j', k') with origin T, and returns the original V.
+To ease repetitive computation, instead of giving the unit vectors, give the
+inverse of their matrix.
 """
 function countertransform(Vp::typeof(Float64[]),
-                            ip::typeof(Float64[]), jp::typeof(Float64[]),
-                            kp::typeof(Float64[]), T::typeof(Float64[]))
-  M = zeros(3,3)
-  units = [ip, jp, kp]
-  for i in 1:3
-    for j in 1:3
-      M[i,j] = units[i][j]
-    end
-  end
-  return inv(M)*Vp + T
+                          invM::Array{Float64,2}, T::typeof(Float64[]))
+  return invM*Vp + T
 end
 
 function countertransform(Vps::Array{Array{Float64,1},1},
-                    ip::typeof(Float64[]), jp::typeof(Float64[]),
-                    kp::typeof(Float64[]), T::typeof(Float64[]))
+                          invM::Array{Float64,2}, T::typeof(Float64[]))
   out = Array{Float64,1}[]
   for Vp in Vps
-    push!(out, countertransform(Vp, ip, jp, kp, T))
+    push!(out, countertransform(Vp, invM, T))
   end
   return out
 end
+
+"Checks that the unit vectors given as the matrix M=[i;j;k] define a coordinate
+system"
+function check_coord_sys(M::Array{Float64,2}; raise_error::Bool=true)
+  # Checks normalization
+  for i in 1:size(M)[1]
+    if abs(norm(M[i,:])-1) > 0.00000001
+      if raise_error
+        error("Not unitary axis")
+      else
+        return false
+      end
+    end
+  end
+
+  # Checks ortogonality
+  for i in size(M)[1]
+    xi = M[i, :]
+    xip1 = M[(i%size(M)[1])+1, :]
+    proj = abs(dot(xi, xip1))
+    if proj>0.00000001
+      if raise_error
+        error("Non-ortogonal system")
+      else
+        return false
+      end
+    end
+  end
+  return true
+end
+
+function check_coord_sys(M::Array{Array{Float64,1},1}; raise_error::Bool=true)
+  dims = 3
+  newM = zeros(dims,dims)
+  for i in 1:dims
+    newM[i, :] = M[i]
+  end
+  return check_coord_sys(newM; raise_error=raise_error)
+end
+
+
+##### END OF ALGEBRA ###########################################################

@@ -8,33 +8,30 @@
 
 module FLOWVLM
 
+include("FLOWVLM_solver.jl")
 
 const pm = 3/4 # Default chord-position of the control point
 const pn = 1/4 # Default chord-position of the bound vortex
 
 
-
-
 # Fields that can be calculated (implementation exists)
 # FIELDS[i] = [[Dependent fields], field type (scalar/vector)]
+# Each new field must be implemented into `calculate_field()`
 const FIELDS = Dict(
     "Gamma" =>    [[], "scalar"],         # Vortex strength
-    # "U"     =>    [["Gamma"], "vector"],  # Flow velocity (induced+freestream)
-    # "Uind"  =>    [["Gamma"], "vector"],  # Induced velocity
-    # "Cp"    =>    [["U"], "scalar"],      # Coefficient of pressure
-    # ################## LIFT AND SIDEWASH ####################
-    # "Ftot"  =>    [["Gamma"], "vector"],     # Aerodynamic force (D+L+S)
-    # "D"     =>    [["Gamma"], "vector"],     # Drag
-    # "L"     =>    [["Gamma"], "vector"],     # Lift
-    # "S"     =>    [["Gamma"], "vector"],     # Sidewash force
-    # "CFtot" =>    [["Gamma"], "vector"],     # COEFFICIENTS PER PANEL
-    # "CD"    =>    [["Gamma"], "vector"],     #
-    # "CL"    =>    [["Gamma"], "vector"],     #
-    # "CS"    =>    [["Gamma"], "vector"],     #
-    # "Cftot/CFtot" =>    [["CFtot"], "scalar"], # NORMALIZED UNIT-SPAN
-    # "Cd/CD" =>    [["CD"], "scalar"],     #      COEFFICIENTS PER PANEL
-    # "Cl/CL" =>    [["CL"], "scalar"],     #
-    # "Cs/CS" =>    [["CS"], "scalar"],     #
+    ################## LIFT AND SIDEWASH ####################
+    "Ftot"  =>    [["Gamma"], "vector"],     # Aerodynamic force (D+L+S)
+    "D"     =>    [["Gamma"], "vector"],     # Drag
+    "L"     =>    [["Gamma"], "vector"],     # Lift
+    "S"     =>    [["Gamma"], "vector"],     # Sideslip force
+    "CFtot" =>    [["Gamma"], "vector"],     # COEFFICIENTS PER PANEL
+    "CD"    =>    [["Gamma"], "vector"],     #
+    "CL"    =>    [["Gamma"], "vector"],     #
+    "CS"    =>    [["Gamma"], "vector"],     #
+    "Cftot/CFtot" =>    [["CFtot"], "scalar"], # NORMALIZED UNIT-SPAN
+    "Cd/CD" =>    [["CFtot"], "scalar"],     #      COEFFICIENTS PER PANEL
+    "Cl/CL" =>    [["CFtot"], "scalar"],     #
+    "Cs/CS" =>    [["CFtot"], "scalar"],     #
     # ################# INDUCED DRAG ###########################
     # "Dind"  =>    [["Gamma"], "vector"],  # Induced drag
     # "CDind" =>    [["Gamma"], "vector"],  # Induced drag coefficient
@@ -86,7 +83,8 @@ type Wing
   # Properties
   m::Int64              # Number of lattices
   O::Array{Float64,1}   # Origin of local reference frame
-  Oaxis::Array{Array{Float64,1},1}  # Unit vectors of the local reference frame
+  Oaxis::Array{Float64,2}     # Unit vectors of the local reference frame
+  invOaxis::Array{Float64,2}  # Inverse unit vectors
   Vinf::Any             # Vinf function used in current solution
 
   # Data storage
@@ -105,10 +103,14 @@ type Wing
   _xn::typeof(Float64[]) # x-position of the bound vortex
   _yn::typeof(Float64[]) # y-position of the bound vortex
   _zn::typeof(Float64[]) # z-position of the bound vortex
+  ## Calculation data
+  _HSs::Any              # Horseshoes
 
   Wing(leftxl, lefty, leftzl, leftchord, leftchordtwist,
                   m=0,
-                    O=[0.0,0.0,0.0], Oaxis=[[1.0,0,0], [0,1.0,0], [0,0,1.0]],
+                    O=[0.0,0.0,0.0],
+                    Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
+                    invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
                     Vinf=nothing,
                   sol=Dict(),
                   _xlwingdcr=[leftxl],
@@ -119,12 +121,14 @@ type Wing
                   _xm=Float64[], _ym=Float64[], _zm=Float64[],
                   _xn=[leftxl+pn*leftchord*cos(leftchordtwist*pi/180)],
                     _yn=[lefty],
-                    _zn=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)]
+                    _zn=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
+                  _HSs=nothing
               ) = new(leftxl, lefty, leftzl, leftchord, leftchordtwist,
-                      m, O, Oaxis, Vinf,
+                      m, O, Oaxis, invOaxis, Vinf,
                       sol,
                       _xlwingdcr, _xtwingdcr, _ywingdcr, _zlwingdcr, _ztwingdcr,
-                      _xm, _ym, _zm, _xn, _yn, _zn
+                      _xm, _ym, _zm, _xn, _yn, _zn,
+                      _HSs
                       )
 end
 
@@ -162,6 +166,12 @@ function addchord(self::Wing,
   elseif r <= 0
     error("Invalid expansion ratio (r <= 0)")
   end
+
+  # RESETS IF EXISTING SOLUTION
+  if "Gamma" in keys(self.sol)
+    _reset(self)
+  end
+
   _twist = twist*pi/180
 
   # Left boundary of the new section
@@ -217,31 +227,30 @@ function addchord(self::Wing,
   return
 end
 
-"Redefines the local coordinate system of the wing"
+"Redefines the local coordinate system of the wing, where `O` is the new origin
+and `Oaxis` is the matrix [i; j; k] of unit vectors"
 function setcoordsystem(self::Wing, O::Array{Float64,1},
-                            Oaxis::Array{Array{Float64,1},1};
+                            Oaxis::Array{Float64,2};
                             check=true)
 
-  if check
-    # Checks normalization
-    for xi in Oaxis
-      if abs(norm(xi)-1) > 0.00000001
-        error("Not unitary axis")
-      end
-    end
-
-    # Checks ortogonality
-    for (i,xi) in enumerate(Oaxis)
-      xip1 = Oaxis[(i%size(Oaxis)[1])+1]
-      proj = abs(dot(xi, xip1))
-      if proj>0.00000001
-        error("Non-ortogonal system")
-      end
-    end
-  end
+  if check; check_coord_sys(Oaxis); end;
 
   self.O = O
   self.Oaxis = Oaxis
+  self.invOaxis = inv(Oaxis)
+  self._HSs=nothing
+end
+
+
+function setcoordsystem(self::Wing, O::Array{Float64,1},
+                            Oaxis::Array{Array{Float64,1},1};
+                            check=true)
+  dims = 3
+  M = zeros(dims, dims)
+  for i in 1:dims
+    M[i, :] = Oaxis[i]
+  end
+  setcoordsystem(self, O, M; check=check)
 end
 
 "Sets Vinf(X,t) as the freestream of this wing"
@@ -255,8 +264,7 @@ function getControlPoint(self::Wing, m::Int64)
   # Local coordinate system
   CP = [self._xm[m], self._ym[m], self._zm[m]]
   # Global coordinate system
-  ip, jp, kp = self.Oaxis
-  CP = countertransform(CP, ip, jp, kp, self.O)
+  CP = countertransform(CP, self.invOaxis, self.O)
   return CP
 end
 
@@ -269,28 +277,12 @@ function getHorseshoe(self::Wing, m::Int64; t::Float64=0.0)
     error("Freestream hasn't been define yet, please call function set_Vinf()")
   end
 
-  # Case that the wing was already solved
-  if "Gamma" in keys(self.sol)
-    return self.sol["Gamma"][m]
+  # Calculates horseshoes if not available
+  if self._HSs==nothing
+    _calculateHSs(self; t=t)
   end
 
-  # Case of needing to construct the horseshoe
-  ## Horseshoe geometry
-  ### Points in the local coordinate system
-  Ap = [self._xtwingdcr[m], self._ywingdcr[m], self._ztwingdcr[m]]
-  A = [self._xn[m], self._yn[m], self._zn[m]]
-  B = [self._xn[m+1], self._yn[m+1], self._zn[m+1]]
-  Bp = [self._xtwingdcr[m+1], self._ywingdcr[m+1], self._ztwingdcr[m+1]]
-  ### Points in the global coordinate system
-  ip, jp, kp = self.Oaxis
-  Ap, A, B, Bp = countertransform([Ap, A, B, Bp], ip, jp, kp, self.O)
-  ## Else
-  CP = getControlPoint(self, m)
-  infDA = self.Vinf(Ap,t); infDA = infDA/norm(infDA)
-  infDB = self.Vinf(Bp,t); infDB = infDB/norm(infDB)
-  Gamma = nothing
-
-  return [Ap, A, B, Bp, CP, infDA, infDB, Gamma]
+  return self._HSs[m]
 end
 
 "Returns leading-edge coordinates of the n-th chord"
@@ -298,8 +290,7 @@ function getLE(self::Wing, n::Int64)
   # Local coordinate system
   LE = [self._xlwingdcr[n], self._ywingdcr[n], self._zlwingdcr[n]]
   # Global coordinate system
-  ip, jp, kp = self.Oaxis
-  LE = countertransform(LE, ip, jp, kp, self.O)
+  LE = countertransform(LE, self.invOaxis, self.O)
   return LE
 end
 
@@ -308,8 +299,7 @@ function getTE(self::Wing, n::Int64)
   # Local coordinate system
   TE = [self._xtwingdcr[n], self._ywingdcr[n], self._ztwingdcr[n]]
   # Global coordinate system
-  ip, jp, kp = self.Oaxis
-  TE = countertransform(TE, ip, jp, kp, self.O)
+  TE = countertransform(TE, self.invOaxis, self.O)
   return TE
 end
 
@@ -328,14 +318,81 @@ function _reset(self::Wing; verbose=false)
   if verbose; println("Resetting wing"); end;
   self.sol = Dict()
   self.Vinf = nothing
+  self._HSs = nothing
 end
 
-function _addsolution(self::Wing, field_name::String, sol_field)
+function _addsolution(self::Wing, field_name::String, sol_field; t::Float64=0.0)
   self.sol[field_name] = sol_field
+  if field_name=="Gamma"
+    _calculateHSs(self; t=t)
+  end
+end
+
+function _calculateHSs(self::Wing; t::Float64=0.0)
+  HSs = Array{Any,1}[]
+  for i in 1:get_m(self)
+    # Horseshoe geometry
+    ## Points in the local coordinate system
+    Ap = [self._xtwingdcr[i], self._ywingdcr[i], self._ztwingdcr[i]]
+    A = [self._xn[i], self._yn[i], self._zn[i]]
+    B = [self._xn[i+1], self._yn[i+1], self._zn[i+1]]
+    Bp = [self._xtwingdcr[i+1], self._ywingdcr[i+1], self._ztwingdcr[i+1]]
+    ## Points in the global coordinate system
+    Ap, A, B, Bp = countertransform([Ap, A, B, Bp], self.invOaxis, self.O)
+
+    # Control point
+    CP = getControlPoint(self, i)
+
+    # Direction of semi-infinite vortices
+    infDA = self.Vinf(Ap,t); infDA = infDA/norm(infDA)
+    infDB = self.Vinf(Bp,t); infDB = infDB/norm(infDB)
+
+    # Circulation
+    Gamma = "Gamma" in keys(self.sol) ? self.sol["Gamma"][i] : nothing
+
+    HS = [Ap, A, B, Bp, CP, infDA, infDB, Gamma]
+    push!(HSs, HS)
+  end
+  self._HSs = HSs
 end
 ##### END OF CLASS #############################################################
 
 
+
+################################################################################
+# WING AND WINGSYSTEM COMMON FUNCTIONS
+################################################################################
+"Solves the VLM of the Wing or WingSystem"
+function solve(wing, Vinf; t::Float64=0.0)
+  setVinf(wing, Vinf)
+  HSs = getHorseshoes(wing)
+  Gammas = VLMSolver.solve(HSs, Vinf; t=t)
+  _addsolution(wing, "Gamma", Gammas)
+end
+
+"Returns all the horseshoes of the Wing or WingSystem"
+function getHorseshoes(wing; t::Float64=0.0)
+  m = get_m(wing)
+  HSs = Array{Any,1}[]
+  for i in 1:m
+    push!(HSs, getHorseshoe(wing, i; t=t))
+  end
+  return HSs
+end
+
+"Returns the velocity induced at point X"
+function Vind(wing, X; t::Float64=0.0, ign_col::Bool=false)
+  V = zeros(3)
+  # Adds the velocity induced by each horseshoe
+  for i in 1:get_m(wing)
+    HS = getHorseshoe(wing, i; t=t)
+    V += VLMSolver.V(HS, X; ign_col=ign_col)
+  end
+  return V
+end
+##### END OF COMMONS ###########################################################
+
 include("FLOWVLM_tools.jl")
+include("FLOWVLM_postprocessing.jl")
 
 end # END OF MODULE
