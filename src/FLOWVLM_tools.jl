@@ -141,8 +141,8 @@ function simpleWing(b::Float64, ar::Float64, tr::Float64,
   z_tip = y_tip*tan(gamma*pi/180)
 
   wing = Wing(x_tip, -y_tip, z_tip, c_tip, alpha_t)
-  addchord(wing, 0.0, 0.0, 0.0, c_root, alpha, n, r)
-  addchord(wing, x_tip, y_tip, z_tip, c_tip, alpha_t, n, 1/r)
+  addchord(wing, 0.0, 0.0, 0.0, c_root, alpha, n; r=r)
+  addchord(wing, x_tip, y_tip, z_tip, c_tip, alpha_t, n; r=1/r)
 
   return wing
 end

@@ -135,7 +135,7 @@ function _calculate_forces(wing, rhoinf::Float64;
       # Midway distance
       X = (BV[1] + BV[2])/2
       # Freestream velocity (undisturbed+induced)
-      V = wing.Vinf(X,t) #+ Vind(wing, X; t=t, ign_col=true)
+      V = wing.Vinf(X,t) + Vind(wing, X; t=t, ign_col=true)
       # Vinf x (B-A)
       crss = cross(V, BV[2]-BV[1])
 

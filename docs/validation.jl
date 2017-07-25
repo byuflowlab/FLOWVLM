@@ -1,6 +1,6 @@
 # Verification and validation cases for FLOWVLM
 
-include("FLOWVLM.jl")
+include("../src/FLOWVLM.jl")
 vlm = FLOWVLM
 
 using PyPlot
@@ -27,6 +27,7 @@ function planarWing()
   gamma = 0.0
   n=4*2^4
   twist = 0.0
+  r = 40.0
 
   wing = nothing
   CLs, CDs = [], [];
@@ -34,7 +35,7 @@ function planarWing()
     function Vinf(X, t)
       return magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
     end
-    wing = vlm.simpleWing(b, ar, tr, twist, lambda, gamma; n=n, r=1.0)
+    wing = vlm.simpleWing(b, ar, tr, twist, lambda, gamma; n=n, r=r)
     vlm.solve(wing, Vinf)
     vlm.calculate_field(wing, "CFtot"; S=b^2/ar)
 
@@ -90,7 +91,7 @@ function planarWing()
   function Vinf(X,t)
     return magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
   end
-  wing = vlm.simpleWing(b, ar, tr, twist, lambda, gamma; n=n, r=1.0)
+  wing = vlm.simpleWing(b, ar, tr, twist, lambda, gamma; n=n, r=r)
   vlm.solve(wing, Vinf)
   vlm.calculate_field(wing, "CFtot"; S=b^2/ar)
   vlm.calculate_field(wing, "Cftot/CFtot"; S=b^2/ar)

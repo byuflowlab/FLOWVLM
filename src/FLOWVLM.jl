@@ -157,7 +157,7 @@ must be build from left to right.
 function addchord(self::Wing,
                   x::Float64, y::Float64, z::Float64,
                   c::Float64, twist::Float64,
-                  n::Int64, r::Float64=1.0)
+                  n::Int64; r::Float64=1.0)
   # ERROR CASES
   if c <= 0
     error("Invalid chord length (c <= 0)")
