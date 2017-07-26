@@ -27,7 +27,8 @@ function planarWing()
   gamma = 0.0
   n=4*2^4
   twist = 0.0
-  r = 40.0
+  r = 1/40.0
+  central = true
 
   wing = nothing
   CLs, CDs = [], [];
@@ -35,7 +36,8 @@ function planarWing()
     function Vinf(X, t)
       return magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
     end
-    wing = vlm.simpleWing(b, ar, tr, twist, lambda, gamma; n=n, r=r)
+    wing = vlm.simpleWing(b, ar, tr, twist, lambda, gamma;
+            n=n, r=r, central=central)
     vlm.solve(wing, Vinf)
     vlm.calculate_field(wing, "CFtot"; S=b^2/ar)
 
@@ -91,7 +93,8 @@ function planarWing()
   function Vinf(X,t)
     return magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
   end
-  wing = vlm.simpleWing(b, ar, tr, twist, lambda, gamma; n=n, r=r)
+  wing = vlm.simpleWing(b, ar, tr, twist, lambda, gamma;
+                          n=n, r=r, central=central)
   vlm.solve(wing, Vinf)
   vlm.calculate_field(wing, "CFtot"; S=b^2/ar)
   vlm.calculate_field(wing, "Cftot/CFtot"; S=b^2/ar)

@@ -130,7 +130,7 @@ end
 function simpleWing(b::Float64, ar::Float64, tr::Float64,
                     alpha::Float64, lambda::Float64, gamma::Float64;
                     alpha_tip=nothing,
-                    n::Int64=20, r::Float64=2.0)
+                    n::Int64=20, r::Float64=2.0, central=false, refinement=[])
   cr = 1/tr
   c_tip = b/ar
   c_root = cr*c_tip
@@ -140,9 +140,19 @@ function simpleWing(b::Float64, ar::Float64, tr::Float64,
   x_tip = y_tip*tan(lambda*pi/180)
   z_tip = y_tip*tan(gamma*pi/180)
 
+  # Inverts the complex refinement for the opposite wing
+  _ref = []
+  for i in size(refinement)[1]:-1:1
+    push!(_ref, [refinement[i][1], refinement[i][2], 1/refinement[i][3]])
+  end
+
   wing = Wing(x_tip, -y_tip, z_tip, c_tip, alpha_t)
-  addchord(wing, 0.0, 0.0, 0.0, c_root, alpha, n; r=r)
-  addchord(wing, x_tip, y_tip, z_tip, c_tip, alpha_t, n; r=1/r)
+  addchord(wing, 0.0, 0.0, 0.0, c_root, alpha, n;
+              r=r, central=central, refinement=refinement)
+  addchord(wing, x_tip, y_tip, z_tip, c_tip, alpha_t, n;
+              r=central!=false ? r : 1/r,
+              central=typeof(central)!=Bool ? 1-central : central,
+              refinement=_ref)
 
   return wing
 end

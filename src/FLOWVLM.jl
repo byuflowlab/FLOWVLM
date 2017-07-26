@@ -149,6 +149,15 @@ must be build from left to right.
 
   # Option arguments
   *     r       : Ratio between lengths of first and last lattices.
+  *     central : Give it true to take the length ratio between the lattice
+                  midway and first and last. Give it a number between 0 and 1
+                  to define the position of the reference midway.
+  *     refinement : Use this option for more complex refinements. It
+                  receives an array `[sec1, sec2, ...]` with sections of
+                  refinements in the format `sec=[c, n, r]`, with `c` the length
+                  of this section (sum of all c = 1), `n` the ratio of lattices
+                  in this section, and `r` the increment ratio. If this option
+                  is used, it will ignore arguments `r` and `central`.
 
   # Examples
     `julia> wing = Wing(0.0, 0.0, 0.0, 10.0, 3.0);`
@@ -157,7 +166,7 @@ must be build from left to right.
 function addchord(self::Wing,
                   x::Float64, y::Float64, z::Float64,
                   c::Float64, twist::Float64,
-                  n::Int64; r::Float64=1.0)
+                  n::Int64; r::Float64=1.0, central=false, refinement=[])
   # ERROR CASES
   if c <= 0
     error("Invalid chord length (c <= 0)")
@@ -174,6 +183,22 @@ function addchord(self::Wing,
 
   _twist = twist*pi/180
 
+  # Precaclulations of complex refinement
+  if size(refinement)[1]!=0
+    nsecs = size(refinement)[1]
+    ntot = sum([refinement[i][2] for i in 1:nsecs])
+    ctot = sum([refinement[i][1] for i in 1:nsecs])
+    ns = [] # Number of lattices in each section
+    for i in 1:nsecs
+      if i==nsecs
+        push!(ns, n-sum(ns))
+      else
+        push!(ns, floor(n*refinement[i][2]/ntot))
+      end
+    end
+    # println("$nsecs\t$ntot\t$ctot\t$ns")
+  end
+
   # Left boundary of the new section
   Ll = [self._xlwingdcr[end], self._ywingdcr[end], self._zlwingdcr[end]]
   Lt = [self._xtwingdcr[end], self._ywingdcr[end], self._ztwingdcr[end]]
@@ -184,14 +209,60 @@ function addchord(self::Wing,
   # Discretizes the section in n lattices
   l = sqrt(dot( Rl-Ll , Rl-Ll )) # Lenght of the new section's leading edge
   cumlen = 0 # Cumulative length of the leading edge already walked
+  # println("New section - n=$n\tr=$r\tcentral=$central")
   for i in 1:n
+
     # Wing discretization
-    if r==1.0 # i.e., uniform discretization
+    if size(refinement)[1]!=0 # Complex refinement
+      sec_i = 1 # Current section
+      for j in 1:nsecs
+        if i>sum([ns[k] for k in 1:j])
+          sec_i+=1
+        else
+          break
+        end
+      end
+      _prev_ns = sec_i==1 ? 0 : sum(ns[1:sec_i-1])
+      _n = ns[sec_i]
+      _r = refinement[sec_i][3]
+      _l = l*(refinement[sec_i][1]/ctot)
+      _i = i-_prev_ns
+      p = _l/( (_n*(_n-1)/2)*(_r+1)/(_r-1) )
+      d1 = p*(_n-1)/(_r-1)
+      len = d1 + p*(_i-1)
+
+    elseif r==1.0 # i.e., uniform discretization
       len = l/n # This lattice's leading edge length
+
+
     else # Linear increment (see notebook entry 20170519)
-      p = l/( (n*(n-1)/2)*(r+1)/(r-1) )
-      d1 = p*(n-1)/(r-1)
-      len = d1 + p*(i-1)
+      # Case of no central expansion
+      if central==false
+        p = l/( (n*(n-1)/2)*(r+1)/(r-1) )
+        d1 = p*(n-1)/(r-1)
+        len = d1 + p*(i-1)
+      # Case of central expansion
+      else
+        _central = central==true ? 0.5 : central
+        # Left of the center
+        if cumlen/l < _central
+          _l = l*_central
+          _n = floor(n*_central)
+          _r = r
+          _i = i
+        # Right of the center
+        else
+          _l = l*(1-_central)
+          _n = n-floor(n*_central)
+          _r = 1/r
+          _i = i-floor(n*_central)
+        end
+        p = _l/( (_n*(_n-1)/2)*(_r+1)/(_r-1) )
+        d1 = p*(_n-1)/(_r-1)
+        len = d1 + p*(_i-1)
+        # println("$i\t$len\t$cumlen\t_n=$_n\t_i=$_i")
+      end
+
     end
     cumlen += len
     THISl = Ll + (cumlen/l)*(Rl-Ll)
@@ -218,6 +289,11 @@ function addchord(self::Wing,
     push!(self._xm, M[1])
     push!(self._ym, M[2])
     push!(self._zm, M[3])
+  end
+
+  # Verifies correct discretization
+  if abs((cumlen-l)/l)>0.0000000001
+    error("Critical logic error! cumlen!=l ($cumlen!=$l)")
   end
 
   # Updates the constructor
