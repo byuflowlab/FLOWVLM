@@ -5,7 +5,9 @@ vlm = FLOWVLM
 
 using PyPlot
 
-
+################################################################################
+# VALIDATION CASES
+################################################################################
 """
 Planar, 45-deg swept-back wing (Bertin's planar wing in Example 7.2, pp. 343
 of Bertin's *Aerodynamics for Engineers*). Verified with Bertin's hand
@@ -20,15 +22,15 @@ function planarWing()
   rhoinf = 9.093/10^1
 
   alphas = [2.1, 4.2, 6.3, 8.4, 10.5];
-  b=98*0.0254
+  b = 98*0.0254
   lambda = 45.0
   ar = 5.0
   tr = 1.0
   gamma = 0.0
-  n=4*2^4
+  n = 4*2^4
   twist = 0.0
-  r = 1/40.0
-  central = true
+  r = 20.0
+  central = false
 
   wing = nothing
   CLs, CDs = [], [];
@@ -58,7 +60,7 @@ function planarWing()
         label="Bertin's hand calculation")
   plot(data[1], data[2], "ok",
         label="Weber's experimental data")
-  plot(alphas, CLs, "or", label="MyVLM")
+  plot(alphas, CLs, "or", label="FLOWVLM")
 
   xlim([0,12]);
   xlabel("Angle of attack (deg)");
@@ -72,8 +74,8 @@ function planarWing()
   subplot(222)
   plot(data[1], data[3], "ok",
         label="Weber's experimental data")
-  # plot(alphas, CDs*0.035/0.00035, "or", label="MyVLM")
-  plot(alphas, CDs, "or", label="MyVLM")
+  # plot(alphas, CDs*0.035/0.00035, "or", label="FLOWVLM")
+  plot(alphas, CDs, "or", label="FLOWVLM")
 
   xlim([0,12]);
   xlabel("Angle of attack (deg)");
@@ -108,7 +110,7 @@ function planarWing()
   web_ClCL = web_Cl/web_CL
 
   subplot(223)
-  plot(y2b, ClCL, "or", label="MyVLM")
+  plot(y2b, ClCL, "or", label="FLOWVLM")
   plot(web_2yb, web_ClCL, "ok", label="Weber's experimental data")
 
   xlim([0,1]);
@@ -130,7 +132,7 @@ function planarWing()
   web_CdCD = web_Cd/web_CD
 
   subplot(224)
-  plot(y2b, CdCD, "or", label="MyVLM")
+  plot(y2b, CdCD, "or", label="FLOWVLM")
   plot(web_2yb, web_CdCD, "ok", label="Weber's experimental data")
 
   xlim([0,1]);
@@ -144,21 +146,442 @@ function planarWing()
   # # =================================================
 
   return wing
-
-  # function Vinf(X, t)
-  #   return magVinf*[ 0, 0.0, 1]
-  # end
-  #
-  # wing = vlm.simpleWing(b, ar, cr, wing_alpha, lambda, gamma; n=n, r=1.0)
-  # kp = -[ cos(alpha*pi/180), 0.0, -sin(alpha*pi/180)]
-  # ip = [ sin(alpha*pi/180), 0.0, cos(alpha*pi/180)]
-  # jp = [0.0,1.0,0.0]
-  # T = [100.0,50,200]
-  # vlm.setcoordsystem(wing, T, [ip,jp,kp])
-  # vlm.solve(wing, Vinf)
-  # vlm.calculate_field(wing, "D"; rhoinf=rhoinf)
-  # vlm.calculate_field(wing, "CD"; S=b^2/ar)
-  # vlm.save(wing, "test"; save_horseshoes=true)
-  # return wing
-
 end
+
+
+"""
+Validation of predicted moments compared to results on a Warren 12 wing
+(tappered, swept, flat wing)
+For details, see Validation 3 in *Great OWL Publishing - Surfaces; Vortex
+Lattice Module*, pp. 109.
+"""
+function warren12()
+  magVinf = 1.0
+  rhoinf = 9.093/10^1
+  qinf = (1/2)*rhoinf*magVinf^2
+  r_cg = [0.0, 0.0, 0.0]
+  S = 2.83*0.092903 # m^2
+  n = 100
+  barc = 1.0*0.3048 # m
+
+  b=2.83*0.3048 # m
+  lambda = 53.54 # deg
+  # ar = 2.83
+  ar = 5.66
+  tr = 0.5/1.5
+  gamma = 0.0
+  twist = 0.0
+  wing = vlm.simpleWing(b, ar, tr, twist, lambda, gamma; n=n, r=1.0)
+
+  cls = []
+  cms = []
+  alphas = [i for i in 1:2:12]
+  for alpha in alphas
+    Vinf(X,t) = magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
+
+    vlm.solve(wing, Vinf)
+    vlm.calculate_field(wing, "Ftot"; rhoinf=rhoinf)
+    vlm.calculate_field(wing, "CFtot"; S=S)
+    vlm.calculate_field(wing, "Mtot"; r_cg = r_cg)
+    vlm.calculate_field(wing, "CMtot"; S=S, l="automatic", qinf=qinf)
+    info = vlm.fields_summary(wing)
+    push!(cls, info["CL"]);
+    push!(cms, info["CMtot"]);
+  end
+
+  # Curves reported in the reference document
+  CLalpha = 2.743*pi/180 # 1/deg
+  CMalpha = -3.10*pi/180 # 1/deg
+
+  fig = figure("validation_warren12",figsize=(7*2,5))
+
+  # LIFT
+  subplot(121)
+  plot([0, maximum(alphas)], CLalpha*[0, maximum(alphas)], "-k",
+        label="Published data")
+  plot(alphas, cls, "or", label="FLOWVLM")
+
+  xlim([0,maximum(alphas)+1]);
+  xlabel("Angle of attack (deg)");
+  ylim([0,  maximum([ CLalpha*maximum(alphas), maximum(cls)  ])*1.1]);
+  ylabel("CL");
+  grid(true, color="0.8", linestyle="--")
+  legend(loc="best");
+  title("Warren 12");
+
+  # MOMENT
+  subplot(122)
+  plot([0, maximum(alphas)], CMalpha*[0, maximum(alphas)], "-k",
+        label="Published data")
+  plot(alphas, -cms, "or", label="FLOWVLM")
+
+  xlim([0,maximum(alphas)+1]);
+  xlabel("Angle of attack (deg)");
+  ylim( [minimum(  [ CMalpha*maximum(alphas), minimum(-cms) ]  )*1.1, 0]  );
+  ylabel("CM");
+  grid(true, color="0.8", linestyle="--")
+  legend(loc="best");
+  title("Warren 12");
+
+  return wing
+end
+
+
+"""
+Validation on different wing properties (taper, sweep, and twist) compared
+with experimental data from Anderson's 1940 *Determination of the
+characteristics of tapered wings*. The data was captured on a variety of cross-
+sectional airfoil geometries, but the current formulation of FLOWVLM doesn't
+account for airfoil geometry, hence only the symmetric case (wing 00-xx-xx)
+can be expected to match.
+
+Since all other validation cases are on untwisted wings, this study is
+particularly useful to validate the effects of twist.
+
+Give it an array of the wings to calculate.
+"""
+function twist(; to_calculate = [1,2], save=false, n=30)
+  # Sweep angles
+  lambdas = [0.0, 0.0, 15.0, 30.0, 30.0, 15.0, 15.0, 15.0, 15.0]
+  # Washout angles
+  washouts = -[0.0, 0.0, 0.0, 0.0, 8.5, 8.5, 0.0, 3.45, 3.45]
+  # Taper ratios
+  trs = [(2/3)/(4/3), 2/4, 2/4, 2/4, 2/4, 2/4, 2/4, 2/4, 2/8]
+  # Aspect ratio (b^2/S)
+  AR = 6.0
+  # Aspect ratio as defined in simpleWing() (b/c_tip)
+  ars = 1./([2/3, 2/3, 2/3, 2/3, 2/3, 2/3, 2/3, 2/3, 2/5]/AR)
+
+  # Since this wing align the quarter chords for lambda=0, a correction must be
+  # made
+  lambdas_corr = lambdas + atan(  ( 1/AR )*( (1-trs)./(1+trs) )  )*180/pi
+
+  magVinf = 1.0
+  b = 30.0
+  S = b^2/AR
+
+  # Angles of attack it will compute
+  alphas = [i for i in -4:15]
+  deleteat!(alphas, 5) # Gets ride of the null angle of attack
+
+  wings = []
+  wings_CLs = []
+  wings_CDs = []
+  for i in to_calculate
+    wing = vlm.simpleWing(b, ars[i], trs[i], 0.0, lambdas_corr[i], 0.0;
+                          twist_tip=washouts[i], n=n, r=1.0)
+
+    cls = []
+    cds = []
+    for alpha in alphas
+      Vinf(X,t) = magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
+      vlm.solve(wing, Vinf)
+      vlm.calculate_field(wing, "CFtot"; S=S)
+      info = vlm.fields_summary(wing)
+      push!(cls, alpha<0 ? -info["CL"] : info["CL"]);
+      push!(cds, info["CD"]);
+    end
+    push!(wings_CLs, cls)
+    push!(wings_CDs, cds)
+
+    if save
+      push!(wings, wing)
+      vlm.save(wing, "twist$i", save_horseshoes=true)
+    end
+  end
+
+  ############# EXPERIMENTAL DATA
+  exp_CLs = [ [[-4, -2, 4, 8, 12, 16],[-0.3, -0.15, 0.3, 0.6, 0.92, 1.22]], # Wing 1 [alphas, CLs]
+              [[-4, -2, 4, 8, 12, 16],[-0.2, -0.05, 0.4, 0.7, 1.0, 1.3]], # Wing 2
+              [[-4, -2, 4, 8, 12, 16],[-0.18, 0.0, 0.45, 0.75, 1.075, 1.33]], # Wing 3
+              [[],[]], # Wing 4
+              [[],[]], # Wing 5
+              [[-4, -2, 4, 8, 12, 16],[-0.4, -0.25, 0.2, 0.5, 0.8, 1.1]], # Wing 6
+              [[-4, -2, 4, 8, 12, 16],[-0.275, -0.1, 0.375, 0.68, 0.95, 1.25]], # Wing 7
+              [[-4, -2, 4, 8, 12, 16],[-0.4, -0.225, 0.23, 0.54, 0.85, 1.125]], # Wing 8
+              [[-4, -2, 4, 8, 12, 16],[-0.37, -0.2, 0.25, 0.55, 0.85, 1.125]], # Wing 9
+            ]
+  exp_CDs = [ [[-4, -2, 4, 8, 12, 16],[0.0175, 0.01, 0.0175, 0.0325, 0.0575, 0.0975]], # Wing 1 [alphas, CDs]
+              [[-4, -2, 4, 8, 12, 16],[0.0125, 0.0075, 0.02, 0.04, 0.07, 0.12]], # Wing 2
+              [[-4, -2, 4, 8, 12, 16],[0.01, 0.009, 0.02, 0.04, 0.07, 0.115]], # Wing 3
+              [[],[]], # Wing 4
+              [[],[]], # Wing 5
+              [[-4, -2, 4, 8, 12, 16],[0.02, 0.0175, 0.015, 0.025, 0.048, 0.08]], # Wing 6
+              [[-4, -2, 4, 8, 12, 16],[0.015, 0.01, 0.019, 0.035, 0.0625, 0.12]], # Wing 7
+              [[-4, -2, 4, 8, 12, 16],[0.02, 0.0125, 0.0125, 0.025, 0.05, 0.085]], # Wing 8
+              [[-4, -2, 4, 8, 12, 16],[0.0185, 0.01, 0.015, 0.025, 0.05, 0.09]], # Wing 9
+            ]
+
+
+  ############# PLOTS
+  y_data = [wings_CLs, wings_CDs]
+  data_exp = [exp_CLs, exp_CDs]
+  y_labels = Dict(L"C_L"=>1, L"C_D"=>2)
+  n_w = size(to_calculate)[1]
+  fig = figure("validation_twisted",figsize=(7*2,5*n_w))
+
+  n_p = 1
+  for (i,key) in enumerate(to_calculate)
+
+    for (y_lbl, y_lbl_i) in y_labels
+      subplot(100*n_w + 20 + n_p)
+      title("Wing #$key")
+
+      xprmntl = data_exp[y_lbl_i][key]
+      exp_x, exp_y = xprmntl
+      plot(exp_x, exp_y, "--ok", label="Experimental")
+
+      y = y_data[y_lbl_i][i]
+      plot(alphas, y, "or", label="FLOWVLM")
+
+      xlim([minimum(alphas),maximum(alphas)*1.25]);
+      xlabel("Angle of attack (deg)");
+      y_min = minimum([minimum(y), minimum(exp_y)])
+      y_max = maximum([maximum(y), maximum(exp_y)])
+      y_low = y_min - (y_max-y_min)*0.25
+      y_up = y_max + (y_max-y_min)*0.25
+      ylim([y_low, y_up]);
+      ylabel(y_lbl);
+      grid(true, color="0.8", linestyle="--")
+      legend(loc="best");
+      n_p += 1
+    end
+  end
+
+  return wings
+end
+
+
+"""
+Comparison with experimental data on planar wings at low reynolds numbers from
+Ananda 2015, *Measured aerodynamic characteristics of wings at low Reynolds
+numbers*.
+It is expected that the induced drag calculated through FLOWVLM won't match
+quite well their measured drag due to predominant viscous effects, hence,
+this study is useful for seeing the discrepancy that is introduced by not
+accounting for viscous drag.
+"""
+function planarwing_lowreynolds(; save_w=false)
+  save = save_w
+  save_fd = save && true
+  _save_name = "lowRE"
+
+  b = [7.0, 10.5, 14.0, 17.5, 6.95, 10.43, 13.91, 6.75, 10.13, 13.5,]*0.0254 #m
+  AR = [2.0, 3.0, 4.0, 5.0, 2.0, 3.0, 4.0, 2.0, 3.0, 4.0]     # aspect ratios
+  tr = [1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.5, 0.5, 0.5]  # taper ratios
+  lambda = atan(   (  (1-tr)./(1+tr)  )./AR   ) * 180 / pi    # sweep
+  bar_c = b./AR   # mean chord
+
+  # Aspect ratio as defined in simpleWing() (b/c_tip)
+  c_tips = 2*b./AR.*(tr./(1+tr))
+  ars = b./c_tips
+
+  mu = 1.983/10^5     # Pa*s , dynamic viscosity of air
+  rhoinf = 1.204         # kg/m^3 , density of air
+  nu = mu/rhoinf
+
+  n = 50
+  RE = [80*10^3]
+
+  # -------------------------- Figure 6
+   alphas_6 = [i for i in -15:15]
+  deleteat!(alphas_6, 16)
+  cls = []
+  cds = []
+  wing = nothing
+  for alpha in alphas_6
+    # println("Solving alpha=$alpha")
+    i = 2
+    re = 80*10^3
+    magVinf = re*nu/bar_c[i]
+    Vinf(X,t) = magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
+    S = b[i]*bar_c[i]
+
+    # wing = tls.simpleWing(b[i], AR[i], tr[i], 0.0, lambda[i], 0.0; n=n, r=1.0)
+    wing = vlm.simpleWing(b[i], ars[i], tr[i], 0.0, lambda[i], 0.0; n=n, r=1.0)
+    vlm.solve(wing, Vinf)
+    vlm.calculate_field(wing, "CFtot"; S=S)
+    info = vlm.fields_summary(wing)
+    push!(cls, info["CL"]*(alpha<0 ? -1 : 1))
+    push!(cds, info["CD"])
+    # println("\tDone!")
+  end
+
+  fig = figure("validation_planar_wing_low_re",figsize=(7*2,5))
+  # LIFT
+  subplot(121)
+  plot(alphas_6, cls, "or", label="MyVLM")
+
+  xlim([-20, 30]);
+  xlabel("Angle of attack (deg)");
+  ylim([-1, 1]);
+  ylabel(L"$C_L$");
+  grid(true, color="0.8", linestyle="--")
+  #legend(loc="best");
+  title(L"Flat Plate, $AR=3, tr=1, Re=30\times 10^3$");
+
+  # DRAG
+  subplot(122)
+  plot(alphas_6, cds, "or", label="MyVLM")
+
+  xlim([-20, 30]);
+  xlabel("Angle of attack (deg)");
+  ylim([0, 0.5]);
+  ylabel(L"$C_D$");
+  grid(true, color="0.8", linestyle="--")
+  #legend(loc="best");
+  title(L"Flat Plate, $AR=3, tr=1, Re=30\times 10^3$");
+
+  return wing
+end
+##### END OF VALIDATION ########################################################
+
+################################################################################
+# VERIFICATION CASES
+################################################################################
+"""
+Comparison with theoretical calculation on two planar wings of sweep 0 and 35.
+For details, see Validation 2 in *Great OWL Publishing - Surfaces; Vortex
+Lattice Module*, pp. 106. It also performs a grid dependance study to determine
+dependance of aerodynamic characteristics with lattice refinement.
+"""
+function ver_planarWing(; save_w=false, drag_trick=false)
+
+  save = save_w  # Saves wings
+  save_fd = false # Saves fluid domains
+
+  # Theoretical results
+  theoretical = Dict( 0.0 => Dict(
+                                  "CLalpha" => 0.08846, #per deg
+                                  "CL"      => 0.8846,
+                                  "L"       => 299.7*4.44822, # N
+                                  "CD"   => 0.02491,
+                                  "D"    => 8.4*4.44822 # N
+                                  ),
+                      35.0 => Dict(
+                                  "CLalpha" => 0.07480, #per deg
+                                  "CL"      => 0.7480,
+                                  "L"       => 253.4*4.44822, # N
+                                  "CD"   => 0.01781,
+                                  "D"    => 6.0*4.44822 # N
+                                  )
+                      )
+
+  to_compare = ["CD", "CL", "L", "D"]
+
+  lambdas = [0.0, 35.0]
+  b = 10*0.3048 # m
+  c = 1*0.3048 # m
+  alpha = 10.0 # deg
+  gamma = 0.0
+  S = 10*0.092903
+  AR = b^2/S
+  tr = 1.0
+  n = 100
+
+  magVinf = 168.8*0.3048 # m/s
+  Vinf(X, t) = magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
+  rhoinf = 0.002378*515.379 # kg/m^3
+
+  for lambda in lambdas
+    println("###### LAMBDA $lambda #######")
+    function wing_fun(n)
+      return vlm.simpleWing(b, AR, tr, 0.0, lambda, gamma; n=n, r=10.0)
+    end
+
+    println("------------ GRID CONVERGENCE")
+    wing, ns, vals = vlm.grid_dependance(wing_fun, Vinf; ns=[4*2^i for i in 1:6],
+                              S=S, rhoinf=rhoinf,
+                              verbose=true, save_w=save,
+                              save_name="planar$(Int(lambda))", save_fd=save_fd,
+                              fig_title="Planar wing - Sweep $lambda")
+    println("------------ GRID CONVERGENCE DONE")
+
+    vlm.calculate_field(wing, "L"; rhoinf=rhoinf)
+    info = vlm.fields_summary(wing; drag_trick=drag_trick)
+    println("\n\tPARAM\tTHEORETICAL\tFLOWVLM\t\tError")
+    for key in to_compare
+      theo = theoretical[lambda][key]
+      myvlm = info[key]
+      err = (theo-myvlm)/myvlm
+      sigfigs = 3
+      ordr = log10(theo)
+      rnd = sigfigs - ordr <= 0 ? 0 : Int(round(sigfigs-ordr))
+      println("\t>$(key)\t$(round(theo,rnd))\t\t$(round(myvlm,rnd))\t\t$(round(err*100,1))%")
+    end
+    println("###### Done\n")
+  end
+end
+
+"Aerodynamic characteristics on Bertin's wing when the AOA is included
+in the incident freestream compared to when the AOA is included in the local
+coordinate system"
+function ver_local_coord_sys(; save_w=false)
+
+  function print_dict(dict)
+    for key in keys(dict)
+      println("\t$key:\t$(dict[key])")
+    end
+  end
+
+  magVinf = 163*0.3048 # m/s
+  rhoinf = 9.093/10^1
+
+  alpha = 10.5
+  b=98*0.0254
+  lambda = 45.0
+  ar = 5.0
+  tr = 1.0
+  gamma = 0.0
+  twist = 0.0
+  n = 4*2^4
+  r = 1.0
+  central = false
+
+  # ------------ AOA IN INCIDENT FREESTREAM
+  Vinf1(X, t) = magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
+  wing1 = vlm.simpleWing(b, ar, tr, twist, lambda, gamma;
+                        n=n, r=r, central=central)
+  vlm.solve(wing1, Vinf1)
+  vlm.calculate_field(wing1, "Ftot"; rhoinf=rhoinf)
+  vlm.calculate_field(wing1, "Mtot")
+
+  info1 = vlm.fields_summary(wing1)
+  if save_w
+    vlm.save(wing1, "ver_coord_sys_wing1"; save_horseshoes=true)
+  end
+
+  println("######## AOA IN INCIDENT FREESTREAM ########")
+  print_dict(info1)
+
+  # ------------ AOA IN LOCAL COORDINATE SYSTEM
+  # (It aligns the axis of the wing with the z-global-axis)
+  function Vinf(X, t)
+    return magVinf*[ 0, 0.0, 1]
+  end
+
+  wing2 = vlm.simpleWing(b, ar, tr, twist, lambda, gamma;
+                          n=n, r=r, central=central)
+
+  # Local coordinate system
+  kp = -[ cos(alpha*pi/180), 0.0, -sin(alpha*pi/180)]
+  ip = [ sin(alpha*pi/180), 0.0, cos(alpha*pi/180)]
+  jp = [0.0,1.0,0.0]
+  T = [b/1,b/2,-b/3]
+  vlm.setcoordsystem(wing2, T, [ip,jp,kp])
+
+  vlm.solve(wing2, Vinf)
+  vlm.calculate_field(wing2, "Ftot"; rhoinf=rhoinf)
+  vlm.calculate_field(wing2, "Mtot")
+
+  info2 = vlm.fields_summary(wing2)
+  if save_w
+    vlm.save(wing2, "ver_coord_sys_wing2"; save_horseshoes=true)
+  end
+
+  println("######## AOA IN LOCAL COORDINATE SYSTEM ########")
+  print_dict(info2)
+
+  return wing1, wing2
+end
+##### END OF VERIFICATION ######################################################

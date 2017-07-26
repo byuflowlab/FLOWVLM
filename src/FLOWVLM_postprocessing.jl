@@ -60,7 +60,7 @@ function calculate_field(wing, field_name::String;
     end
     _S = S=="automatic" ? _S = planform_area(wing) : S
 
-    CF, CS, CD, CL = _calculate_force_coeffs(wing, _rhoinf, _qinf, S)
+    CF, CS, CD, CL = _calculate_force_coeffs(wing, _rhoinf, _qinf, _S)
     _addsolution(wing, "CFtot", CF)
     _addsolution(wing, "CS", CS)
     _addsolution(wing, "CD", CD)
@@ -84,7 +84,7 @@ function calculate_field(wing, field_name::String;
     end
     _S = S=="automatic" ? _S = planform_area(wing) : S
 
-    Cf, Cs, Cd, Cl = _calculate_force_coeffs(wing, _rhoinf, _qinf, S;
+    Cf, Cs, Cd, Cl = _calculate_force_coeffs(wing, _rhoinf, _qinf, _S;
                                               per_unit_span=true)
 
     # Converts them into scalars
@@ -106,6 +106,38 @@ function calculate_field(wing, field_name::String;
     _addsolution(wing, "Cs/CS", s_Cs/(info["CS"]/span))
     _addsolution(wing, "Cd/CD", s_Cd/(info["CD"]/span))
     _addsolution(wing, "Cl/CL", s_Cl/(info["CL"]/span))
+
+  ######## PANEL AREA ###########################
+  elseif field_name=="A"
+    _addsolution(wing, field_name, _calculate_areas(wing))
+
+
+  ######## MOMENTS ###########################
+  elseif field_name in ["Mtot", "M_L", "M_M", "M_N"]
+
+    # Center of gravity
+    _r_cg = r_cg=="automatic" ? get_CG(wing) : r_cg
+
+    Mtot, M_L, M_M, M_N = _calculate_moments(wing, _r_cg)
+    _addsolution(wing, "Mtot", Mtot)
+    _addsolution(wing, "M_L", M_L)
+    _addsolution(wing, "M_M", M_M)
+    _addsolution(wing, "M_N", M_N)
+
+
+  ######## MOMENTS COEFFICIENTS ###########################
+  elseif field_name in ["CMtot", "CM_L", "CM_M", "CM_N"]
+    if qinf in ["automatic", nothing, 0.0]
+      error("$(field_name) requested but qinf is missing")
+    end
+
+    _l = l=="automatic" ? get_barc(wing) : l
+    _S = S=="automatic" ? planform_area(wing) : S
+
+    _addsolution(wing, "CMtot", wing.sol["Mtot"]/(qinf*_S*_l))
+    _addsolution(wing, "CM_L", wing.sol["M_L"]/(qinf*_S*_l))
+    _addsolution(wing, "CM_M", wing.sol["M_M"]/(qinf*_S*_l))
+    _addsolution(wing, "CM_N", wing.sol["M_N"]/(qinf*_S*_l))
 
   ######## ERROR CASE ###################################
   else
@@ -168,6 +200,38 @@ function _calculate_force_coeffs(wing, rhoinf::Float64, qinf::Float64,
   return F/aux, SS/aux, D/aux, L/aux
 end
 
+"Calculates total moment and decomposition into roll, pitch, and yaw"
+function _calculate_moments(wing, r_cg)
+  m = get_m(wing)
+
+  # Direction of rolling, pitching, and yawing moments
+  unit_L = -wing.Oaxis[1, :]
+  unit_M = wing.Oaxis[2, :]
+  unit_N = -wing.Oaxis[3, :]
+  units = [unit_L, unit_M, unit_N]
+
+  Mtot = []
+  M_L = []
+  M_M = []
+  M_N = []
+  for i in 1:m
+      # Force on this panel
+      Ftot_i = wing.sol["Ftot"][i]
+      # Center of this panel
+      r_i = get_r(wing, i)
+      # Moment on this panel
+      Mtot_i = cross( (r_i-r_cg)  , Ftot_i )
+      push!(Mtot, Mtot_i)
+      # Decomposes the moment
+      for (j, M) in enumerate([M_L, M_M, M_N])
+        this = dot(Mtot_i, units[j])*units[j]
+        push!(M, this)
+      end
+  end
+
+  return Mtot, M_L, M_M, M_N
+end
+
 "Returns the average Vinf from all control points"
 function _aveVinf(wing; t::Float64=0.0)
   Vinf = zeros(3)
@@ -207,13 +271,21 @@ function _decompose(wing, F)
 
 end
 
+"Calculates the area of each panel"
+function _calculate_areas(wing)
+  A = [get_A(wing, i) for i in 1:get_m(wing)]
+  return A
+end
+
 "Returns a dictionary summarizing key parameters on a Wing or WingSystem"
-function fields_summary(wing)
+function fields_summary(wing; drag_trick=false)
   dict = Dict()
 
   # Iterates over each field
   for field_name in keys(wing.sol)
-    if FIELDS[field_name]=="vector"
+    if drag_trick && field_name in ["D", "CD"]
+      val = 0.0
+    elseif FIELDS[field_name][2]=="vector"
       val = [0.0,0.0,0.0]
     else
       val = 0.0
@@ -221,7 +293,7 @@ function fields_summary(wing)
 
     # Adds each panel's value together
     for elem in wing.sol[field_name]
-      val += elem
+      val += (drag_trick && field_name in ["D", "CD"]) ? norm(elem) : elem
     end
 
     # Saves it

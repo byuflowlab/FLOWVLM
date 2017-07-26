@@ -112,7 +112,7 @@ function _V_AB(A::Array{Float64,1}, B, C, gamma; ign_col::Bool=false)
 
   # Checks colinearity
   if _check_collinear(magsqr, col_crit; ign_col=ign_col)
-    if ign_col==false && n_col==1
+    if ign_col==false && n_col==1 && mute_warning==false
       println("\n\t magsqr:$magsqr \n\t A:$A \n\t B:$B \n\t C:$C")
     end
     return [0.0,0.0,0.0]
@@ -152,7 +152,7 @@ function _V_Ainf_out(A::Array{Float64,1},
 
   # Checks colinearity
   if _check_collinear(mag, col_crit; ign_col=ign_col)
-    if ign_col==false && n_col==1
+    if ign_col==false && n_col==1 && mute_warning==false
       println("\n\t magsqr:$magsqr \n\t A:$A \n\t infD:$infD \n\t C:$C")
     end
     return [0.0,0.0,0.0]

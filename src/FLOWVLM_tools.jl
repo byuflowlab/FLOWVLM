@@ -1,7 +1,4 @@
 
-
-
-
 ################################################################################
 # CALCULATION WING PROPERTIES
 ################################################################################
@@ -10,7 +7,7 @@ Returns the area of the m-th panel, with `self` either Wing or WingSystem.
 For derivation, see notebook entry 20170619.
 """
 function get_A(self, m::Int64)
-  Ap, A, B, Bp, CP, infDA, infDB, Gamma = getHorseshoe(self, m, nothing)
+  Ap, A, B, Bp, CP, infDA, infDB, Gamma = getHorseshoe(self, m)
   CPAB = (A+B)/2
   lcp = norm(CPAB-CP)/(pm-pn)
   h = sqrt( (A[2]-B[2])^2 + (A[3]-B[3])^2  )
@@ -23,7 +20,7 @@ Returns the center of gravity of the m-th panel, with `self` either Wing or
 WingSystem.
 """
 function get_r(self, m::Int64)
-  Ap, A, B, Bp, CP, infDA, infDB, Gamma = getHorseshoe(self, m, nothing)
+  Ap, A, B, Bp, CP, infDA, infDB, Gamma = getHorseshoe(self, m)
   CPAB = (A+B)/2
   r = (CPAB+CP)/2
   return r
@@ -79,7 +76,7 @@ function planform_area(wing)
   area = 0.0
 
   # Calculates the area of each wing
-  if typeof(wing)==vlm.WingSystem
+  if false && typeof(wing)==WingSystem
     for _wing in wing.wings
       area += planform_area(_wing)
     end
@@ -112,29 +109,29 @@ end
 # UTILITIES
 ################################################################################
 """
-    `simpleWing(b, ar, tr, alpha, lambda, gamma; alpha_tip=alpha, n=20, r=2.0)`
+    `simpleWing(b, ar, tr, twist, lambda, gamma; twist_tip=twist, n=20, r=2.0)`
   Generates a single-section wing.
 
   # Arguments
   *   b       :   (float) span.
   *   ar      :   (float) aspect ratio defined as the span over the tip's chord.
   *   tr      :   (float) taper ratio (tip chord / root chord).
-  *   alpha   :   (float) angle of attack in degrees.
+  *   twist   :   (float) twist of the root in degrees.
   *   lambda  :   (float) sweep in degrees.
   *   gamma   :   (float) dihedral in degrees.
   *   (OPTIONALS)
-  *   alpha_tip : (float) angle of attack at the tip. Use this to generate twist
+  *   twist_tip : (float) twist of the tip if different than root.
   *   n       :   (int)   number of horseshoes per side of the wing.
   *   r       :   (float) horseshoes' expansion ratio
 """
 function simpleWing(b::Float64, ar::Float64, tr::Float64,
-                    alpha::Float64, lambda::Float64, gamma::Float64;
-                    alpha_tip=nothing,
+                    twist::Float64, lambda::Float64, gamma::Float64;
+                    twist_tip=nothing,
                     n::Int64=20, r::Float64=2.0, central=false, refinement=[])
   cr = 1/tr
   c_tip = b/ar
   c_root = cr*c_tip
-  alpha_t = alpha_tip==nothing ? alpha : alpha_tip
+  twist_t = twist_tip==nothing ? twist : twist_tip
 
   y_tip = b/2
   x_tip = y_tip*tan(lambda*pi/180)
@@ -146,10 +143,10 @@ function simpleWing(b::Float64, ar::Float64, tr::Float64,
     push!(_ref, [refinement[i][1], refinement[i][2], 1/refinement[i][3]])
   end
 
-  wing = Wing(x_tip, -y_tip, z_tip, c_tip, alpha_t)
-  addchord(wing, 0.0, 0.0, 0.0, c_root, alpha, n;
+  wing = Wing(x_tip, -y_tip, z_tip, c_tip, twist_t)
+  addchord(wing, 0.0, 0.0, 0.0, c_root, twist, n;
               r=r, central=central, refinement=refinement)
-  addchord(wing, x_tip, y_tip, z_tip, c_tip, alpha_t, n;
+  addchord(wing, x_tip, y_tip, z_tip, c_tip, twist_t, n;
               r=central!=false ? r : 1/r,
               central=typeof(central)!=Bool ? 1-central : central,
               refinement=_ref)
@@ -316,7 +313,75 @@ function save(self::Wing, filename::String;
   close(f)
 end
 
+"Receives a function generate_wing(n) and plots aerodynamic characteristics
+at different lattice resolutions"
+function grid_dependance(wing_function, Vinf; ns=[4*2^i for i in 1:6],
+                          S="automatic", rhoinf=9.093/10^1,
+                          verbose=true,
+                          save_w=false, save_name="griddep", save_fd=false,
+                          fig_title="")
 
+  to_plot = ["CD", "CL", "Gamma"]
+  to_print = ["CD", "CL", "Gamma"]
+  vals = Dict([ (key, []) for key in to_print])
+  wing = nothing
+  for (i,n) in enumerate(ns)
+    verbose ? println("Starting n=$n ...") : nothing
+
+    wing = wing_function(n)
+
+    solve(wing, Vinf)
+    calculate_field(wing, "CFtot"; rhoinf=rhoinf)
+
+    info = fields_summary(wing)
+
+    str = "Iteration #$i"
+    for key in keys(info)
+      if key in to_plot || key in to_print
+        push!(vals[key], info[key])
+        str *="\n\t $(key): $(info[key])"
+      end
+    end
+    verbose ?  println("\t Done!") : nothing
+
+    if save_w
+      save(wing, save_name; save_horseshoes=false, num=i)
+      if save_fd
+        # # fd = PP.FluidDomain(wing, [-0.25, -0.75, -0.125], [2.0, 0.75, 0.25], [8, 8, 5]*4);
+        # fd = PP.FluidDomain(wing, [-0.25, -1.75, -0.125], [2.5, 1.75, 0.5], [8, 8, 5]*4);
+        # PP.solve(fd, "U"; Vinf=Vinf);
+        # # PP.solve(fd, "Uind"; Vinf=Vinf);
+        # PP.solve(fd, "Cp"; Vinf=Vinf);
+        # PP.savedomain(fd, save_name*"_fd")
+      end
+    end
+  end
+
+
+  n_vals = length(to_plot)
+  fig = figure(fig_title, figsize=(7*n_vals,5))
+  suptitle(fig_title, fontsize="x-large")
+  for (i,key) in enumerate(to_plot)
+    subplot(100 + 10*n_vals + i)
+    title("$key dependance to grid")
+    y = vals[key]
+    plot(ns, y, "o")
+    xlim([minimum(ns),maximum(ns)*1.25]);
+    xlabel("Grid");
+    y_min = minimum(y)
+    y_max = maximum(y)
+    y_low = y_min - (y_max-y_min)*0.25
+    y_up = y_max + (y_max-y_min)*0.25
+    ylim([y_low, y_up]);
+    ylabel(key);
+  end
+
+  println("VALUES AT n=$(ns[end])")
+  for key in to_print
+    println("\t$key : $(vals[key][end])")
+  end
+  return wing, ns, vals
+end
 
 
 ################################################################################
@@ -336,7 +401,7 @@ function V(self, P; ign_col::Bool=false)
   V_tot = zeros(3)
   # Iterates over every horseshoe in the wing
   for i in 1:m
-    this_HS = getHorseshoe(self, i, nothing)
+    this_HS = getHorseshoe(self, i)
     V_this = VLMSolver.V(this_HS, P; ign_col=ign_col)
     V_tot += V_this
   end

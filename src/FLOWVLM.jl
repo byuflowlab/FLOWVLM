@@ -5,10 +5,13 @@
 # @Last modified time: 2017-07-20T12:37:14-06:00
 # @Comments: Vortex lattice solver
 
-
 module FLOWVLM
 
+using PyPlot # Comment PyPlot out if using ProfileView
 include("FLOWVLM_solver.jl")
+
+
+
 
 const pm = 3/4 # Default chord-position of the control point
 const pn = 1/4 # Default chord-position of the bound vortex
@@ -36,15 +39,15 @@ const FIELDS = Dict(
     # "Dind"  =>    [["Gamma"], "vector"],  # Induced drag
     # "CDind" =>    [["Gamma"], "vector"],  # Induced drag coefficient
     # ################## MOMENTS ###############################
-    # "A"     =>    [[], "scalar"],         # Area of each panel
-    # "Mtot"  =>    [["Ftot"], "vector"],  # Total moment (-M_L + M_M - M_N)
-    # "M_L"   =>    [["Ftot"], "vector"],  # Rolling moment
-    # "M_M"   =>    [["Ftot"], "vector"],  # Pitching moment
-    # "M_N"   =>    [["Ftot"], "vector"],  # Yawing moment
-    # "CMtot" =>    [["Ftot"], "vector"],  # COEFFICIENTS PER PANEL
-    # "CM_L"  =>    [["Ftot"], "vector"],  #
-    # "CM_M"  =>    [["Ftot"], "vector"],  #
-    # "CM_N"  =>    [["Ftot"], "vector"],  #
+    "A"     =>    [[], "scalar"],         # Area of each panel
+    "Mtot"  =>    [["Ftot"], "vector"],  # Total moment (-M_L + M_M - M_N)
+    "M_L"   =>    [["Ftot"], "vector"],  # Rolling moment
+    "M_M"   =>    [["Ftot"], "vector"],  # Pitching moment
+    "M_N"   =>    [["Ftot"], "vector"],  # Yawing moment
+    "CMtot" =>    [["Mtot"], "vector"],  # COEFFICIENTS PER PANEL
+    "CM_L"  =>    [["Mtot"], "vector"],  #
+    "CM_M"  =>    [["Mtot"], "vector"],  #
+    "CM_N"  =>    [["Mtot"], "vector"],  #
   )
 
 
