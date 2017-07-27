@@ -100,7 +100,8 @@ function calculate_field(wing, field_name::String;
     info = fields_summary(wing)
 
     # Determines the span of the wing
-    span = maximum(wing._ywingdcr)-minimum(wing._ywingdcr)
+    _min, _max = _span_eff(wing)
+    span = _max-_min
 
     _addsolution(wing, "Cftot/CFtot", s_Cf/(info["CFtot"]/span))
     _addsolution(wing, "Cs/CS", s_Cs/(info["CS"]/span))
@@ -307,6 +308,27 @@ function fields_summary(wing; drag_trick=false)
   # Special information
   dict["control_points"] = get_m(wing)
   return dict
+end
+
+"Returns the span effective of a Wing or WingSystem"
+function _span_eff(wing; min=Inf, max=-Inf)
+  if typeof(wing)==Wing
+    this_max = maximum(wing._ywingdcr)
+    this_min = minimum(wing._ywingdcr)
+    _max = max>this_max ? max : this_max
+    _min = min<this_min ? min : this_min
+    return _min, _max
+  elseif typeof(wing)==typeof(Wing[])
+    _min, _max = min, max
+    for w in wing
+      _min, _max = _span_eff(w; min=_min, max=_max)
+    end
+    return _min, _max
+  elseif typeof(wing)==WingSystem
+    return _span_eff(wing.wings)
+  else
+    error("Logic error!")
+  end
 end
 
 ##### END OF WING POSTPROCESSING ###############################################

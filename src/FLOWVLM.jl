@@ -55,7 +55,8 @@ const FIELDS = Dict(
 # WING CLASS
 ################################################################################
 """
-  Wing(leftxl, lefty, leftz, leftchord, leftchordtwist)
+  `Wing(leftxl, lefty, leftz, leftchord, leftchordtwist)`
+
 Wing constructor that automatically discretizes the surface into lattices. The
 wing must we built from left to right. Chords are parallel to the zx-plane,
 leading edge in the direction of the -xaxis and trailing in the direction of the
@@ -84,11 +85,11 @@ type Wing
   leftchordtwist::Float64    # Angle of the chord of the left tip in degrees
 
   # Properties
-  m::Int64              # Number of lattices
-  O::Array{Float64,1}   # Origin of local reference frame
-  Oaxis::Array{Float64,2}     # Unit vectors of the local reference frame
-  invOaxis::Array{Float64,2}  # Inverse unit vectors
-  Vinf::Any             # Vinf function used in current solution
+  m::Int64                      # Number of lattices
+  O::Array{Float64,1}           # Origin of local reference frame
+  Oaxis::Array{Float64,2}       # Unit vectors of the local reference frame
+  invOaxis::Array{Float64,2}    # Inverse unit vectors
+  Vinf::Any                     # Vinf function used in current solution
 
   # Data storage
   ## Solved fields
@@ -138,7 +139,8 @@ end
 
 
 """
-  addchord(wing, x, y, z, c, twist, n, r=1.0)
+  `addchord(wing, x, y, z, c, twist, n, r=1.0)`
+
 Adds a new chord to the wing and creates n lattices in the new section. Wing
 must be build from left to right.
 
@@ -150,7 +152,7 @@ must be build from left to right.
   *     twist   : Twist of the chord in degrees.
   *     n::Int64: Number of lattices in the new section.
 
-  # Option arguments
+  # Optional arguments
   *     r       : Ratio between lengths of first and last lattices.
   *     central : Give it true to take the length ratio between the lattice
                   midway and first and last. Give it a number between 0 and 1
@@ -301,13 +303,15 @@ function addchord(self::Wing,
 
   # Updates the constructor
   self.m += n
-  self.sol = Dict()
-
-  return
+  _reset(self; keep_Vinf=true)
 end
 
-"Redefines the local coordinate system of the wing, where `O` is the new origin
-and `Oaxis` is the matrix [i; j; k] of unit vectors"
+"""
+  `setcoordsystem(self, O, Oaxis; check=true)`
+
+Redefines the local coordinate system of the wing, where `O` is the new origin
+and `Oaxis` is the matrix [i; j; k] of unit vectors
+"""
 function setcoordsystem(self::Wing, O::Array{Float64,1},
                             Oaxis::Array{Float64,2};
                             check=true)
@@ -317,7 +321,7 @@ function setcoordsystem(self::Wing, O::Array{Float64,1},
   self.O = O
   self.Oaxis = Oaxis
   self.invOaxis = inv(Oaxis)
-  self._HSs=nothing
+  _reset(self; keep_Vinf=true)
 end
 
 
@@ -388,15 +392,11 @@ function get_m(self::Wing)
 end
 
 
-##### CALCULATIONS #############################################################
-
-
-
 ##### INTERNAL FUNCTIONS #######################################################
-function _reset(self::Wing; verbose=false)
+function _reset(self::Wing; verbose=false, keep_Vinf=false)
   if verbose; println("Resetting wing"); end;
   self.sol = Dict()
-  self.Vinf = nothing
+  if keep_Vinf==false; self.Vinf = nothing; end;
   self._HSs = nothing
 end
 
@@ -471,6 +471,7 @@ function Vind(wing, X; t::Float64=0.0, ign_col::Bool=false)
 end
 ##### END OF COMMONS ###########################################################
 
+include("FLOWVLM_wingsystem.jl")
 include("FLOWVLM_tools.jl")
 include("FLOWVLM_postprocessing.jl")
 

@@ -75,32 +75,25 @@ area of the projection on the xy-plane of its local coordinate system.
 function planform_area(wing)
   area = 0.0
 
-  # Calculates the area of each wing
-  if false && typeof(wing)==WingSystem
-    for _wing in wing.wings
-      area += planform_area(_wing)
-    end
-
   # Calculates the area of each panel
-  else
-    ip = wing.Oaxis[1,:]
-    jp = wing.Oaxis[2,:]
-    for i in 1:get_m(wing)
-      # Obtains the points
-      Ap, A, B, Bp, CP, infDA, infDB, Gamma = getHorseshoe(wing, i)
-      # Projects the points to the xy-plane
-      _A = dot(A,ip)*ip + dot(A,jp)*jp
-      _B = dot(B,ip)*ip + dot(B,jp)*jp
-      _CP = dot(CP,ip)*ip + dot(CP,jp)*jp
-      # Calculates the area of the trapezoid
-      CPab = (_A+_B)/2
-      lcp = norm(CPab-_CP)/(pm-pn) # Chord at the control point
-      h = sqrt( (_A[2]-_B[2])^2 + (_A[3]-_B[3])^2 ) # Trapezoid height
-      Apnl = lcp*h # Area of the panel
+  ip = wing.Oaxis[1,:]
+  jp = wing.Oaxis[2,:]
+  for i in 1:get_m(wing)
+    # Obtains the points
+    Ap, A, B, Bp, CP, infDA, infDB, Gamma = getHorseshoe(wing, i)
+    # Projects the points to the xy-plane
+    _A = dot(A,ip)*ip + dot(A,jp)*jp
+    _B = dot(B,ip)*ip + dot(B,jp)*jp
+    _CP = dot(CP,ip)*ip + dot(CP,jp)*jp
+    # Calculates the area of the trapezoid
+    CPab = (_A+_B)/2
+    lcp = norm(CPab-_CP)/(pm-pn) # Chord at the control point
+    h = sqrt( (_A[2]-_B[2])^2 + (_A[3]-_B[3])^2 ) # Trapezoid height
+    Apnl = lcp*h # Area of the panel
 
-      area += Apnl
-    end
+    area += Apnl
   end
+
   return area
 end
 
@@ -108,6 +101,142 @@ end
 ################################################################################
 # UTILITIES
 ################################################################################
+"Example of a system of lifting surfaces (WingSystem)"
+function exampleWing(; n=60, tail=true)
+  # Wing dimensions
+  x_tip = 10.0
+  y_tip = 20.0
+  z_tip = 2.5
+  c_tip = 5.0
+  c_angle_tip = 10.0
+
+  x_root = 0.0
+  y_root = 0.0
+  z_root = 0.0
+  c_root = 10.0
+  c_angle_root = 0.0
+
+  c_aileron = 1.0
+  c_angle_aileron = -10.0
+  x_aileron = x_tip + (c_tip-c_aileron)*cos(c_angle_tip*pi/180)
+  y_aileron = y_tip
+  z_aileron = z_tip - (c_tip-c_aileron)*sin(c_angle_tip*pi/180)
+
+  n_half_wing = convert(Int, round(n/2))
+  n_aileron = convert(Int, round(n/2))
+  n_winglet = convert(Int, round(n/1.5))
+
+  r_wing = 1/16.0
+  r_winglet = 2.0
+
+  # WING
+  wing = Wing(x_tip, -y_tip, z_tip, c_tip-c_aileron, c_angle_tip);
+  addchord(wing, x_root, y_root, z_root, c_root-c_aileron, c_angle_root, n_half_wing; r=1/r_wing);
+  addchord(wing, x_tip, y_tip, z_tip, c_tip-c_aileron, c_angle_tip, n_half_wing; r=r_wing);
+
+
+  #AILERONS
+  aileronR = Wing(c_root-c_aileron, 0.0,
+                              z_root-(c_root-c_aileron)*sin(c_angle_root*pi/180),
+                              c_aileron, c_angle_aileron);
+  addchord(aileronR, x_aileron, y_aileron, z_aileron,
+              c_aileron, c_angle_aileron, n_aileron; r=r_wing);
+  aileronL = Wing(x_aileron, -y_aileron, z_aileron,c_aileron, c_angle_aileron);
+  addchord(aileronL, c_root-c_aileron, 0.0,
+               z_root-(c_root-c_aileron)*sin(c_angle_root*pi/180),
+               c_aileron, c_angle_aileron, n_aileron; r=1/r_wing);
+
+  # WINGLETS
+  wingletL = Wing(17.0, -25.0, 5.0, 2.5, 0.0);
+  addchord(wingletL, x_tip, -y_tip, z_tip, c_tip, c_angle_tip, n_winglet; r=r_winglet);
+  wingletR = Wing(x_tip, y_tip, z_tip, c_tip, c_angle_tip);
+  addchord(wingletR, 17.0, 25.0, 5.0, 2.5, 0.0, n_winglet; r=1/r_winglet);
+
+  system = WingSystem()
+  addwing(system, "Wing", wing)
+  addwing(system, "LeftAileron", aileronL)
+  addwing(system, "RightAileron", aileronR)
+  addwing(system, "LeftWinglet", wingletL)
+  addwing(system, "RightWinglet", wingletR)
+
+  # Adds a tail
+  if tail
+    x_body_top = -3.0
+    z_body_top = 0.0
+    x_body_bottom = 0.0
+    z_body_bottom = -4.0
+    l_body = 55.0
+    l_body_bottom = l_body - (x_body_top - x_body_bottom) - 12
+
+    l_pylon_bottom = 6.0
+    l_pylon_top = 3.0
+    h_pylon = 7.0
+    angle_pylon = 45.0*pi/180 # front angle from the vertical axis
+    x_pylon_bottom = x_body_top + l_body - l_pylon_bottom
+    z_pylon_bottom = z_body_top
+    x_pylon_top = x_pylon_bottom + h_pylon*tan(angle_pylon)
+    z_pylon_top = z_pylon_bottom + h_pylon
+
+    h_canard_from_body = h_pylon/4
+    c_canard_root_ratio = 3/4 # c_canard_root/c_pylon at such height
+    tr_canard =  1/2 # taper ratio
+    lambda_canard = 30.0*pi/180 # sweep
+    twist_canard_root = 0.0
+    twist_canard_tip = 10.0
+    b_canard = 17.5 # Span
+
+    c_pylon_at_canard = l_pylon_bottom + (l_pylon_top-l_pylon_bottom)*h_canard_from_body/h_pylon
+    x_pylon_at_canard = x_pylon_bottom + (x_pylon_top-x_pylon_bottom)*h_canard_from_body/h_pylon
+    c_canard_root = c_canard_root_ratio * c_pylon_at_canard
+    x_canard_root = x_pylon_at_canard + c_pylon_at_canard*(1-c_canard_root_ratio)
+    z_canard_root = z_body_top + h_canard_from_body
+    x_canard_tip = x_canard_root + (b_canard/2)*tan(lambda_canard)
+    z_canard_tip = z_canard_root
+    c_canard_tip = tr_canard*c_canard_root
+
+    n_body = convert(Int, round(n/6))
+    if n_body<4; n_body=4; end;
+    n_pylon = convert(Int, round(n/3))
+    n_canard_half = convert(Int, round(n/4))
+
+    r_pylon = 4.0
+    r_canard = 1/16.0
+
+    # BODY
+    body = Wing(x_body_top, 0.0, z_body_top, l_body, 0.0)
+    addchord(body, x_body_bottom, 0.0, z_body_bottom, l_body_bottom, 0.0, n_body; r=1.0)
+
+    # CANARD PYLON
+    pylon = Wing(x_pylon_top, 0.0, z_pylon_top, l_pylon_top, 0.0)
+    addchord(pylon, x_pylon_bottom, 0.0, z_pylon_bottom, l_pylon_bottom, 0.0, n_pylon; r=r_pylon)
+
+    # CANARD
+    canard = Wing(x_canard_tip, -b_canard/2, z_canard_tip, c_canard_tip, twist_canard_tip)
+    addchord(canard, x_canard_root, 0.0, z_canard_root, c_canard_root, twist_canard_root, n_canard_half; r=1/r_canard)
+    addchord(canard, x_canard_tip, b_canard/2, z_canard_tip, c_canard_tip, twist_canard_tip, n_canard_half; r=r_canard)
+
+    addwing(system, "Body", body)
+    addwing(system, "CanardPylon", pylon)
+    addwing(system, "Canard", canard)
+  end
+
+  # ------- Moves the system's coordinate system
+  displacement = [10, 20, 30]+0.0
+  roll = 30*pi/180
+  pitch = 4*pi/180
+  yaw = 10*pi/180
+
+  # Transformation matrices
+  Mr = [1 0 0; 0 cos(roll) -sin(roll); 0 sin(roll) cos(roll)]
+  Mp = [cos(pitch) 0 -sin(pitch); 0 1 0; sin(pitch) 0 cos(pitch)]
+  My = [cos(yaw) -sin(yaw) 0; sin(yaw) cos(yaw) 0; 0 0 1]
+  M = Mp*Mr*My
+
+  setcoordsystem(system, displacement, M)
+
+  return system
+end
+
 """
     `simpleWing(b, ar, tr, twist, lambda, gamma; twist_tip=twist, n=20, r=2.0)`
   Generates a single-section wing.
@@ -154,12 +283,7 @@ function simpleWing(b::Float64, ar::Float64, tr::Float64,
   return wing
 end
 
-"""
- Saves the wing domain in VTK legacy format.
-
- Generates the following files:
- * `[filename]_dom.vtk`
-"""
+"Saves the wing domain in VTK legacy format"
 function save(self::Wing, filename::String;
                   save_horseshoes::Bool=true,
                   path::String="", comment::String="",
@@ -313,6 +437,17 @@ function save(self::Wing, filename::String;
   close(f)
 end
 
+function save(self::WingSystem, filename::String;
+                    save_horseshoes::Bool=true,
+                    path::String="", comment::String="",
+                    num=nothing)
+  for (i, wing) in enumerate(self.wings)
+    save(wing, "$(filename)_$(self.wing_names[i])",
+                save_horseshoes=save_horseshoes,
+                path=path, comment=comment, num=num)
+  end
+end
+
 "Receives a function generate_wing(n) and plots aerodynamic characteristics
 at different lattice resolutions"
 function grid_dependance(wing_function, Vinf; ns=[4*2^i for i in 1:6],
@@ -387,26 +522,26 @@ end
 ################################################################################
 # CALCULATIONS
 ################################################################################
-"""
-  `V(self::Wing or WingSystem, P::Float64[])`
-Calculates the induced velocity at point P (Gamma field must have been solved)
-"""
-function V(self, P; ign_col::Bool=false)
-  if false==("Gamma" in keys(self.sol))
-    error("ERROR: Gamma field not found!")
-  end
-
-  m = get_m(self)
-
-  V_tot = zeros(3)
-  # Iterates over every horseshoe in the wing
-  for i in 1:m
-    this_HS = getHorseshoe(self, i)
-    V_this = VLMSolver.V(this_HS, P; ign_col=ign_col)
-    V_tot += V_this
-  end
-  return V_tot
-end
+# """
+#   `V(self::Wing or WingSystem, P::Float64[])`
+# Calculates the induced velocity at point P (Gamma field must have been solved)
+# """
+# function V(self, P; ign_col::Bool=false)
+#   if false==("Gamma" in keys(self.sol))
+#     error("ERROR: Gamma field not found!")
+#   end
+#
+#   m = get_m(self)
+#
+#   V_tot = zeros(3)
+#   # Iterates over every horseshoe in the wing
+#   for i in 1:m
+#     this_HS = getHorseshoe(self, i)
+#     V_this = VLMSolver.V(this_HS, P; ign_col=ign_col)
+#     V_tot += V_this
+#   end
+#   return V_tot
+# end
 
 
 
@@ -421,12 +556,12 @@ returns V'. (In this version, the unit vectors have been organized as a matrix
 M)
 """
 function transform(V::typeof(Float64[]),
-                    M::Array{Int64,2}, T::typeof(Float64[]))
+                    M::Array{Float64,2}, T::typeof(Float64[]))
   return M*(V-T)
 end
 
 function transform(Vs::Array{Array{Float64,1},1},
-                    M::Array{Int64,2}, T::typeof(Float64[]))
+                    M::Array{Float64,2}, T::typeof(Float64[]))
   out = Array{Float64,1}[]
   for V in Vs
     push!(out, transform(V, M, T))
@@ -460,8 +595,9 @@ function check_coord_sys(M::Array{Float64,2}; raise_error::Bool=true)
   # Checks normalization
   for i in 1:size(M)[1]
     if abs(norm(M[i,:])-1) > 0.00000001
+      println(M)
       if raise_error
-        error("Not unitary axis")
+        error("Not unitary axis: $(M[i,:])")
       else
         return false
       end
