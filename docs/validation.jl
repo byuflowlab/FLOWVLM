@@ -434,6 +434,215 @@ function planarwing_lowreynolds(; save_w=false)
 
   return wing
 end
+
+"""
+Validation of interaction between lifting surfaces. This case compares predicted
+values of canard interference on wing with experimental results reported in
+Blair's 1973 *Canard-wing lift interference related to maneuvering aircraft at
+subsonic speeds*. The wing is has a low-aspect ratio of 2.5, and 4.7 for the
+canard. The canard is located fore of the wing.
+"""
+function canard_wing_interaction(; body=false, n=2,
+                                  save_w=false, save_fdom=false)
+  file_name = "cwinter"
+
+  # Case
+  Re_i = 1
+  w_i = 1
+  pivot_z_i = 1
+  pivot_pos_i = 2
+  dc_i = 3
+  iden = "$Re_i$w_i$pivot_z_i$pivot_pos_i$dc_i"
+
+  in2m = 0.0254
+  rhoinf = 1.177            # kg/m^3, density of air at 1 atm and 300K
+  muinf = 1.846/10^5        # kg/ms, dynamic viscosity of air at 1 atm and 300K
+
+  # Experimental setup
+  M = [0.7, 0.9]            # Mach number
+  Re = [2.58, 2.91]*10^6    # Reynolds number
+  # alphas = [i for i in -4:5:24]*pi/180      # Angles of attack
+  alphas = [i for i in -4:1:24]*pi/180      # Angles of attack
+  bar_c = 9.18*in2m         # Wing's mean geometric chord
+  w_sweep = [60, 44]*pi/180 # Wing's leading edge sweep
+  c_sweep = 51.7*pi/180     # Canard's leading edge sweep
+  w_pos = [18.76, 20.48]*in2m             # Longitudinal position of wing
+  # c_pos = [1.61, 1.14]*bar_c*in2m       # Longitudinal position of canard
+  w_S = 160*in2m^2            # Wing's reference planform area
+  c_S = 25.6*in2m^2           # Canard's reference planform area
+  pivot = 2.67*in2m         # Distance of canard's pivot point from LE at root
+  pivot_pos = [11.04, 15.36]*in2m         # Longitudinal position of pivot
+  pivot_z = [0, 1.69]*in2m      # Vertical position of pivot
+  dc = [0, 2.5, 5, 7.5, 10]*pi/180        # Canard deflections
+
+  # Geometric setup
+  ## Body
+  b_l = 38*in2m             # Length of body
+  b_width = 1.5*in2m        # Width of body
+  b_eight = 4*in2m          # height of body
+  b_sweep = 70*pi/180       # Body's ficticious sweep
+  b_xroot = 0.0
+  b_yroot = 0.0
+  b_zroot = 0.0
+  b_croot = b_l
+  b_ytip = body ? b_width : 0.0
+  b_xtip = b_ytip*tan(b_sweep)
+  b_ztip = 0.0
+  b_ctip = b_croot - b_xtip
+  ## Wing
+  w_ytip = 10*in2m
+  w_ztip = 0.0
+  w_ctip = 2.67*in2m
+  w_yroot = b_ytip
+  w_zroot = 0.0
+  w_croot = 11.73*in2m
+  ## Canard
+  c_lambda = c_sweep
+  c_ytip = 5.50*in2m
+  c_ctip = 1.07*in2m
+  c_yroot = body ? b_width : 0.0
+  c_croot = 5.33*in2m
+
+  # VLM parameters
+  b_n = Int(ceil(n*5))
+  w_n = Int(ceil(n*20))
+  c_n = Int(ceil(n*15))
+  b_r = 1.0
+  w_r = 4.0
+  c_r = 4.0
+
+
+  c_CLs, m_CLs = [], []
+  for (i,alpha) in enumerate(alphas)
+
+    # Case-dependent experimental setup
+    magVinf = Re[Re_i]*muinf/(rhoinf*bar_c)
+    Vinf(X,t) = magVinf*[cos(alpha), 0, sin(alpha)]
+
+    # Case-dependent geometric setup
+    ## Wing
+    w_O = [w_pos[w_i], 0, 0]
+    w_Oaxis = [1.0 0 0; 0 1 0; 0 0 1]
+    w_lambda = w_sweep[w_i]
+    w_xroot = 0 - (b_width-w_yroot)*tan(w_lambda)
+    w_xtip = 0 + (w_ytip-b_width)*tan(w_lambda)
+    ## Canard
+    defl = dc[dc_i]
+    pivot_x = pivot_pos[pivot_pos_i]
+    c_O = [pivot_x, 0, pivot_z[pivot_z_i]]
+    c_Oaxis = [cos(defl) 0 -sin(defl); 0 1 0; sin(defl) 0 cos(defl)]
+    c_xroot = -pivot - (b_width-c_yroot)*tan(c_lambda)
+    c_zroot = 0.0
+    c_xtip = -pivot + (c_ytip-b_width)*tan(c_lambda)
+    c_ztip = 0.0
+
+    # Building the WingSystem
+    ## Body
+    if body
+      _body = vlm.Wing(b_xtip, -b_ytip, b_ztip, b_ctip, 0.0)
+      vlm.addchord(_body, b_xroot, b_yroot, b_zroot, b_croot, 0.0, b_n; r=b_r)
+      vlm.addchord(_body, b_xtip, b_ytip, b_ztip, b_ctip, 0.0, b_n; r=1/b_r)
+    end
+    ## Wing
+    wing = vlm.Wing(w_xtip, -w_ytip, w_ztip, w_ctip, 0.0)
+    vlm.addchord(wing, w_xroot, -w_yroot, w_zroot, w_croot, 0.0, w_n; r=w_r)
+    if body
+      vlm.addchord(wing, w_xroot, w_yroot, w_zroot, w_croot, 0.0, 2*b_n; r=1.0)
+    end
+    vlm.addchord(wing, w_xtip, w_ytip, w_ztip, w_ctip, 0.0, w_n; r=1/w_r)
+    vlm.setcoordsystem(wing, w_O, w_Oaxis)
+    ## Canard
+    canard = vlm.Wing(c_xtip, -c_ytip, c_ztip, c_ctip, 0.0)
+    vlm.addchord(canard, c_xroot, -c_yroot, c_zroot, c_croot, 0.0, c_n; r=c_r)
+    if body
+      vlm.addchord(canard, c_xroot, c_yroot, c_zroot, c_croot, 0.0, 2*b_n; r=1.0)
+    end
+    vlm.addchord(canard, c_xtip, c_ytip, c_ztip, c_ctip, 0.0, c_n; r=1/c_r)
+    vlm.setcoordsystem(canard, c_O, c_Oaxis)
+    ## System
+    system = vlm.WingSystem()
+    vlm.addwing(system, "Wing", wing)
+    vlm.addwing(system, "Canard", canard)
+    if body; vlm.addwing(system, "Body", _body); end;
+
+    # Solves
+    vlm.solve(system, Vinf)
+    vlm.calculate_field(system, "CFtot"; S=w_S+c_S)
+    vlm.calculate_field(canard, "CFtot"; S=c_S)
+    vlm.save(system, file_name; save_horseshoes=true, num=i)
+
+    # Fluid domain
+    if save_fdom
+      P_max = [body ? b_l*2 : b_l*5/4, w_ytip*5/2, w_ytip*3/4]
+      fdom = vlm.PP.FluidDomain(
+              [0.0, 0.0, 0.0],                        # P_min
+              P_max, # P_max
+              [10, 5, 1]*2^3,                         # NDVIS
+                        )
+      vlm.PP.setcoordsystem(fdom,
+              P_max.*[-2/15, -1/2, -1/3] + [body ? 0 : c_O[1], 0, 0 ],
+              [1.0 0 0; 0 1 0; 0 0 1])
+      V(X) = vlm.Vind(system, X) + Vinf(X,0)
+      vlm.PP.calculate(fdom,
+                [Dict("field_name"=>"U",
+                      "field_type"=>"vector",
+                      "field_function"=>V)]
+                )
+      vlm.PP.save(fdom, file_name; num=i)
+    end
+
+    c_info = vlm.fields_summary(canard)
+    m_info = vlm.fields_summary(system)
+    push!(c_CLs, c_info["CL"]);
+    push!(m_CLs, m_info["CL"]);
+  end
+
+  # # Weber's experimental data (Table 4)
+  # data = [[2.1, 4.2, 6.3, 8.4, 10.5],
+  #           [0.121, 0.238, 0.350, 0.456, 0.559],
+  #           [nothing, 0.005, 0.012, 0.022, 0.035]] # [alpha, Cl, Cd]
+
+  # --------- PLOTS
+  fig = figure("canard_wing",figsize=(7*2,7*1))
+  suptitle("Effect of canard on wing Lambda=$(round(w_sweep[w_i]*180/pi,1))"*
+        " for z=$(round(pivot_z[pivot_z_i],1)) and x=$(round(pivot_pos[pivot_pos_i],1))"*
+        ", at Re=$(Re[Re_i])", fontsize="x-large")
+
+  # _c_CLs = [ c_CLs[i]*(alphas[i]<0 ? -1:1) for i in 1:length(alphas)]
+  _c_CLs = c_CLs
+  _m_CLs = [ m_CLs[i]*(alphas[i]<0 ? -1:1) for i in 1:length(alphas)]
+
+  # CANARD BALANCE
+  subplot(121)
+  # plot(data[1], data[2], "ok",
+  #       label="Weber's experimental data")
+  plot(alphas*180/pi, _c_CLs, "or", label="FLOWVLM")
+  xlim([-4,24])
+  xticks(-4:4:24)
+  xlabel("Angle of attack (deg)")
+  ylim([-0.3, 0.7])
+  yticks(-0.3:0.1:0.7)
+  ylabel("CL")
+  grid(true, color="0.8", linestyle="--")
+  legend(loc="best")
+  title("Canard balance")
+
+  # MAIN BALANCE
+  subplot(122)
+  # plot(data[1], data[3], "ok",
+  #       label="Weber's experimental data")
+  plot(alphas*180/pi, _m_CLs, "or", label="FLOWVLM")
+  xlim([-4,24])
+  xticks(-4:4:24)
+  ylim([-0.6, 1.4])
+  yticks(-0.6:0.2:1.4)
+  xlabel("Angle of attack (deg)")
+  ylabel("CL")
+  grid(true, color="0.8", linestyle="--")
+  legend(loc="best")
+  title("Main balance")
+
+end
 ##### END OF VALIDATION ########################################################
 
 ################################################################################

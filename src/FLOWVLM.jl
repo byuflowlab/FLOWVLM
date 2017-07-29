@@ -9,8 +9,7 @@ module FLOWVLM
 
 using PyPlot # Comment PyPlot out if using ProfileView
 include("FLOWVLM_solver.jl")
-
-
+include("utilities.jl")
 
 
 const pm = 3/4 # Default chord-position of the control point
