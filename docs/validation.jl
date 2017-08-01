@@ -4,6 +4,7 @@ include("../src/FLOWVLM.jl")
 vlm = FLOWVLM
 
 using PyPlot
+using JLD
 
 ################################################################################
 # VALIDATION CASES
@@ -441,6 +442,13 @@ values of canard interference on wing with experimental results reported in
 Blair's 1973 *Canard-wing lift interference related to maneuvering aircraft at
 subsonic speeds*. The wing is has a low-aspect ratio of 2.5, and 4.7 for the
 canard. The canard is located fore of the wing.
+
+RESULTS: FAILED. Both curves are completely off, and there is no way to know
+where it fails; it could be that the interaction is wrongly modeled on the
+solver, or that the aspects ratios scape the limits of a VLM, or the Mach number
+is too high (0.7), or simply that I modeled the geometry wrong or I'm using the
+wrong planform areas. Hence, this was a waste of time. I needed a simpler
+validation case.
 """
 function canard_wing_interaction(; body=false, n=2,
                                   save_w=false, save_fdom=false)
@@ -641,7 +649,257 @@ function canard_wing_interaction(; body=false, n=2,
   grid(true, color="0.8", linestyle="--")
   legend(loc="best")
   title("Main balance")
+end
 
+"""
+Validation of wing and tail interaction based on experimental data in Buell's
+1957 *The effects at subsonic speeds of wing fences and a tail on the
+longitudinal characteristics of a 63deg swept-wing and fuselage
+combination*.
+"""
+function wing_tail_interaction(; n=1, save_w=false, save_fdom=false)
+  run_name = "wtinter"
+  rhoinf = 1.177            # kg/m^3, density of air at 1 atm and 300K
+  muinf = 1.846/10^5        # kg/ms, dynamic viscosity of air at 1 atm and 300K
+
+  # Experimental setup
+  Re = 7*10^6             # Reynolds number
+  Ma = 0.20               # Mach number
+  w_barc = 1.20*0.3048    # (m) mean chord
+  magVinf = Re*muinf/(rhoinf*w_barc)
+  alphas = [i for i in -4:1:22]*pi/180  # Angle of attack
+
+  # Model geometry
+  ## Wing
+  w_lambda = 63.0             # Leading edge sweep
+  w_ar = 3.50                 # Aspect ratio
+  w_tr = 0.25                 # Taper ratio
+  w_b = 3.75*0.3048           # (m) span
+  w_S = 4.02*0.3048^2         # (m^2) planform area
+  ## Vertical tail
+  vt_lambda = 54
+  vt_ar = 1.51
+  vt_tr = 0.16
+  vt_b = 1.27*0.3048
+  vt_S = 1.07*0.3048^2
+  ## Horizontal tail
+  ht_alphas = vcat(["off"], [0.2, -3.9, -7.8, -11.7]*pi/180)
+  ht_lambdas = [0, 60.0]
+  ht_ars = [4.0, 2.5]
+  ht_trs = [0.33, 0.20]
+  ht_bs = [1.87, 1.58]*0.3048
+  ht_Ss = [0.87, 1.0]*0.3048^2
+  ht_pivots = [0.45, 0.84]    # Pivot axis, fraction of root chord
+  ## Fuselage
+  b_l = (72+10.5)*0.0254      # (m) long fuselage length
+  b_r = 0.13*w_b/2            # Radius
+  b_S = 0.13*0.3048^2
+  ## Fence
+  f_poss = [.29, .45, .70]    # X fence positions, factor of semi-span
+
+  # Simulation parameters
+  ht_alphas_to_calculate = [1, 4]
+  ht_i = 2                    # Type of horizontal tail
+  n_w = n*50                    # Number of lattices
+  n_vt = n*25
+  n_ht = n*25
+  n_b = n*5
+  n_f = n*3
+  r_w = 10.0                  # Lattice expansion ratio
+  r_vt = 1/10.0
+  r_ht = 10.0
+  r_b = 1.0
+  r_f = 1.0
+
+  # Simulation geometry
+  ## Wing
+  w_O = [21.92, 0,0 ]*0.0254  # (m) position
+  w_Oaxis = [1.0 0 0; 0 1.0 0; 0 0 1.0]   # Orientation
+  w_twist_root = -0.4
+  w_twist_tip = -3.5
+  wing = vlm.simpleWing(w_b, w_ar*0 + w_b/(2*w_barc/(1/w_tr+1)), w_tr, w_twist_root, w_lambda, 0.0;
+                      twist_tip=w_twist_tip, n=n_w, r=r_w)
+  vlm.setcoordsystem(wing, w_O, w_Oaxis)
+  ## Vertical tail
+  vt_barc = vt_S/vt_b
+  vt_ar = vt_b/(2*vt_barc/(1/vt_tr+1))
+  vt_xroot = 0.0
+  vt_yroot = 0.0
+  vt_zroot = 0.0
+  vt_ytip = vt_b
+  vt_xtip = vt_ytip*tan(vt_lambda*pi/180)
+  vt_ztip = 0.0
+  vt_ctip = vt_b/vt_ar
+  vt_croot = vt_ctip/vt_tr
+  vt_O = [b_l-vt_croot, 0, b_r]   # Places it flush with the fuselage
+  vt_Oaxis = [1.0 0 0; 0 0 1.0; 0 -1.0 0] # Places it vertically
+  vertical_tail = vlm.Wing(vt_xroot, vt_yroot, vt_zroot, vt_croot, 0.0)
+  vlm.addchord(vertical_tail, vt_xtip, vt_ytip, vt_ztip, vt_ctip, 0.0,
+                n_vt; r=r_vt)
+  vlm.setcoordsystem(vertical_tail, vt_O, vt_Oaxis)
+  ## Fuselage
+  b_lambda = 70*pi/180
+  b_O = [0.0,0,0]
+  b_Oaxis = [1.0 0 0; 0 0 1.0; 0 -1.0 0]
+  body = vlm.Wing(b_r*tan(b_lambda), -b_r, 0.0, b_l-b_r*tan(b_lambda), 0.0)
+  vlm.addchord(body, 0.0, 0.0, 0.0, b_l, 0.0, n_b; r=r_b)
+  vlm.addchord(body, b_r*tan(b_lambda), b_r, 0.0, b_l-b_r*tan(b_lambda), 0.0,
+                n_b; r=1/r_b)
+  vlm.setcoordsystem(body, b_O, b_Oaxis)
+
+  # Data storage
+  CLs, CDs, CMs  = Dict(), Dict(), Dict()
+  for ht_alpha in [ht_alphas[i] for i in ht_alphas_to_calculate]
+    CLs[ht_alpha] = []
+    CDs[ht_alpha] = []
+    CMs[ht_alpha] = []
+  end
+
+  # Iterates over angles of horizontal tail incidence
+  for (i,ht_alpha) in enumerate([ht_alphas[k] for k in ht_alphas_to_calculate])
+    println("Case tail=$ht_alpha")
+    pivot_x = (67.32+10.50)*0.0254  # (m) position of pivot from fuselage nose
+    if ht_alpha!="off"
+      # Builds horizontal tail
+      ht_barc = ht_Ss[ht_i]/ht_bs[ht_i]
+      ht_ctip = 2*ht_barc/(1/ht_trs[ht_i]+1)
+      ht_ar = ht_bs[ht_i]/ht_ctip
+      horizontal_tail = vlm.simpleWing(ht_bs[ht_i],
+                            ht_ars[ht_i]*0 + ht_ar, ht_trs[ht_i],
+                            0.0, ht_lambdas[ht_i], 0.0; twist_tip=0.0,
+                            n=n_ht, r=r_ht)
+      # Sets the angle of incidence
+      ht_croot = ht_bs[ht_i]/ht_ar/ht_trs[ht_i]  # Root chord
+      ht_pivot = ht_pivots[ht_i]      # Pivot axis, fraction of root chord
+      pivotroot = ht_pivot*ht_croot   # Distance of pivot point from canard nose
+      nose_x = pivot_x - pivotroot*cos(ht_alpha)    # x-position of canard nose
+      nose_z = pivotroot*sin(ht_alpha)              # z-position of canard nose
+      ht_O = [nose_x, 0, nose_z]      # position of canard nose
+      ht_Oaxis = [cos(ht_alpha) 0 -sin(ht_alpha); 0 1.0 0;
+                  sin(ht_alpha) 0 cos(ht_alpha)]   # Orientation of canard
+      vlm.setcoordsystem(horizontal_tail, ht_O, ht_Oaxis)
+    end
+
+    # Builds the system
+    system = vlm.WingSystem()
+    vlm.addwing(system, "Wing", wing)
+    vlm.addwing(system, "Fuselage", body)
+    vlm.addwing(system, "VerticalTail", vertical_tail)
+    if ht_alpha!="off"
+      vlm.addwing(system, "HorizontalTail", horizontal_tail)
+    end
+
+    file_name = run_name*"_$(i)_"
+
+    # Iterates over angle of attack
+    for (j,alpha) in enumerate(alphas)
+        println("\tAOA: $alpha")
+        Vinf(X,t) = magVinf*[cos(alpha), 0, sin(alpha)]
+        # Solves
+        vlm.solve(system, Vinf)
+        vlm.calculate_field(system, "Ftot"; rhoinf=rhoinf)
+        vlm.calculate_field(system, "CFtot"; S=w_S+ht_Ss[ht_i])
+        vlm.calculate_field(system, "Mtot"; r_cg=[pivot_x-2.16*0.5*0.3048, 0, 0])
+        vlm.calculate_field(system, "CMtot"; qinf=(1/2)*rhoinf*magVinf^2,
+                              S=w_S+ht_Ss[ht_i], l=0.5*0.3048)
+        if save_w
+          vlm.save(system, file_name; save_horseshoes=true, num=j)
+        end
+
+        # Fluid domain
+        if save_fdom
+          println("Calculating FDOM")
+          P_max = [b_l*5/4, w_b/2*5/2, vt_b*2]
+          fdom = vlm.PP.FluidDomain(
+                  [0.0, 0.0, 0.0],                        # P_min
+                  P_max, # P_max
+                  [10, 5, 1]*2^3,                         # NDVIS
+                            )
+          vlm.PP.setcoordsystem(fdom,
+                  P_max.*[-2/15*0, -1/2, -1/4],
+                  [1.0 0 0; 0 1 0; 0 0 1])
+          V(X) = vlm.Vind(system, X) + Vinf(X,0)
+          vlm.PP.calculate(fdom,
+                    [Dict("field_name"=>"U",
+                          "field_type"=>"vector",
+                          "field_function"=>V)]
+                    )
+          vlm.PP.save(fdom, file_name; num=j)
+        end
+
+        info = vlm.fields_summary(system)
+        push!(CLs[ht_alpha], info["CL"]);
+        push!(CDs[ht_alpha], info["CD"]);
+        push!(CMs[ht_alpha], info["CMtot"]);
+      end
+  end
+  save("$run_name.jld", "alphas", alphas, "CLs", CLs, "CDs", CDs, "CMs", CMs)
+  wing_tail_interaction_plot("$run_name.jld", "Wing-tail interaction"*
+                              " at Ma=$Ma, Re=$Re")
+end
+function wing_tail_interaction_plot(jld_file_name, dscrptn)
+  alphas, CLs, CDs, CMs = load("wtinter.jld", "alphas", "CLs", "CDs", "CMs")
+
+
+  # Experimental data
+  data_alphas = [22, 18, 13, 9.5, 5, 0.5, -4]
+  data_CLs = Dict("off" => [.96, 0.8, .6, .4, .2, 0, -.2],
+                  "7.8" => [1.06, 0.88, .64, .4, .2, -.08, -.3])
+
+  # ------- PLOTS
+  fig = figure("validation_wing_tail",figsize=(7*3,5*1))
+  suptitle(dscrptn, fontsize="x-large")
+
+
+  # LIFT
+  subplot(131)
+  for key in keys(data_CLs)
+    plot(data_alphas, data_CLs[key], "--.", label="Experimental tail=$key")
+  end
+  for key in keys(CLs)
+    deg = key!="off"? round(key*180/pi,1) : key
+    _CLs = [CLs[key][i] * (alphas[i]<0 ? -1 : 1) for i in 1:size(alphas)[1]]
+    plot(alphas*180/pi, _CLs, "o", label="FLOWVLM tail=$deg")
+  end
+  xlim([-5,25]);
+  ylim([-0.6, 1.4]);
+  xlabel("Angle of attack (deg)");
+  ylabel(L"$C_L$");
+  grid(true, color="0.8", linestyle="--")
+  legend(loc="best");
+  title("Lift");
+
+  # DRAG
+  subplot(132)
+  for key in keys(CLs)
+    deg = key!="off"? round(key*180/pi,1) : key
+    # plot(data[1], data[2], "ok",
+    #       label="Weber's experimental data")
+    plot(CLs[key]./CDs[key], CDs[key], "o", label="FLOWVLM tail=$deg")
+  end
+  # xlim([0, 16]);
+  # ylim([-0.6, 1.4]);
+  xlabel(L"\frac{L}{D}");
+  ylabel(L"$C_L$");
+  grid(true, color="0.8", linestyle="--")
+  legend(loc="best");
+  title("Lift-Drag");
+
+  # DRAG
+  subplot(133)
+  for key in keys(CLs)
+    deg = key!="off"? round(key*180/pi,1) : key
+    # plot(data[1], data[2], "ok",
+    #       label="Weber's experimental data")
+    plot(CMs[key], CLs[key], "o", label="FLOWVLM tail=$deg")
+  end
+  # xlim([-0.1, 0.05]);
+  # ylim([0.05, 1.4]);
+  xlabel(L"C_m");
+  ylabel(L"$C_L$");
+  grid(true, color="0.8", linestyle="--")
+  legend(loc="best");
+  title("Pitching moment");
 end
 ##### END OF VALIDATION ########################################################
 
