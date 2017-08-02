@@ -102,13 +102,299 @@ end
 # UTILITIES
 ################################################################################
 "Example of a system of lifting surfaces (WingSystem)"
-function exampleWing(; n=60, tail=true)
-  # Wing dimensions
-  x_tip = 10.0
-  y_tip = 20.0
-  z_tip = 2.5
-  c_tip = 5.0
-  c_angle_tip = 10.0
+function exampleWing(; n=1, tail=true)
+
+  # SIMULATION PARAMETERS
+  magVinf = 55.0
+  AOA = 12.0*pi/180
+  Vinf(X,t) = magVinf*[cos(AOA), 0, sin(AOA)]
+  rhoinf = 9.093/10^1
+  aileron_angleL = 15*pi/180      # Inclination of left aileron
+  aileron_angleR = -15*pi/180     # Inclination of right aileron
+
+  # VLM PARAMETERS
+  ## Number of lattices
+  n_w = n*40                      # Semi-span of the wing
+  n_wl = Int(ceil(n_w/2))         # Winglets
+  n_f = n*10                      # Fuselage
+  n_vt = n*20                     # Vertical tail
+  n_ht = n*20                     # Semi-span of horizontal tail
+  ## Panel expansion ratio
+  r_w = 5.0
+  r_wl = 1.0
+  r_f = 1.0
+  r_vt = 4.0
+  r_ht = 5.0
+
+
+  # BUILDS EACH LIFTING SURFACE
+  ## --------- Wing --------------------
+  ### Parameters
+  w_b = 40.0                      # Span
+  w_lambda = 30.0                 # Leading edge sweep
+  w_gamma = 5.0                   # Dihedral
+  w_twist_root = 0.0              # Twist at the root
+  w_twist_tip = -7.5              # Twist at the tip
+  w_c_root = 10.0                 # Chord at the root
+  w_c_tip = 5.0                   # Chord at the tip
+  w_sec_div = 0.60                # Spanwise position of the aileron
+  w_aileron_c = 0.15*w_c_tip      # Chord of the aileron
+  n_w1 = Int(ceil(n_w*w_sec_div*3/4))
+  n_w2 = n_w-n_w1
+  n_a = n_w2
+  r_w1, r_w2, r_a = r_w, r_w, r_w
+  ### Dimensions inner section
+  w1_y_tip = (w_b*w_sec_div)/2                    # y-position of the tip chord
+  w1_x_tip = w1_y_tip*tan(w_lambda*pi/180)        # x-position of the tip chord
+  w1_z_tip = w1_y_tip*tan(w_gamma*pi/180)         # z-position of the tip chord
+  w1_c_tip = w_c_root + w_sec_div*(w_c_tip-w_c_root)  # Chord length at the tip
+  w1_c_angle_tip = w_sec_div*w_twist_tip          # Twist at the tip
+  w1_x_root = 0.0
+  w1_y_root = 0.0
+  w1_z_root = 0.0
+  w1_c_root = w_c_root
+  w1_c_angle_root = w_twist_root
+  ### Dimensions outer section
+  w2_x_root = w1_x_tip
+  w2_y_root = w1_y_tip
+  w2_z_root = w1_z_tip
+  w2_c_root = w1_c_tip-w_aileron_c
+  w2_c_angle_root = w1_c_angle_tip
+  w2_y_tip = w_b/2
+  w2_x_tip = w2_y_tip*tan(w_lambda*pi/180)
+  w2_z_tip = w2_y_tip*tan(w_gamma*pi/180)
+  w2_c_tip = w_c_tip-w_aileron_c
+  w2_c_angle_tip = w_twist_tip
+  ### Dimensions aileron
+  a_OL = [w2_x_root+w2_c_root*cos(w2_c_angle_root*pi/180),# Origin of left aileron
+          -w2_y_root,
+          w2_z_root-w2_c_root*sin(w2_c_angle_root*pi/180)]
+  a_OR = a_OL.*[1, -1, 1]                                # Origin of right aileron
+  a_x_root = 0.0
+  a_y_root = 0.0
+  a_z_root = 0.0
+  a_c_root = w_aileron_c
+  a_c_angle_root = w2_c_angle_root
+  a_x_tip = w2_x_tip+w2_c_tip*cos(w2_c_angle_tip*pi/180) - a_OL[1]
+  a_y_tip = w_b*(1-w_sec_div)/2
+  a_z_tip = w2_z_tip-w2_c_tip*sin(w2_c_angle_tip*pi/180) - a_OL[3]
+  a_c_tip = w_aileron_c
+  a_c_angle_tip = w2_c_angle_tip
+
+  ### Sets the angle of inclination of the aileron through its axis orientation
+  aux1 = [a_x_tip, -a_y_tip, a_z_tip]
+  a_OaxisL = axis_rotation(aux1/norm(aux1), -aileron_angleL*180/pi)
+  aux1 = [a_x_tip, a_y_tip, a_z_tip]
+  a_OaxisR = axis_rotation(aux1/norm(aux1), aileron_angleR*180/pi)
+
+  ### Creates lifting surfaces of the wing
+  wing_inner = Wing(w1_x_tip, -w1_y_tip, w1_z_tip, w1_c_tip, w1_c_angle_tip)
+  addchord(wing_inner, w1_x_root, w1_y_root, w1_z_root, w1_c_root,
+            w1_c_angle_root, n_w1; r=r_w1)
+  addchord(wing_inner, w1_x_tip, w1_y_tip, w1_z_tip, w1_c_tip,
+            w1_c_angle_tip, n_w1; r=1/r_w1)
+
+  wing_outerL = Wing(w2_x_tip, -w2_y_tip, w2_z_tip, w2_c_tip, w2_c_angle_tip)
+  addchord(wing_outerL, w2_x_root, -w2_y_root, w2_z_root, w2_c_root,
+            w2_c_angle_root, n_w2; r=r_w2, central=true)
+
+  wing_outerR = Wing(w2_x_root, w2_y_root, w2_z_root, w2_c_root,w2_c_angle_root)
+  addchord(wing_outerR, w2_x_tip, w2_y_tip, w2_z_tip, w2_c_tip,
+            w2_c_angle_tip, n_w2; r=r_w2, central=true)
+
+  aileronL = Wing(a_x_tip, -a_y_tip, a_z_tip, a_c_tip, a_c_angle_tip)
+  addchord(aileronL, a_x_root, a_y_root, a_z_root, a_c_root,
+            a_c_angle_root, n_a; r=r_a, central=true)
+  setcoordsystem(aileronL, a_OL, a_OaxisL)
+
+  aileronR = Wing(a_x_root, a_y_root, a_z_root, a_c_root, a_c_angle_root)
+  addchord(aileronR, a_x_tip, a_y_tip, a_z_tip, a_c_tip,
+            a_c_angle_tip, n_a; r=r_a, central=true)
+  setcoordsystem(aileronR, a_OR, a_OaxisR)
+
+
+  ## --------- C-WINGLETS --------------------
+  ### Parameters
+  wl1_lambda = 87.0               # First section swept-back angle
+  wl2_lambda = 25.0               # Second section swept-back
+  wl1_gamma = 45.0                # First section dihedral
+  wl2_gamma = 180.0               # Second section dihedral
+  wl1_l = w_b/8                   # First section length
+  wl2_l = wl1_l*1.25              # Second section length
+  wl1_c_tip = w_c_tip*0.5         # First section tip chord
+  wl2_c_tip = wl1_c_tip*0.75      # Second section tip chord
+  n_wl1 = Int(ceil(n_wl*wl1_l/(wl1_l+wl2_l)))
+  n_wl2 = n_wl - n_wl1
+  r_wl1, r_wl2 = r_wl, r_wl
+  ### Dimensions first section
+  wl1_x_root = w2_x_tip
+  wl1_y_root = w2_y_tip
+  wl1_z_root = w2_z_tip
+  wl1_c_root = w_c_tip
+  wl1_c_angle_root = w2_c_angle_tip
+  wl1_x_tip = wl1_x_root + wl1_l*cos(wl1_gamma*pi/180)*sin(wl1_lambda*pi/180)
+  wl1_y_tip = wl1_y_root + wl1_l*cos(wl1_gamma*pi/180)*cos(wl1_lambda*pi/180)
+  wl1_z_tip = wl1_z_root + wl1_l*sin(wl1_gamma*pi/180)
+  wl1_c_tip = wl1_c_tip
+  wl1_c_angle_tip = 0.0
+  ### Dimensions second section
+  wl2_x_root = wl1_x_tip
+  wl2_y_root = wl1_y_tip
+  wl2_z_root = wl1_z_tip
+  wl2_c_root = wl1_c_tip
+  wl2_c_angle_root = wl1_c_angle_tip
+  wl2_x_tip = wl2_x_root + wl2_l*abs(cos(wl2_gamma*pi/180))*sin(wl2_lambda*pi/180)
+  wl2_y_tip = wl2_y_root + wl2_l*cos(wl2_gamma*pi/180)*cos(wl2_lambda*pi/180)
+  wl2_z_tip = wl2_z_root + wl2_l*sin(wl2_gamma*pi/180)
+  wl2_c_tip = wl2_c_tip
+  wl2_c_angle_tip = 0.0
+  ### Creates the lifting surfaces
+  wingletL = Wing(wl2_x_tip, -wl2_y_tip, wl2_z_tip, wl2_c_tip, wl2_c_angle_tip)
+  addchord(wingletL, wl1_x_tip, -wl1_y_tip, wl1_z_tip, wl1_c_tip,
+    wl1_c_angle_tip, n_wl2; r=r_wl2)
+  addchord(wingletL, wl1_x_root, -wl1_y_root, wl1_z_root, wl1_c_root,
+            wl1_c_angle_root, n_wl1; r=r_wl1)
+  wingletR = Wing(wl1_x_root, wl1_y_root, wl1_z_root, wl1_c_root,
+            wl1_c_angle_root)
+  addchord(wingletR, wl1_x_tip, wl1_y_tip, wl1_z_tip, wl1_c_tip,
+    wl1_c_angle_tip, n_wl1; r=r_wl1)
+  addchord(wingletR, wl2_x_tip, wl2_y_tip, wl2_z_tip, wl2_c_tip,
+    wl2_c_angle_tip, n_wl2; r=r_wl2)
+
+  ## --------- FUSELAGE --------------------
+  ### Parameters
+  f_l = w_b*13/8                   # Length
+  f_h = f_l/15                    # Height
+  f_w_lpos = 0.2                  # Longitudinal position of wing
+  f_w_vpos = 0.6                  # Vertical position of wing
+  f_nose_angle = 30*pi/180        # Nose angle
+  ### Dimensions
+  f_x_root = 0.0
+  f_y_root = 0.0
+  f_z_root = 0.0
+  f_c_root = f_l
+  f_c_angle_root = 0.0
+  f_y_tip = f_h/2
+  f_x_tip = f_y_tip/tan(f_nose_angle)
+  f_z_tip = 0.0
+  f_c_tip = f_l - f_x_tip
+  f_c_angle_tip = 0.0
+  ### Creates the lifting surfaces
+  fuselage = Wing(f_x_tip, -f_y_tip, f_z_tip, f_c_tip, f_c_angle_tip)
+  addchord(fuselage, f_x_root, f_y_root, f_z_root, f_c_root,
+          f_c_angle_root, n_f; r=r_f)
+  addchord(fuselage, f_x_tip, f_y_tip, f_z_tip, f_c_tip,
+          f_c_angle_tip, n_f; r=1/r_f)
+  setcoordsystem(fuselage, [0.0,0,0], [1.0 0 0; 0 0 1; 0 -1 0])
+
+  ## --------- VERTICAL TAIL --------------------
+  ### Parameters
+  vt_b = f_h*7/2
+  vt_lambda = 45*pi/180
+  vt_c_root = vt_b/2*0.85
+  vt_c_tip = vt_c_root/2
+  ### Dimensions
+  vt_x_root = 0.0
+  vt_y_root = 0.0
+  vt_z_root = 0.0
+  vt_c_angle_root = 0.0
+  vt_y_tip = vt_b/2
+  vt_x_tip = vt_y_tip*tan(vt_lambda)
+  vt_z_tip = 0.0
+  vt_c_angle_tip = 0.0
+  ### Creates the lifting surfaces
+  vtail = Wing(vt_x_root, vt_y_root, vt_z_root, vt_c_root, vt_c_angle_root)
+  addchord(vtail, vt_x_tip, vt_y_tip, vt_z_tip, vt_c_tip,
+          vt_c_angle_tip, n_vt; r=1/r_vt)
+  setcoordsystem(vtail, [f_l-vt_c_root,0,f_h/2], [1.0 0 0; 0 0 1; 0 -1 0])
+
+  ## --------- HORIZONTAL TAIL --------------------
+  ### Parameters
+  ht_b = w_b*5/16
+  ht_ar = 6.0
+  ht_tr = 0.75
+  ht_twist_root= 0.0
+  ht_twist_tip = -2.5
+  ht_lambda = 15.0
+  ht_gamma = 0.0
+  ht_vt_pos = 0.6            # Vertical position of horizontal tail on vertical
+  ht_c_root = ht_b/ht_ar/ht_tr
+  ### Creates the lifting surface
+  htail = simpleWing(ht_b, ht_ar, ht_tr,
+                      ht_twist_root, ht_lambda, ht_gamma;
+                      twist_tip=ht_twist_tip,
+                      n=n_ht, r=r_ht, central=false, refinement=[])
+  c_vt_at_ht = vt_c_root + (vt_c_tip-vt_c_root)*ht_vt_pos
+  x_vt_at_ht = vt_x_root + (vt_x_tip-vt_x_root)*ht_vt_pos
+  setcoordsystem(htail,
+    [f_l-vt_c_root+x_vt_at_ht+c_vt_at_ht-ht_c_root, 0 , f_h/2+vt_b/2*ht_vt_pos],
+         [1.0 0 0; 0 1 0; 0 0 1])
+
+
+  wing = WingSystem()
+  addwing(wing, "Inner", wing_inner)
+  addwing(wing, "OuterL", wing_outerL)
+  addwing(wing, "OuterR", wing_outerR)
+  addwing(wing, "AileronL", aileronL)
+  addwing(wing, "AileronR", aileronR)
+  addwing(wing, "WingletL", wingletL)
+  addwing(wing, "WingletR", wingletR)
+
+  body = WingSystem()
+  addwing(body, "Fuselage", fuselage)
+  addwing(body, "VerticalTail", vtail)
+  addwing(body, "HorizontalTail", htail)
+  b_O = [-f_l*f_w_lpos, 0, -f_h*(f_w_vpos-0.5)]
+  setcoordsystem(body, b_O, [1.0 0 0; 0 1 0; 0 0 1])
+
+  system = WingSystem()
+  addwing(system, "Wing", wing)
+  addwing(system, "Body", body)
+
+  setVinf(system, Vinf)
+  # solve(system, Vinf)
+  # calculate_field(system, "Ftot"; rhoinf=rhoinf)
+
+  run(`rm *.vtk -f`)
+  save(system, "test"; save_horseshoes=false)
+
+  fls = ""
+  for fl in ["test_Wing_Inner_vlm.vtk", "test_Wing_OuterR_vlm.vtk",
+              "test_Wing_OuterL_vlm.vtk",
+              "test_Wing_AileronL_vlm.vtk", "test_Wing_AileronR_vlm.vtk",
+              "test_Wing_WingletL_vlm.vtk", "test_Wing_WingletR_vlm.vtk",
+              "test_Body_Fuselage_vlm.vtk", "test_Body_VerticalTail_vlm.vtk",
+              "test_Body_HorizontalTail_vlm.vtk"]
+    fls = fls*fl*";"
+  end
+  run(`paraview --data=$fls`)
+
+
+  # ------- Moves the system's coordinate system
+  displacement = [10, 20, 30]+0.0
+  roll = 30*pi/180
+  pitch = 4*pi/180
+  yaw = 10*pi/180
+
+  # Transformation matrices
+  Mr = [1 0 0; 0 cos(roll) -sin(roll); 0 sin(roll) cos(roll)]
+  Mp = [cos(pitch) 0 -sin(pitch); 0 1 0; sin(pitch) 0 cos(pitch)]
+  My = [cos(yaw) -sin(yaw) 0; sin(yaw) cos(yaw) 0; 0 0 1]
+  M = Mp*Mr*My
+
+  setcoordsystem(system, displacement, M)
+
+  return system
+end
+
+function exampleWingDEPRI(; n=60, tail=true)
+  # DIMENSIONS
+  ## Wing
+  x_tip = 10.0                    # x-position of the tip chord
+  y_tip = 20.0                    # y-position of the tip chord
+  z_tip = 2.5                     # z-position of the tip chord
+  c_tip = 5.0                     # Chord length at the tip
+  c_angle_tip = -7.50              # Twist at the tip
 
   x_root = 0.0
   y_root = 0.0
@@ -116,6 +402,7 @@ function exampleWing(; n=60, tail=true)
   c_root = 10.0
   c_angle_root = 0.0
 
+  ## Aileron
   c_aileron = 1.0
   c_angle_aileron = -10.0
   x_aileron = x_tip + (c_tip-c_aileron)*cos(c_angle_tip*pi/180)
@@ -629,5 +916,17 @@ function check_coord_sys(M::Array{Array{Float64,1},1}; raise_error::Bool=true)
   return check_coord_sys(newM; raise_error=raise_error)
 end
 
+"returns the transformation matrix of rotation around an arbitrary axis of unit
+vector `r`"
+function axis_rotation(r, angle_deg)
+  ux, uy, uz = r
+  C = cos(angle_deg*pi/180)
+  S = sin(angle_deg*pi/180)
+  t = 1 - C
+  M = [t*ux^2+C t*ux*uy-S*uz t*ux*uz+S*uy;
+        t*ux*uy+S*uz t*uy^2+C t*uy*uz-S*ux;
+        t*ux*uz-S*uy t*uy*uz+S*ux t*uz^2+C]
+  return M
+end
 
 ##### END OF ALGEBRA ###########################################################

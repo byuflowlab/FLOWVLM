@@ -249,7 +249,8 @@ function addchord(self::Wing,
       else
         _central = central==true ? 0.5 : central
         # Left of the center
-        if cumlen/l < _central
+        # if cumlen/l < _central
+        if i<=floor(n*_central)
           _l = l*_central
           _n = floor(n*_central)
           _r = r
@@ -264,7 +265,7 @@ function addchord(self::Wing,
         p = _l/( (_n*(_n-1)/2)*(_r+1)/(_r-1) )
         d1 = p*(_n-1)/(_r-1)
         len = d1 + p*(_i-1)
-        # println("$i\t$len\t$cumlen\t_n=$_n\t_i=$_i")
+        # println("$i\t$_r\t$cumlen\t_n=$_n\t_i=$_i")
       end
 
     end

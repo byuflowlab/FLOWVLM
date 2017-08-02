@@ -11,7 +11,7 @@ between wings.
 """
 type WingSystem
   # Properties
-  wings::typeof(Wing[])             # Wings in the system
+  wings::typeof([])             # Wings in the system
   wing_names::typeof(String[])      # Names of the wings
   O::Array{Float64,1}               # Origin of local reference frame
   Oaxis::Array{Float64,2}           # Unit vectors of the local reference frame
@@ -21,7 +21,7 @@ type WingSystem
   # Data storage
   sol::typeof(Dict())               # Solution fields available
 
-  WingSystem( wings=Wing[], wing_names=String[],
+  WingSystem( wings=[], wing_names=String[],
                 O=[0.0,0.0,0.0],
                 Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
                 invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
@@ -37,7 +37,7 @@ end
 Adds a wing to the system with the position and orientation of local reference
 being interpreted in relation to the local reference frame of the system.
 """
-function addwing(self::WingSystem, wing_name::String, wing::Wing;
+function addwing(self::WingSystem, wing_name::String, wing;
                   overwrite=false)
   # Error case
   if wing_name in self.wing_names
@@ -249,7 +249,7 @@ function _fetch_wing(self::WingSystem, m::Int64)
       wing = wing_i
       break
     else
-      _m -= wing_i.m
+      _m -= get_m(wing_i)
     end
   end
 
