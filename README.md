@@ -5,7 +5,8 @@
 <img src="docs/vid/exampleforce.gif" alt="Drawing" style="width: 600px;"/>
 <img src="docs/vid/examplestreams.gif" alt="Drawing" style="width: 600px;"/>
 
-Julia vortex lattice method developed by Eduardo Alvarez (Edo.AlvarezR@gmail.com), August 2017.
+Julia vortex lattice method developed by Eduardo Alvarez
+(Edo.AlvarezR@gmail.com) at the FLOW Lab. August 2017, Brigham Young University.
 
 FUNCTIONALITY
 -Arbitrary 3D lifting surface geometries.
