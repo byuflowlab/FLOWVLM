@@ -102,23 +102,26 @@ end
 # UTILITIES
 ################################################################################
 "Example of a system of lifting surfaces (WingSystem)"
-function exampleWing(; n=1, tail=true)
+function exampleWing(; n=1, solveVLM=true, aileron_angleL = 15*pi/180,
+                      aileron_angleR = -15*pi/180, num=nothing,
+                      openParaview=true)
 
   # SIMULATION PARAMETERS
   magVinf = 55.0
-  AOA = 12.0*pi/180
+  AOA = 4.0*pi/180
   Vinf(X,t) = magVinf*[cos(AOA), 0, sin(AOA)]
   rhoinf = 9.093/10^1
-  aileron_angleL = 15*pi/180      # Inclination of left aileron
-  aileron_angleR = -15*pi/180     # Inclination of right aileron
+  qinf = (1/2)*rhoinf*magVinf^2
+  # aileron_angleL = 15*pi/180      # Inclination of left aileron
+  # aileron_angleR = -15*pi/180     # Inclination of right aileron
 
   # VLM PARAMETERS
   ## Number of lattices
-  n_w = n*40                      # Semi-span of the wing
+  n_w = Int(ceil(n*40))           # Semi-span of the wing
   n_wl = Int(ceil(n_w/2))         # Winglets
-  n_f = n*10                      # Fuselage
-  n_vt = n*20                     # Vertical tail
-  n_ht = n*20                     # Semi-span of horizontal tail
+  n_f = Int(ceil(n*10))           # Fuselage
+  n_vt = Int(ceil(n*20))          # Vertical tail
+  n_ht = Int(ceil(n*20))          # Semi-span of horizontal tail
   ## Panel expansion ratio
   r_w = 5.0
   r_wl = 1.0
@@ -134,7 +137,7 @@ function exampleWing(; n=1, tail=true)
   w_lambda = 30.0                 # Leading edge sweep
   w_gamma = 5.0                   # Dihedral
   w_twist_root = 0.0              # Twist at the root
-  w_twist_tip = -7.5              # Twist at the tip
+  w_twist_tip = -2.5              # Twist at the tip
   w_c_root = 10.0                 # Chord at the root
   w_c_tip = 5.0                   # Chord at the tip
   w_sec_div = 0.60                # Spanwise position of the aileron
@@ -331,6 +334,8 @@ function exampleWing(; n=1, tail=true)
          [1.0 0 0; 0 1 0; 0 0 1])
 
 
+  # CREATES THE WINGSYSTEM
+  ## Wing
   wing = WingSystem()
   addwing(wing, "Inner", wing_inner)
   addwing(wing, "OuterL", wing_outerL)
@@ -339,190 +344,75 @@ function exampleWing(; n=1, tail=true)
   addwing(wing, "AileronR", aileronR)
   addwing(wing, "WingletL", wingletL)
   addwing(wing, "WingletR", wingletR)
-
+  ## Body
   body = WingSystem()
   addwing(body, "Fuselage", fuselage)
   addwing(body, "VerticalTail", vtail)
   addwing(body, "HorizontalTail", htail)
   b_O = [-f_l*f_w_lpos, 0, -f_h*(f_w_vpos-0.5)]
   setcoordsystem(body, b_O, [1.0 0 0; 0 1 0; 0 0 1])
-
+  ## Entire system
   system = WingSystem()
   addwing(system, "Wing", wing)
   addwing(system, "Body", body)
 
-  setVinf(system, Vinf)
-  # solve(system, Vinf)
-  # calculate_field(system, "Ftot"; rhoinf=rhoinf)
-
-  run(`rm *.vtk -f`)
-  save(system, "test"; save_horseshoes=false)
-
-  fls = ""
-  for fl in ["test_Wing_Inner_vlm.vtk", "test_Wing_OuterR_vlm.vtk",
-              "test_Wing_OuterL_vlm.vtk",
-              "test_Wing_AileronL_vlm.vtk", "test_Wing_AileronR_vlm.vtk",
-              "test_Wing_WingletL_vlm.vtk", "test_Wing_WingletR_vlm.vtk",
-              "test_Body_Fuselage_vlm.vtk", "test_Body_VerticalTail_vlm.vtk",
-              "test_Body_HorizontalTail_vlm.vtk"]
-    fls = fls*fl*";"
-  end
-  run(`paraview --data=$fls`)
-
-
-  # ------- Moves the system's coordinate system
-  displacement = [10, 20, 30]+0.0
-  roll = 30*pi/180
-  pitch = 4*pi/180
-  yaw = 10*pi/180
-
-  # Transformation matrices
-  Mr = [1 0 0; 0 cos(roll) -sin(roll); 0 sin(roll) cos(roll)]
-  Mp = [cos(pitch) 0 -sin(pitch); 0 1 0; sin(pitch) 0 cos(pitch)]
-  My = [cos(yaw) -sin(yaw) 0; sin(yaw) cos(yaw) 0; 0 0 1]
-  M = Mp*Mr*My
-
-  setcoordsystem(system, displacement, M)
-
-  return system
-end
-
-function exampleWingDEPRI(; n=60, tail=true)
-  # DIMENSIONS
-  ## Wing
-  x_tip = 10.0                    # x-position of the tip chord
-  y_tip = 20.0                    # y-position of the tip chord
-  z_tip = 2.5                     # z-position of the tip chord
-  c_tip = 5.0                     # Chord length at the tip
-  c_angle_tip = -7.50              # Twist at the tip
-
-  x_root = 0.0
-  y_root = 0.0
-  z_root = 0.0
-  c_root = 10.0
-  c_angle_root = 0.0
-
-  ## Aileron
-  c_aileron = 1.0
-  c_angle_aileron = -10.0
-  x_aileron = x_tip + (c_tip-c_aileron)*cos(c_angle_tip*pi/180)
-  y_aileron = y_tip
-  z_aileron = z_tip - (c_tip-c_aileron)*sin(c_angle_tip*pi/180)
-
-  n_half_wing = convert(Int, round(n/2))
-  n_aileron = convert(Int, round(n/2))
-  n_winglet = convert(Int, round(n/1.5))
-
-  r_wing = 1/16.0
-  r_winglet = 2.0
-
-  # WING
-  wing = Wing(x_tip, -y_tip, z_tip, c_tip-c_aileron, c_angle_tip);
-  addchord(wing, x_root, y_root, z_root, c_root-c_aileron, c_angle_root, n_half_wing; r=1/r_wing);
-  addchord(wing, x_tip, y_tip, z_tip, c_tip-c_aileron, c_angle_tip, n_half_wing; r=r_wing);
-
-
-  #AILERONS
-  aileronR = Wing(c_root-c_aileron, 0.0,
-                              z_root-(c_root-c_aileron)*sin(c_angle_root*pi/180),
-                              c_aileron, c_angle_aileron);
-  addchord(aileronR, x_aileron, y_aileron, z_aileron,
-              c_aileron, c_angle_aileron, n_aileron; r=r_wing);
-  aileronL = Wing(x_aileron, -y_aileron, z_aileron,c_aileron, c_angle_aileron);
-  addchord(aileronL, c_root-c_aileron, 0.0,
-               z_root-(c_root-c_aileron)*sin(c_angle_root*pi/180),
-               c_aileron, c_angle_aileron, n_aileron; r=1/r_wing);
-
-  # WINGLETS
-  wingletL = Wing(17.0, -25.0, 5.0, 2.5, 0.0);
-  addchord(wingletL, x_tip, -y_tip, z_tip, c_tip, c_angle_tip, n_winglet; r=r_winglet);
-  wingletR = Wing(x_tip, y_tip, z_tip, c_tip, c_angle_tip);
-  addchord(wingletR, 17.0, 25.0, 5.0, 2.5, 0.0, n_winglet; r=1/r_winglet);
-
-  system = WingSystem()
-  addwing(system, "Wing", wing)
-  addwing(system, "LeftAileron", aileronL)
-  addwing(system, "RightAileron", aileronR)
-  addwing(system, "LeftWinglet", wingletL)
-  addwing(system, "RightWinglet", wingletR)
-
-  # Adds a tail
-  if tail
-    x_body_top = -3.0
-    z_body_top = 0.0
-    x_body_bottom = 0.0
-    z_body_bottom = -4.0
-    l_body = 55.0
-    l_body_bottom = l_body - (x_body_top - x_body_bottom) - 12
-
-    l_pylon_bottom = 6.0
-    l_pylon_top = 3.0
-    h_pylon = 7.0
-    angle_pylon = 45.0*pi/180 # front angle from the vertical axis
-    x_pylon_bottom = x_body_top + l_body - l_pylon_bottom
-    z_pylon_bottom = z_body_top
-    x_pylon_top = x_pylon_bottom + h_pylon*tan(angle_pylon)
-    z_pylon_top = z_pylon_bottom + h_pylon
-
-    h_canard_from_body = h_pylon/4
-    c_canard_root_ratio = 3/4 # c_canard_root/c_pylon at such height
-    tr_canard =  1/2 # taper ratio
-    lambda_canard = 30.0*pi/180 # sweep
-    twist_canard_root = 0.0
-    twist_canard_tip = 10.0
-    b_canard = 17.5 # Span
-
-    c_pylon_at_canard = l_pylon_bottom + (l_pylon_top-l_pylon_bottom)*h_canard_from_body/h_pylon
-    x_pylon_at_canard = x_pylon_bottom + (x_pylon_top-x_pylon_bottom)*h_canard_from_body/h_pylon
-    c_canard_root = c_canard_root_ratio * c_pylon_at_canard
-    x_canard_root = x_pylon_at_canard + c_pylon_at_canard*(1-c_canard_root_ratio)
-    z_canard_root = z_body_top + h_canard_from_body
-    x_canard_tip = x_canard_root + (b_canard/2)*tan(lambda_canard)
-    z_canard_tip = z_canard_root
-    c_canard_tip = tr_canard*c_canard_root
-
-    n_body = convert(Int, round(n/6))
-    if n_body<4; n_body=4; end;
-    n_pylon = convert(Int, round(n/3))
-    n_canard_half = convert(Int, round(n/4))
-
-    r_pylon = 4.0
-    r_canard = 1/16.0
-
-    # BODY
-    body = Wing(x_body_top, 0.0, z_body_top, l_body, 0.0)
-    addchord(body, x_body_bottom, 0.0, z_body_bottom, l_body_bottom, 0.0, n_body; r=1.0)
-
-    # CANARD PYLON
-    pylon = Wing(x_pylon_top, 0.0, z_pylon_top, l_pylon_top, 0.0)
-    addchord(pylon, x_pylon_bottom, 0.0, z_pylon_bottom, l_pylon_bottom, 0.0, n_pylon; r=r_pylon)
-
-    # CANARD
-    canard = Wing(x_canard_tip, -b_canard/2, z_canard_tip, c_canard_tip, twist_canard_tip)
-    addchord(canard, x_canard_root, 0.0, z_canard_root, c_canard_root, twist_canard_root, n_canard_half; r=1/r_canard)
-    addchord(canard, x_canard_tip, b_canard/2, z_canard_tip, c_canard_tip, twist_canard_tip, n_canard_half; r=r_canard)
-
-    addwing(system, "Body", body)
-    addwing(system, "CanardPylon", pylon)
-    addwing(system, "Canard", canard)
+  # SOLVES
+  if solveVLM
+    solve(system, Vinf)
+    calculate_field(system, "Ftot"; rhoinf=rhoinf)
+    calculate_field(system, "CFtot")
+    calculate_field(system, "Mtot")
+    calculate_field(system, "CMtot"; qinf=qinf)
+  else
+    setVinf(system, Vinf)
   end
 
-  # ------- Moves the system's coordinate system
-  displacement = [10, 20, 30]+0.0
-  roll = 30*pi/180
-  pitch = 4*pi/180
-  yaw = 10*pi/180
+  # GENERATES FLUID DOMAIN
+  P_max = [f_l*5/4, w_b*5/4, (f_h+vt_b/2)*5/4]
+  fdom = PP.FluidDomain([0.0, 0.0, 0.0], P_max, [10, 5, 1]*2^3)
+  PP.setcoordsystem(fdom, b_O + P_max.*[-1/60, -1/2, -1/6],
+                      [1.0 0 0; 0 1 0; 0 0 1])
+  fdom_V(X) = Vind(system, X) + Vinf(X,0)
 
-  # Transformation matrices
-  Mr = [1 0 0; 0 cos(roll) -sin(roll); 0 sin(roll) cos(roll)]
-  Mp = [cos(pitch) 0 -sin(pitch); 0 1 0; sin(pitch) 0 cos(pitch)]
-  My = [cos(yaw) -sin(yaw) 0; sin(yaw) cos(yaw) 0; 0 0 1]
-  M = Mp*Mr*My
 
-  setcoordsystem(system, displacement, M)
+  # GENERATES VTKS
+  # run(`rm *.vtk -f`)
+  save(system, "test"; save_horseshoes=false, num=num)
+  PP.save(fdom, "test"; num=(num==nothing?-1:num))
 
-  return system
+  # OPENS PARAVIEW
+  if openParaview
+    fls = ""
+    for fl in ["test_Wing_Inner_vlm.vtk", "test_Wing_OuterR_vlm.vtk",
+                "test_Wing_OuterL_vlm.vtk",
+                "test_Wing_AileronL_vlm.vtk", "test_Wing_AileronR_vlm.vtk",
+                "test_Wing_WingletL_vlm.vtk", "test_Wing_WingletR_vlm.vtk",
+                "test_Body_Fuselage_vlm.vtk", "test_Body_VerticalTail_vlm.vtk",
+                "test_Body_HorizontalTail_vlm.vtk",
+                "test_fdom.vtk"]
+      fls = fls*fl*";"
+    end
+    run(`paraview --data=$fls`)
+  end
+
+
+  # # ------- Moves the system's coordinate system
+  # displacement = [10, 20, 30]+0.0
+  # roll = 30*pi/180
+  # pitch = 4*pi/180
+  # yaw = 10*pi/180
+  #
+  # # Transformation matrices
+  # Mr = [1 0 0; 0 cos(roll) -sin(roll); 0 sin(roll) cos(roll)]
+  # Mp = [cos(pitch) 0 -sin(pitch); 0 1 0; sin(pitch) 0 cos(pitch)]
+  # My = [cos(yaw) -sin(yaw) 0; sin(yaw) cos(yaw) 0; 0 0 1]
+  # M = Mp*Mr*My
+  #
+  # setcoordsystem(system, displacement, M)
+
+  return system, fdom, fdom_V
 end
+
 
 """
     `simpleWing(b, ar, tr, twist, lambda, gamma; twist_tip=twist, n=20, r=2.0)`
