@@ -788,7 +788,7 @@ function check_coord_sys(M::Array{Float64,2}; raise_error::Bool=true)
     proj = abs(dot(xi, xip1))
     if proj>0.00000001
       if raise_error
-        error("Non-ortogonal system")
+        error("Non-ortogonal system $M")
       else
         return false
       end
