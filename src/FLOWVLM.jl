@@ -444,9 +444,9 @@ end
 "Solves the VLM of the Wing or WingSystem"
 function solve(wing, Vinf; t::Float64=0.0)
   setVinf(wing, Vinf)
-  HSs = getHorseshoes(wing)
+  HSs = getHorseshoes(wing; t=t)
   Gammas = VLMSolver.solve(HSs, Vinf; t=t)
-  _addsolution(wing, "Gamma", Gammas)
+  _addsolution(wing, "Gamma", Gammas; t=t)
 end
 
 "Returns all the horseshoes of the Wing or WingSystem"

@@ -229,7 +229,7 @@ function _addsolution(self::WingSystem, field_name::String, sol_field; t::Float6
   prev_m = 0
   for wing in self.wings
     this_m = get_m(wing)
-    _addsolution(wing, field_name, sol_field[ (prev_m+1) : prev_m+this_m ])
+    _addsolution(wing, field_name, sol_field[ (prev_m+1) : prev_m+this_m ]; t=t)
     prev_m += this_m
   end
 end
