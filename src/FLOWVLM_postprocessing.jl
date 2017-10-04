@@ -14,7 +14,8 @@ a list of implemented fields.
 """
 function calculate_field(wing, field_name::String;
                         rhoinf=nothing, qinf="automatic",
-                        S="automatic", l="automatic", r_cg="automatic")
+                        S="automatic", l="automatic", r_cg="automatic",
+                        t::Float64=0.0)
 
   # --- ERROR CASES
   ## Unknown field
@@ -36,7 +37,7 @@ function calculate_field(wing, field_name::String;
       error("$(field_name) requested but rhoinf is missing")
     end
 
-    F, SS, D, L = _calculate_forces(wing, rhoinf)
+    F, SS, D, L = _calculate_forces(wing, rhoinf; t=t)
     _addsolution(wing, "Ftot", F)
     _addsolution(wing, "S", SS)
     _addsolution(wing, "D", D)
@@ -47,11 +48,11 @@ function calculate_field(wing, field_name::String;
     if rhoinf==nothing && qinf!="automatic"
       println("$(field_name) requested with a given qinf, but rhoinf is missing"
                 *". Given qinf will be ignored.")
-      Vinf = _aveVinf(wing)
+      Vinf = _aveVinf(wing; t=t)
       _rhoinf = 1.0
       _qinf = (1.0/2)*_rhoinf*dot(Vinf, Vinf)
     elseif qinf=="automatic"
-      Vinf = _aveVinf(wing)
+      Vinf = _aveVinf(wing; t=t)
       _rhoinf = 1.0
       _qinf = (1.0/2)*_rhoinf*dot(Vinf, Vinf)
     else
@@ -60,7 +61,7 @@ function calculate_field(wing, field_name::String;
     end
     _S = S=="automatic" ? _S = planform_area(wing) : S
 
-    CF, CS, CD, CL = _calculate_force_coeffs(wing, _rhoinf, _qinf, _S)
+    CF, CS, CD, CL = _calculate_force_coeffs(wing, _rhoinf, _qinf, _S; t=t)
     _addsolution(wing, "CFtot", CF)
     _addsolution(wing, "CS", CS)
     _addsolution(wing, "CD", CD)
@@ -71,11 +72,11 @@ function calculate_field(wing, field_name::String;
     if rhoinf==nothing && qinf!="automatic"
       println("$(field_name) requested with a given qinf, but rhoinf is missing"
                 *". Given qinf will be ignored.")
-      Vinf = _aveVinf(wing)
+      Vinf = _aveVinf(wing; t=t)
       _rhoinf = 1.0
       _qinf = (1.0/2)*_rhoinf*dot(Vinf, Vinf)
     elseif qinf=="automatic"
-      Vinf = _aveVinf(wing)
+      Vinf = _aveVinf(wing; t=t)
       _rhoinf = 1.0
       _qinf = (1.0/2)*_rhoinf*dot(Vinf, Vinf)
     else
@@ -85,7 +86,7 @@ function calculate_field(wing, field_name::String;
     _S = S=="automatic" ? _S = planform_area(wing) : S
 
     Cf, Cs, Cd, Cl = _calculate_force_coeffs(wing, _rhoinf, _qinf, _S;
-                                              per_unit_span=true)
+                                              per_unit_span=true, t=t)
 
     # Converts them into scalars
     s_Cf, s_Cs, s_Cd, s_Cl = [], [], [],[]
@@ -187,7 +188,7 @@ function _calculate_forces(wing, rhoinf::Float64;
   end
 
   # -------------- DECOMPOSES F INTO COMPONENTS
-  S,D,L = _decompose(wing, F)
+  S,D,L = _decompose(wing, F; t=t)
 
   return F, S, D, L
 end
@@ -245,8 +246,8 @@ function _aveVinf(wing; t::Float64=0.0)
 end
 
 "Decomposes a force field into sideslip, drag, and lift components"
-function _decompose(wing, F)
-  Vinf = _aveVinf(wing)     # Vinf used for decomposing forces
+function _decompose(wing, F; t::Float64=0.0)
+  Vinf = _aveVinf(wing; t=t)     # Vinf used for decomposing forces
 
   # Unit vectors
   s_hat = wing.Oaxis[2, :]                                  # Sideslip
@@ -319,7 +320,7 @@ function _span_eff(wing; min=Inf, max=-Inf)
     _max = max>this_max ? max : this_max
     _min = min<this_min ? min : this_min
     return _min, _max
-  elseif typeof(wing)==typeof(Wing[])
+  elseif typeof(wing) in [typeof(Wing[]), Array{Any,1}]
     _min, _max = min, max
     for w in wing
       _min, _max = _span_eff(w; min=_min, max=_max)

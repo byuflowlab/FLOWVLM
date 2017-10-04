@@ -1,31 +1,53 @@
 # Bald Eagly flapping around
+using PyPlot
 
 include("../src/FLOWVLM.jl")
 vlm = FLOWVLM
 
-save_path = "temp_flapping/"
+path_to_vpm = "/home/user/Dropbox/FLOWResearch/MyCodes/MyVPM/src/"
+include(path_to_vpm*"MyVPM.jl")
+vpm = MyVPM
+
+# save_path = "temp_flapping/"
 run_name = "flappingwing"
 save_horseshoes = true
 save_code = "examples/flappingwing.jl"
 prompt = true
 
-function flappingwing(; verbose=true, save_fdom=false)
+global prev_system = nothing
+global cur_system = nothing
+global system = nothing
+
+function flappingwing(; verbose=true, save_fdom=false, num_strikes=3, nsteps=20,
+                      plot_local_flap_vel=false, prompt=true,
+                      flaps_per_sec = 6/2.6, save_path="temp_flapping/")
+  global prev_system = nothing
+  global cur_system = nothing
   # ---------------- RUN PARAMETERS -------------------------
-  flaps_per_sec = 6/2.6       # (1/s) Strikes per second
-  num_strikes = 3             # Simulation strikes length
-  nsteps = 20                 # Number of time steps
+  # flaps_per_sec = 6/2.6       # (1/s) Strikes per second
+  # num_strikes = 3             # Simulation strikes length
+  # nsteps = 20                 # Number of time steps
   A = 55                      # (deg) Strike amplitude
   offset = 35/55              # Strike offset
   amplif = 1.5                # Wingtip section amplification
+
+  # ---------------- AERODYNAMIC COEFFS PARAMETERS ----------
+  Sref = 1.0                  # (m^2) Reference area
+  rhoinf = 9.093/10^1         # (kg/m^3) Air density
+  qinf = rhoinf*norm(def_Vinf(zeros(3),0))/2    # Dynamic pressure
 
   # ---------------- SIMULATION PARAMETERS ------------------
   omega = flaps_per_sec * 2*pi# (rad/s) Angular speed
   tend = num_strikes/flaps_per_sec      # Simulation end time
   dt = tend/nsteps            # Time step
-  verbose_nsteps = 10         # Verbose frequency
+  # verbose_nsteps = 10         # Verbose frequency
+  verbose_nsteps = (plot_local_flap_vel && prompt==false) ? 1 : 2
   n = 1                       # Lattice density
   fdom_n = 1                  # Fluid domain density
 
+  p_field = vpm.ParticleField(20000, def_Vinf, nothing, "ExaFMM")
+
+  # Function for calculating dihedrals as the wing flaps
   dihedrals(t) = forearm_wingtip_dihedral(t, omega, A, offset, amplif)
 
   # ---------------- PREPARATION ----------------------------
@@ -68,26 +90,68 @@ function flappingwing(; verbose=true, save_fdom=false)
   println("*******************************************************************")
   end
   for i in 0:nsteps
-    # Verbose
-    if verbose && i%verbose_nsteps==0
-      println("Time step $i out of $nsteps")
-    end
 
     # Time step
     t = dt*i
+
+    # Generates the system without solving for Vinf_flapping
     forearm_gamma, wingtip_gamma = dihedrals(t)
-    system, fdom = generate_eagle(; gamma2=forearm_gamma*pi/180,
+    _system, fdom = generate_eagle(; gamma2=forearm_gamma*pi/180,
                                   gamma3=wingtip_gamma*pi/180, num=i,
                                   save_path=nothing, save_fdom=false,
-                                  generate_fdom=save_fdom,
+                                  generate_fdom=save_fdom, solve=false,
                                   openParaview=false)
+    global prev_system = cur_system
+    global cur_system = _system
+
+    # Since Vinf_flapping recursively calls HSs, I need a cloned system
+    global system = generate_eagle(; gamma2=forearm_gamma*pi/180,
+                                  gamma3=wingtip_gamma*pi/180, num=i,
+                                  save_path=nothing, save_fdom=false,
+                                  generate_fdom=save_fdom, solve=false,
+                                  openParaview=false)[1]
+    # Solves the VLM system
+    vlm.solve(system, Vinf_flapping; t=dt)
+
+    # Sheds particles from VLM to VPM
+    adds_particles_from_vlm(p_field, system, 0.0, 0.0; t=dt, dt=dt)
+
+    # Verbose
+    if verbose && i%verbose_nsteps==0
+      println("Time step $i out of $nsteps\tParticles: $(vpm.get_np(p_field))")
+    end
+
+    # Solves VPM particle field
+    vpm.nextstep(p_field, dt)
+
+    # Postprocessing
+    vlm.calculate_field(system, "CFtot"; S=Sref, rhoinf=rhoinf, qinf=qinf, t=dt)
+    vlm.calculate_field(system, "Cftot/CFtot"; S=Sref, rhoinf=rhoinf, qinf=qinf,
+                        t=dt)
+
+    # Plots the local flapping velocity
+    if plot_local_flap_vel && i!=0
+      if i>1; clf(); end;
+      plot_local_flapping_vel(t, dt, prev_system, cur_system)
+      if prompt
+        print("\t\tDisplaying plot. Press ENTER to continue.")
+        readline()
+      end
+      if save_path!=nothing
+        this_num = (i<10?"000":i<100?"00":i<1000?"0":"")*"$i"
+        savefig(save_path*run_name*"_flapvel_"*this_num*".png")
+      end
+    end
 
     # Saves vtks
     if save_path!=nothing
+      # VLM
       vlm.save(system, run_name; num=i,
               save_horseshoes=save_horseshoes, path=save_path)
+      # VPM
+      vpm.save_vtk(p_field, run_name; path=save_path, num=i)
 
-      # Saves fluid domain
+      # fluid domain
       if save_fdom
         vlm.PP.save(fdom, run_name; path=save_path, num=i)
       end
@@ -113,20 +177,25 @@ function forearm_wingtip_dihedral(t, omega, A, offset, amplif)
     return forearm, wingtip
 end
 
+function def_Vinf(X,t)
+  Vinf_mag = 20.0   # (m/s) Flight speed
+  return Vinf_mag*[1,0,0]
+end
+
 function generate_eagle(; gamma2=4*pi/180, gamma3=15*pi/180, n=2, fdom_n=2,
-                        num=nothing,
+                        Vinf=def_Vinf, num=nothing,
                         save_path=save_path, save_fdom=true,
-                        openParaview=false, generate_fdom=true)
+                        openParaview=false, generate_fdom=true, solve=true)
 
   # ---------------- RUN PARAMETERS -------------------------
-  Vinf_mag = 20.0   # (m/s) Flight speed
+  # Vinf_mag = 20.0   # (m/s) Flight speed
   AOA = 7.5*pi/180  # Angle of attack
 
   # n = 2             # Lattice density factor
   # fdom_n = 2        # Fluid domain density factor
 
-  Vinf_vec = Vinf_mag*[1,0,0]
-  Vinf(X,t) = Vinf_vec
+  # Vinf_vec = Vinf_mag*[1,0,0]
+  # Vinf(X,t) = Vinf_vec
 
 
   # ---------------- DIMENSIONS -----------------------------
@@ -271,10 +340,10 @@ function generate_eagle(; gamma2=4*pi/180, gamma3=15*pi/180, n=2, fdom_n=2,
 
   # System
   system = vlm.WingSystem()
-  vlm.addwing(system, "Body", body)
-  vlm.addwing(system, "ForearmLeft", forearm_l)
-  vlm.addwing(system, "ForearmRight", forearm_r)
   vlm.addwing(system, "WingTipLeft", wingtip_l)
+  vlm.addwing(system, "ForearmLeft", forearm_l)
+  vlm.addwing(system, "Body", body)
+  vlm.addwing(system, "ForearmRight", forearm_r)
   vlm.addwing(system, "WingTipRight", wingtip_r)
   vlm.setVinf(system, Vinf)
   sys_O = [0.0, 0.0, 0.0]
@@ -296,9 +365,9 @@ function generate_eagle(; gamma2=4*pi/180, gamma3=15*pi/180, n=2, fdom_n=2,
 
 
   # ---------------- SOLVES VLM AND FLUID DOMAIN -----------
-  vlm.solve(system, Vinf; t=0.0)
+  if solve; vlm.solve(system, Vinf; t=0.0); end;
 
-  if generate_fdom
+  if solve && generate_fdom
     fdom_V(X) = vlm.Vind(system, X; t=0.0) + system.Vinf(X,0.0)
     fdom_field = [Dict( "field_name" => "U",
                         "field_type" => "vector",
@@ -370,6 +439,99 @@ function generate_eagle(; gamma2=4*pi/180, gamma3=15*pi/180, n=2, fdom_n=2,
   return system, fdom
 end
 
+"Vinf + local flapping velocity. Give `dt` as the dt to use for
+`local_flapping_vel`"
+function Vinf_flapping(X, dt)
+  if nothing in [prev_system, cur_system]
+    return def_Vinf(X, dt)
+  else
+    Vflap = local_flapping_vel(X, dt, prev_system, cur_system)
+    return def_Vinf(X, dt) - Vflap
+  end
+end
+
+"Given two consecutives WingSystem (prev_system and cur_system), returns the
+local flapping velocity if `X` fits along the wing in the current system. `dt`
+is the time step between prev_system and cur_system"
+function local_flapping_vel(X, dt, system1::vlm.WingSystem,
+                            system2::vlm.WingSystem; debug=false)
+  if dt==0; println("Logic error: dt=$dt received!"); end;
+  lattice_m = nothing
+
+  if debug; println("Function call"); end;
+
+  # Iterates over all lattices seeing if X fits along any lattice
+  for i in 1:vlm.get_m(system2)
+    if debug; println("\t Loop $i"); end;
+    # Checks if normals are parallel (X in plane of the lattice)
+    HS = vlm.getHorseshoe(system2, i)     # This lattice
+    Ap, A, B, Bp, CP, _, _, _ = HS
+    HS_n = cross(A-B, A-CP); HS_n = HS_n/norm(HS_n)   # Normal of this lattice
+    X_n = cross(A-B, A-X); X_n = X_n/norm(X_n)        # Normal of X's plane
+    if norm(cross(HS_n, X_n)) <= 1/10^4
+      if debug; println("\t\t Normals check passed!"); end;
+
+      # Checks if the point is between A and B (X in between span of lattice)
+      blen_AB = norm(B-A)                 # Span of this lattice
+      blen_AX = norm(dot(X-A, B-A))       # Span between A and X
+      if blen_AX/blen_AB>=0.001 && blen_AX/blen_AB<=1.001
+        if debug; println("\t\t Span check passes!"); end;
+
+        # Checks if point is between LE and TE (X in between chords of lattice)
+        LE_A = (A-Ap)/(1-vlm.pn) + Ap     # Leading edge at A
+        LE_B = (B-Bp)/(1-vlm.pn) + Bp     # Leading edge at B
+        c_A = norm(Ap-LE_A)               # Chord at A
+        c_B = norm(Bp-LE_B)               # Chord at B
+        LE_X = (LE_B-LE_A)*(blen_AX/blen_AB) + LE_A   # LE at span-position of X
+        TE_X = (Bp-Ap)*(blen_AX/blen_AB) + Ap         # TE at span-position of X
+        c_X = norm(LE_X-TE_X)             # Chord at span-position of X
+        if (c_X/2) / norm(X - (LE_X+TE_X)/2) >= 0.9
+          if debug; println("\t\t Chord check passes!"); end;
+
+          # X is in this lattice
+          lattice_m = i
+          break
+
+        end
+      end
+    end
+  end
+
+  # Case X is not along the wing
+  if lattice_m==nothing
+    return [0.0,0,0]
+
+  # Case X is along the wing
+  else
+    # Calculates the velocity experienced by the corresponding control point
+    prev_CP = vlm.getControlPoint(system1, lattice_m)
+    curr_CP = vlm.getControlPoint(system2, lattice_m)
+    return (curr_CP-prev_CP)/dt
+  end
+end
+
+"Plotting function for verification of local flapping velocity"
+function plot_local_flapping_vel(t, dt, system1::vlm.WingSystem,
+                                      system2::vlm.WingSystem)
+  fig = figure("local_flapping_vel")
+  x,y = [],[]
+  for i in 1:vlm.get_m(system2)
+    X = vlm.getControlPoint(system2, i)
+    V = local_flapping_vel(X, dt, system1, system2)
+    push!(x, i)
+    push!(y, V)
+  end
+
+  plot(x,[y[i][1] for i in 1:size(y)[1]], "*b", label="x-velocity")
+  plot(x,[y[i][2] for i in 1:size(y)[1]], ".g", label="y-velocity")
+  plot(x,[y[i][3] for i in 1:size(y)[1]], "xr", label="z-velocity")
+  xlabel("Control point")
+  ylabel("Velocity (m/s)")
+  legend(loc="best")
+  grid(true, color="0.8", linestyle="--")
+  title("Local flapping velocity at t=$(round(t,2))")
+  ylim([-10, 10])
+end
 
 function timeformat(time_beg, time_end)
   time_delta = Int(time_end-time_beg)
@@ -377,4 +539,68 @@ function timeformat(time_beg, time_end)
   mins = Int(floor((time_delta-hrs*60*60*1000)/1000/60))
   secs = Int(floor((time_delta-hrs*60*60*1000-mins*1000*60)/1000))
   return hrs,mins,secs
+end
+
+
+
+"Adds rollup particles from vlm"
+function adds_particles_from_vlm(p_field::vpm.ParticleField, vlm_system,
+                      _dl::Float64, _sigma::Float64;
+                      t::Float64=0.0, dt::Float64=0.0)
+  if false==("Gamma" in keys(vlm_system.sol))
+    error("Gamma field not found!")
+  end
+
+  Np = vlm.get_m(vlm_system)+1
+
+  prev_HS = nothing
+  for i in 1:Np
+    if i==Np
+      # Right tip case
+      HS = prev_HS
+      Ap, A, B, Bp, CP, infDA, infDB, hs_Gamma = HS
+      A = B
+      Ap = Bp
+      hs_Gamma = 0.0
+    else
+      # Base case
+      HS = vlm.getHorseshoe(vlm_system, i)
+      Ap, A, B, Bp, CP, infDA, infDB, hs_Gamma = HS
+    end
+    if i==1
+    # Left tip case
+      prev_B, prev_Bp = A, Ap
+      prev_A, prev_Ap = prev_B, prev_Bp
+      prev_infDA = infDA
+      prev_infDB = infDB
+      prev_hs_Gamma = 0.0
+    else
+      (prev_Ap, prev_A, prev_B, prev_Bp, prev_CP, prev_infDA, prev_infDB,
+        prev_hs_Gamma) = prev_HS
+    end
+
+    # Position of particle
+    X = Ap
+
+    # Length of shedding
+    if dt!=0
+      dl = norm(vlm_system.Vinf(X, t))*dt
+      sigma = dl
+    else
+      dl = _dl
+      sigma = _sigma
+    end
+
+    # Vectorial circulation
+    infD = (infDA + prev_infDB)/2     # Direction going out of TE to infinite
+    infD = infD/norm(infD)
+    magGamma = (prev_hs_Gamma - hs_Gamma) * dl
+    Gamma = magGamma * infD
+
+
+    particle = vcat(X, Gamma, sigma)
+    vpm.addparticle(p_field, particle)
+
+    prev_HS = HS
+  end
 end

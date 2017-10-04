@@ -42,7 +42,8 @@ boundary condition of no-through flow.
   # Optional arguments
   * `t::Float64`            : Time argument for evaluation of Vinf.
 """
-function solve(HSs::Array{Array{Any,1},1}, Vinf; t::Float64=0.0)
+function solve(HSs::Array{Array{Any,1},1}, Vinf; t::Float64=0.0,
+                vortexsheet=nothing)
 
   n = size(HSs)[1]    # Number of horseshoes
   G = zeros(n, n)     # Geometry matrix
@@ -60,7 +61,7 @@ function solve(HSs::Array{Array{Any,1},1}, Vinf; t::Float64=0.0)
     # Iterates over horseshoes
     for j in 1:n
       HS = HSs[j]
-      GeomFac = V(HS, CPi)
+      GeomFac = V(HS, CPi; ign_infvortex=(vortexsheet!=nothing))
       Gij = (1/4/pi)*GeomFac
       Gijn = dot(Gij, nhat)
       G[i,j] = Gijn
@@ -70,6 +71,12 @@ function solve(HSs::Array{Array{Any,1},1}, Vinf; t::Float64=0.0)
     this_Vinf = Vinf(CPi, t)
     Vinfn = dot(this_Vinf, nhat)
     Vn[i] = -Vinfn
+
+    # Vortex sheet
+    if vortexsheet!=nothing
+      this_Vinfvrtx = vortexsheet(CPi, t)
+      Vn[i] += -dot(this_Vinfvrtx, nhat)
+    end
   end
 
   # ------------ SOLVES FOR GAMMA ------------
@@ -83,13 +90,17 @@ end
 Returns the induced velocity at `C` by horseshoe `HS`.
 It returns the geometric factor if `Gamma`==nothing.
 """
-function V(HS::Array{Any,1}, C; ign_col::Bool=false)
+function V(HS::Array{Any,1}, C; ign_col::Bool=false, ign_infvortex::Bool=false)
   Ap, A, B, Bp, CP, infDA, infDB, Gamma = HS
-  VApinf = _V_Ainf_in(Ap, infDA, C, Gamma; ign_col=ign_col)
   VApA = _V_AB(Ap, A, C, Gamma; ign_col=ign_col)
   VAB = _V_AB(A, B, C, Gamma; ign_col=ign_col)
   VBBp = _V_AB(B, Bp, C, Gamma; ign_col=ign_col)
-  VBpinf = _V_Ainf_out(Bp, infDB, C, Gamma; ign_col=ign_col)
+  if ign_infvortex
+    VApinf, VBpinf = zeros(3), zeros(3)
+  else
+    VApinf = _V_Ainf_in(Ap, infDA, C, Gamma; ign_col=ign_col)
+    VBpinf = _V_Ainf_out(Bp, infDB, C, Gamma; ign_col=ign_col)
+  end
   V = VApinf + VApA + VAB + VBBp + VBpinf
   return V
 end

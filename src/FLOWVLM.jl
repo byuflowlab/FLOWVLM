@@ -442,10 +442,10 @@ end
 # WING AND WINGSYSTEM COMMON FUNCTIONS
 ################################################################################
 "Solves the VLM of the Wing or WingSystem"
-function solve(wing, Vinf; t::Float64=0.0)
+function solve(wing, Vinf; t::Float64=0.0, vortexsheet=nothing)
   setVinf(wing, Vinf)
   HSs = getHorseshoes(wing; t=t)
-  Gammas = VLMSolver.solve(HSs, Vinf; t=t)
+  Gammas = VLMSolver.solve(HSs, Vinf; t=t, vortexsheet=vortexsheet)
   _addsolution(wing, "Gamma", Gammas; t=t)
 end
 
