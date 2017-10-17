@@ -60,19 +60,21 @@ const FIELDS = Dict(
 # WING AND WINGSYSTEM COMMON FUNCTIONS
 ################################################################################
 "Solves the VLM of the Wing or WingSystem"
-function solve(wing, Vinf; t::Float64=0.0, vortexsheet=nothing)
+function solve(wing, Vinf; t::Float64=0.0,
+                vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
   setVinf(wing, Vinf)
-  HSs = getHorseshoes(wing; t=t)
-  Gammas = VLMSolver.solve(HSs, Vinf; t=t, vortexsheet=vortexsheet)
+  HSs = getHorseshoes(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
+  Gammas = VLMSolver.solve(HSs, Vinf; t=t, vortexsheet=vortexsheet,
+                            extraVinf=extraVinf, extraVinfArgs...)
   _addsolution(wing, "Gamma", Gammas; t=t)
 end
 
 "Returns all the horseshoes of the Wing or WingSystem"
-function getHorseshoes(wing; t::Float64=0.0)
+function getHorseshoes(wing; t::Float64=0.0, extraVinf...)
   m = get_m(wing)
   HSs = Array{Any,1}[]
   for i in 1:m
-    push!(HSs, getHorseshoe(wing, i; t=t))
+    push!(HSs, getHorseshoe(wing, i; t=t, extraVinf...))
   end
   return HSs
 end

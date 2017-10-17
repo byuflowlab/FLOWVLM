@@ -1,3 +1,4 @@
+global raise_warning1 = true # Warning of infinite vortex sheet
 
 ################################################################################
 # CALCULATION WING PROPERTIES
@@ -464,7 +465,7 @@ end
 function save(self::Wing, filename::String;
                   save_horseshoes::Bool=true,
                   path::String="", comment::String="",
-                  num=nothing)
+                  num=nothing, t::Float64=0.0)
   aux = num!=nothing ? ".$num" : ""
   ext = "_vlm"*aux*".vtk"
 
@@ -514,20 +515,27 @@ function save(self::Wing, filename::String;
   ## Horseshoes
   x_vor_end = maximum(self._xtwingdcr)*1.25
   for i in 1:nhs
-    Ap, A, B, Bp, CP, infDA, infDB, Gamma  = getHorseshoe(self, i)
+    global raise_warning1
+    Ap, A, B, Bp, CP, infDA, infDB, Gamma  = getHorseshoe(self, i; t=t)
 
     # Calculates how long to extend the semi-infinite vortices
     # factor = (x_vor_end - Ap[1])/infDA[1]
     factor = (x_vor_end - self._xtwingdcr[i])/dot(infDA, self.Oaxis[1,:])
-    if factor==Inf
-      warn("Infinite vortex sheet avoided in visualization")
+    if factor>1/10^1
+      if raise_warning1
+        warn("Infinite vortex sheet avoided in visualization")
+        raise_warning1 = false
+      end
       factor = (x_vor_end - self._xtwingdcr[i]) / (x_vor_end - self._xtwingdcr[1])/100
     end
     Apinf = Ap + factor*infDA
     # factor = (x_vor_end - Bp[1])/infDB[1]
     factor = (x_vor_end - self._xtwingdcr[i+1])/dot(infDB, self.Oaxis[1,:])
-    if factor==Inf
-      warn("Infinite vortex sheet avoided in visualization")
+    if factor>1/10^1
+      if raise_warning1
+        warn("Infinite vortex sheet avoided in visualization")
+        raise_warning1 = false
+      end
       factor = (x_vor_end - self._xtwingdcr[i]) / (x_vor_end - self._xtwingdcr[1])/100
     end
     Bpinf = Bp + factor*infDB
@@ -625,11 +633,11 @@ end
 function save(self::WingSystem, filename::String;
                     save_horseshoes::Bool=true,
                     path::String="", comment::String="",
-                    num=nothing)
+                    num=nothing, t::Float64=0.0)
   for (i, wing) in enumerate(self.wings)
     save(wing, "$(filename)_$(self.wing_names[i])",
                 save_horseshoes=save_horseshoes,
-                path=path, comment=comment, num=num)
+                path=path, comment=comment, num=num, t=t)
   end
 end
 
@@ -828,3 +836,33 @@ function axis_rotation(r, angle_deg)
 end
 
 ##### END OF ALGEBRA ###########################################################
+
+
+
+################################################################################
+# MISCELLANOUS
+################################################################################
+  # Creates save path
+function create_path(save_path, prompt)
+  # Checks if folder already exists
+  if isdir(save_path)
+    if prompt
+      inp1 = ""
+      opts1 = ["y", "n"]
+      while false==(inp1 in opts1)
+        print("\n\nFolder $save_path already exists. Remove? (y/n) ")
+        inp1 = readline()[1:end-1]
+      end
+      if inp1=="y"
+        run(`rm $save_path -rf`)
+        println("\n")
+      else
+        return
+      end
+    else
+      run(`rm $save_path -rf`)
+    end
+  end
+  run(`mkdir $save_path`)
+end
+##### END OF MISCELLANOUS ######################################################

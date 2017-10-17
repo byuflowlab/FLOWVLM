@@ -140,9 +140,9 @@ function getControlPoint(self::WingSystem, m::Int64)
 end
 
 "Returns the m-th horseshoe of the system in the global coordinate system"
-function getHorseshoe(self::WingSystem, m::Int64; t::Float64=0.0)
+function getHorseshoe(self::WingSystem, m::Int64; t::Float64=0.0, extraVinf...)
   wing, _m = _fetch_wing(self, m)
-  return getHorseshoe(wing, _m; t=t)
+  return getHorseshoe(wing, _m; t=t, extraVinf...)
 end
 
 "Returns total number of lattices in the wing"

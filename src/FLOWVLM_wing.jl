@@ -301,7 +301,7 @@ function getControlPoint(self::Wing, m::Int64)
 end
 
 "Returns the m-th horseshoe in the global coordinate system"
-function getHorseshoe(self::Wing, m::Int64; t::Float64=0.0)
+function getHorseshoe(self::Wing, m::Int64; t::Float64=0.0, extraVinf...)
   # ERROR CASES
   if m>self.m || m<=0
     error("Invalid m (m>self.m or m<=0)")
@@ -311,7 +311,7 @@ function getHorseshoe(self::Wing, m::Int64; t::Float64=0.0)
 
   # Calculates horseshoes if not available
   if self._HSs==nothing
-    _calculateHSs(self; t=t)
+    _calculateHSs(self; t=t, extraVinf...)
   end
 
   return self._HSs[m]
@@ -356,11 +356,14 @@ end
 function _addsolution(self::Wing, field_name::String, sol_field; t::Float64=0.0)
   self.sol[field_name] = sol_field
   if field_name=="Gamma"
-    _calculateHSs(self; t=t)
+    # _calculateHSs(self; t=t)
+    for (i, gamma) in enumerate(sol_field)
+      self._HSs[i][8] = gamma
+    end
   end
 end
 
-function _calculateHSs(self::Wing; t::Float64=0.0)
+function _calculateHSs(self::Wing; t::Float64=0.0, extraVinf=nothing, extraVinfArgs...)
   HSs = Array{Any,1}[]
   for i in 1:get_m(self)
     # Horseshoe geometry
@@ -376,8 +379,17 @@ function _calculateHSs(self::Wing; t::Float64=0.0)
     CP = getControlPoint(self, i)
 
     # Direction of semi-infinite vortices
-    infDA = self.Vinf(Ap,t); infDA = infDA/norm(infDA)
-    infDB = self.Vinf(Bp,t); infDB = infDB/norm(infDB)
+    infDA = self.Vinf(Ap,t)
+    infDB = self.Vinf(Bp,t)
+    # Extra freestream
+    if extraVinf!=nothing
+      this_extraVinf = extraVinf(i, t;
+                                  extraVinfArgs..., wing=self)
+      infDA += this_extraVinf
+      infDB += this_extraVinf
+    end
+    infDA = infDA/norm(infDA)
+    infDB = infDB/norm(infDB)
 
     # Circulation
     Gamma = "Gamma" in keys(self.sol) ? self.sol["Gamma"][i] : nothing

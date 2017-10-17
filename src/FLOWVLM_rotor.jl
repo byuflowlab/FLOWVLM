@@ -59,9 +59,8 @@ function initialize(self::Rotor, n::Int64)
     #               1 0 0;
     #               0 cos(this_angle) sin(this_angle);
     #               0 -sin(this_angle) cos(this_angle)]
-    this_Oaxis = [0 0 -1;
-                  0 1 0;
-                  1 0 0]*[
+    this_Oaxis = self.CW ? [0 0 -1; 0 1 0; 1 0 0] : [0 0 1; 0 1 0; -1 0 0]
+    this_Oaxis = this_Oaxis*[
                   1 0 0;
                   0 cos(this_angle) sin(this_angle);
                   0 -sin(this_angle) cos(this_angle)]
@@ -85,6 +84,21 @@ end
 
 function setcoordsystem(self::Rotor, args...)
   setcoordsystem(self._wingsystem, args...)
+end
+
+"Returns total number of lattices in the rotor"
+function get_m(self::Rotor)
+  return get_m(self._wingsystem)
+end
+
+"Returns the m-th control point of the system"
+function getControlPoint(self::Rotor, m::Int64)
+  return getControlPoint(self._wingsystem, m)
+end
+
+"Returns the m-th horseshoe of the system in the global coordinate system"
+function getHorseshoe(self::Rotor, m::Int64; t::Float64=0.0, extraVinf...)
+  getHorseshoe(self._wingsystem, m; t=t, extraVinf...)
 end
 
 ##### INTERNAL FUNCTIONS #############################################################
@@ -129,7 +143,7 @@ function _generate_blade(self::Rotor, n::Int64; r::Float64=1.0,
   _spl_LE_z = Dierckx.Spline1D(self.r, self.LE_z;
                                   k=spline_k,s=spline_s)
   spl_chord(x) = Dierckx.evaluate(_spl_chord, x)
-  spl_theta(x) = Dierckx.evaluate(_spl_theta, x)
+  spl_theta(x) = (-1)^(self.CW==false)*Dierckx.evaluate(_spl_theta, x)
   spl_LE_x(x) = Dierckx.evaluate(_spl_LE_x, x)
   spl_LE_z(x) = Dierckx.evaluate(_spl_LE_z, x)
 

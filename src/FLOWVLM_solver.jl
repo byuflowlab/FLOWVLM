@@ -41,9 +41,17 @@ boundary condition of no-through flow.
 
   # Optional arguments
   * `t::Float64`            : Time argument for evaluation of Vinf.
+  * `vortexsheet::function(X,t)`    : A user-define function that replaces the
+                                      infinite vortex sheet.
+  * `extraVinf::function(i,t,args)` : Special function that adds to the
+                                      freestream. This can be used to define
+                                      a relative local velocity on each lattice.
+  * `extraVinfArgs::Array`  : Additional arguments for `extraVinf`. By default
+                              it expects (Wing, ...).
+
 """
 function solve(HSs::Array{Array{Any,1},1}, Vinf; t::Float64=0.0,
-                vortexsheet=nothing)
+                vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
 
   n = size(HSs)[1]    # Number of horseshoes
   G = zeros(n, n)     # Geometry matrix
@@ -76,6 +84,12 @@ function solve(HSs::Array{Array{Any,1},1}, Vinf; t::Float64=0.0,
     if vortexsheet!=nothing
       this_Vinfvrtx = vortexsheet(CPi, t)
       Vn[i] += -dot(this_Vinfvrtx, nhat)
+    end
+
+    # Extra freestream
+    if extraVinf!=nothing
+      this_extraVinf = extraVinf(i, t; extraVinfArgs...)
+      Vn[i] += -dot(this_extraVinf, nhat)
     end
   end
 
@@ -122,7 +136,7 @@ function _V_AB(A::Array{Float64,1}, B, C, gamma; ign_col::Bool=false)
   magsqr = dot(crss, crss)
 
   # Checks colinearity
-  if _check_collinear(magsqr, col_crit; ign_col=ign_col)
+  if _check_collinear(magsqr/norm(r0), col_crit; ign_col=ign_col)
     if ign_col==false && n_col==1 && mute_warning==false
       println("\n\t magsqr:$magsqr \n\t A:$A \n\t B:$B \n\t C:$C")
     end
