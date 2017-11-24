@@ -1,23 +1,66 @@
+# FLOWVLM module for the modeling of rotors/propellers/wind turbines. This
+# module is under development, hence the following dependecies are being
+# hardcoded:
+
+# CCBlade https://github.com/byuflowlab/ccblade
+ccblade_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/CCBlade/"
+include(ccblade_path*"src/CCBlade.jl")
+cc = CCBlade
+
+# Airfoil processing https://github.com/EdoAlvarezR/airfoil
+airfoil_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/airfoil/"
+include(airfoil_path*"src/airfoilprep.jl")
+ap = airfoilprep
 
 using Dierckx
 
 ################################################################################
 # ROTOR CLASS
 ################################################################################
+"""
+  `Rotor(CW, r, chord, theta, LE_x, LE_z, B, airfoil)`
 
+Object defining the geometry of a rotor/propeller/wind turbine.
+
+  # Arguments
+  * CW::Bool                   : True for clockwise rotation, false for CCW.
+  * r::Array{Float64,1}        : Radius position for the following variables.
+  * chord::Array{Float64,1}    : Chord length.
+  * theta::Array{Float64,1}    : Angle of attack (deg) from the rotor's plane
+                                  of rotation.
+  * LE_x::Array{Float64,1}     : x-position of leading edge.
+  * LE_z::Array{Float64,1}     : z-position of leading edge (height from plane
+                                  of rotation).
+  * B::Int64                   : Number of blades.
+
+  # Optional Arguments
+  * airfoils::Array{Tuple{Float64, airfoilprep.Polar},1} : 2D airfoil properties
+                                  along blade in the form [ (r_i, Polar_i) ]
+                                  with Polar_i describes the airfoil at i-th
+                                  radial position r_i (both the airfoil geometry
+                                  in Polar_i and r_i must be normalized). At
+                                  least root (rmin) and tip (r=1) must be given
+                                  so all positions in between can be
+                                  extrapolated. This properties are only used
+                                  when calling CCBlade and for generating good
+                                  loking visuals; ignore if only solving the VLM.
+
+<!-- NOTE TO SELF: r is the y-direction on a wing, hence, remember to build the
+               blade from root in the direction of positive y. -->
+"""
 type Rotor
-  # NOTE TO SELF: r is the y-direction on a wing, hence, remember to build the
-  #               blade from root in the direction of positive y.
 
   # Initialization variables (USER INPUT)
   CW::Bool                      # True for clockwise rotation
   r::Array{Float64,1}           # Radius position for the following variables
   chord::Array{Float64,1}       # Chord length
-  theta::Array{Float64,1}       # Angle of attack from the rotor's axis
+  theta::Array{Float64,1}       # Angle of attack (deg) from the rotor's axis
   LE_x::Array{Float64,1}        # x-position of leading edge
   LE_z::Array{Float64,1}        # z-position of leading edge (Height from plane
                                 #                                  of rotation)
   B::Int64                      # Number of blades
+  # Optional inputs
+  airfoils::Array{Tuple{Float64,ap.Polar},1}   # 2D airfoil properties along blade
 
   # Properties
   hubR::Float64                 # Hub radius
@@ -28,16 +71,19 @@ type Rotor
 
   Rotor(
           CW, r, chord, theta, LE_x, LE_z, B,
+          airfoils=[(0.0, ap.Polar(0, Float64[], Float64[], Float64[],Float64[],
+                                    Float64[], Float64[]) ) ],
           hubR=r[1], rotorR=r[end],
           _wingsystem=WingSystem()
         ) = new(
           CW, r, chord, theta, LE_x, LE_z, B,
+          airfoils,
           hubR, rotorR,
           _wingsystem
         )
 end
 
-"Initializes the propeller "
+"Initializes the geometry of the rotor, discretizing each blade into n lattices"
 function initialize(self::Rotor, n::Int64)
   # Checks for arguments consistency
   _check(self)
@@ -46,7 +92,7 @@ function initialize(self::Rotor, n::Int64)
   blade = _generate_blade(self, n)
 
   # Generates full rotor
-  init_angle = 0
+  init_angle = pi/2
   d_angle = 2*pi/self.B
   for i in 1:self.B
     this_blade = i==1 ? blade : copy(blade)
@@ -134,14 +180,10 @@ function _generate_blade(self::Rotor, n::Int64; r::Float64=1.0,
   spline_k = min(size(self.r)[1]-1, 3)
   spline_bc = "error"
   spline_s = 0.001
-  _spl_chord = Dierckx.Spline1D(self.r, self.chord;
-                                  k=spline_k,s=spline_s)
-  _spl_theta = Dierckx.Spline1D(self.r, -self.theta;
-                                  k=spline_k,s=spline_s)
-  _spl_LE_x = Dierckx.Spline1D(self.r, self.LE_x;
-                                  k=spline_k,s=spline_s)
-  _spl_LE_z = Dierckx.Spline1D(self.r, self.LE_z;
-                                  k=spline_k,s=spline_s)
+  _spl_chord = Dierckx.Spline1D(self.r, self.chord; k=spline_k,s=spline_s)
+  _spl_theta = Dierckx.Spline1D(self.r, -self.theta; k=spline_k,s=spline_s)
+  _spl_LE_x = Dierckx.Spline1D(self.r, self.LE_x; k=spline_k,s=spline_s)
+  _spl_LE_z = Dierckx.Spline1D(self.r, self.LE_z; k=spline_k,s=spline_s)
   spl_chord(x) = Dierckx.evaluate(_spl_chord, x)
   spl_theta(x) = (-1)^(self.CW==false)*Dierckx.evaluate(_spl_theta, x)
   spl_LE_x(x) = Dierckx.evaluate(_spl_LE_x, x)

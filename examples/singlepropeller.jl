@@ -128,7 +128,7 @@ function local_relative_vel(i, t; wingsystem=nothing, omega_fun=nothing, wing=no
   else
     _wing = wing
   end
-  r = norm(vlm.transform(CP, _wing.invOaxis, _wing.O))    # Radius
+  r = norm(vlm.transform(CP, _wing.Oaxis, _wing.O))    # Radius
   local_V = Float64[omega*r, 0, 0]         # Velocity in local ref system
                                            # Velocity in global ref system
   global_V = vlm.countertransform(local_V, _wing.invOaxis, zeros(Float64, 3))

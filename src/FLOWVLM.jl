@@ -11,7 +11,11 @@ using PyPlot # Comment PyPlot out if using ProfileView
 include("FLOWVLM_solver.jl")
 include("FLOWVLM_wing.jl")
 include("FLOWVLM_wingsystem.jl")
-include("FLOWVLM_rotor.jl")
+try # Rotor module is under developments
+  include("FLOWVLM_rotor.jl")
+catch e
+  warn("FLOWVLM_rotor.jl module failed to load: $e")
+end
 include("FLOWVLM_tools.jl")
 include("FLOWVLM_postprocessing.jl")
 include("utilities.jl")

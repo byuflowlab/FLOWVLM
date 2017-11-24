@@ -18,9 +18,9 @@ global prev_system = nothing
 global cur_system = nothing
 global system = nothing
 
-function flappingwing(; verbose=true, save_fdom=false, num_strikes=3, nsteps=20,
+function flappingwing(; verbose=true, save_fdom=false, num_strikes=12, nsteps=1000,
                       plot_local_flap_vel=false, prompt=true,
-                      flaps_per_sec = 6/2.6, save_path="temp_flapping/")
+                      flaps_per_sec = 6/2.6, save_path="temp_flapping5/")
   global prev_system = nothing
   global cur_system = nothing
   # ---------------- RUN PARAMETERS -------------------------
