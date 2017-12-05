@@ -1,28 +1,54 @@
-# @Author: Eduardo Alvarez <user>
-# @Date:   2017-07-20T12:37:14-06:00
-# @Email:  Edo.AlvarezR@gmail.com
-# @Last modified by:   user
-# @Last modified time: 2017-07-20T12:37:14-06:00
-# @Comments: Vortex lattice solver
+"""
+  Vortex lattice solver.
 
+  # AUTHORSHIP
+    * Author    : Eduardo J Alvarez
+    * Email     : Edo.AlvarezR@gmail.com
+    * Created   : Jul 2017
+    * License   : GNU AFFERO GENERAL PUBLIC LICENSE
+"""
 module FLOWVLM
 
+# ------------ GENERIC MODULES -------------------------------------------------
 using PyPlot # Comment PyPlot out if using ProfileView
-include("FLOWVLM_solver.jl")
-include("FLOWVLM_wing.jl")
-include("FLOWVLM_wingsystem.jl")
-try # Rotor module is under developments
-  include("FLOWVLM_rotor.jl")
-catch e
-  warn("FLOWVLM_rotor.jl module failed to load: $e")
+using Dierckx
+
+
+# ------------ FLOW LAB MODULES ------------------------------------------------
+# The following modules are under development, hence imports here are hardcoded
+
+# Airfoil processing https://github.com/EdoAlvarezR/airfoil
+airfoil_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/airfoil/"
+# push!(LOAD_PATH, joinpath(airfoil_path,"src/"))
+# using airfoilprep
+include(airfoil_path*"src/airfoilprep.jl")
+ap = airfoilprep
+
+# VTKtools https://github.com/byuflowlab/VTKtools.jl
+vtktools_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/VTKtools/"
+# push!(LOAD_PATH, joinpath(vtktools_path,"src/"))
+# using VTKtools
+include(vtktools_path*"src/VTKtools.jl")
+vtk = VTKtools
+
+
+# ------------ HEADERS ---------------------------------------------------------
+for header_name in ["solver", "wing", "wingsystem", "tools", "postprocessing"]
+  include("FLOWVLM_"*header_name*".jl")
 end
-include("FLOWVLM_tools.jl")
-include("FLOWVLM_postprocessing.jl")
 include("utilities.jl")
 
+# try # Rotor module is under developments
+  include("FLOWVLM_rotor.jl")
+# catch e
+#   warn("FLOWVLM_rotor.jl module failed to load: $e")
+# end
+
+# ------------ GLOBAL VARIABLES ------------------------------------------------
 const pm = 3/4 # Default chord-position of the control point
 const pn = 1/4 # Default chord-position of the bound vortex
 
+const def_airfoil = ap.data_path*"oval00.txt"  # Default airfoil shape
 
 # Fields that can be calculated (implementation exists)
 # FIELDS[i] = [[Dependent fields], field type (scalar/vector)]

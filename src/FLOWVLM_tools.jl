@@ -851,7 +851,7 @@ function create_path(save_path, prompt)
       opts1 = ["y", "n"]
       while false==(inp1 in opts1)
         print("\n\nFolder $save_path already exists. Remove? (y/n) ")
-        inp1 = readline()[1:end-1]
+        inp1 = readline()
       end
       if inp1=="y"
         run(`rm $save_path -rf`)
