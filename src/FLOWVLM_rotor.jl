@@ -43,6 +43,17 @@ Object defining the geometry of a rotor/propeller/wind turbine.
 NOTE: r here is the radial position after precone is included in the geometry,
 hence the need of explicitely declaring LE_z.
 
+  # PROPERTIES
+  * `sol` : Contains solution fields specific for Rotor types. They are formated
+            as sol[field_name] = Dict(
+                            "field_name" => output_field_name,
+                            "field_type" => "scalar" or "vector",
+                            "field_data" => data
+                            )
+            where `data` is an array data[i] = [val1, val2, ...] containing
+            this field values (scalar or vector) of all control points in the
+            i-th blade.
+
 <!-- NOTE TO SELF: r is the y-direction on a wing, hence, remember to build the
                blade from root in the direction of positive y. -->
 """
@@ -64,6 +75,7 @@ type Rotor
   hubR::Float64                 # Hub radius
   rotorR::Float64               # Rotor radius
   m::Int64                      # Number of control points (per blade)
+  sol::Dict{String,Any}         # Solution fields for CCBlade (not FLOWVLM)
 
   # Data storage
   _wingsystem::WingSystem       # Rotor assembly
@@ -81,7 +93,7 @@ type Rotor
           CW, r, chord, theta, LE_x, LE_z, B,
           airfoils=Tuple{Float64, ap.Polar}[],
           hubR=r[1], rotorR=r[end],
-            m=0,
+            m=0, sol=Dict(),
           _wingsystem=WingSystem(),
             _r=Float64[], _chord=Float64[], _theta=Float64[],
             _LE_x=Float64[], _LE_z=Float64[],
@@ -91,7 +103,7 @@ type Rotor
           CW, r, chord, theta, LE_x, LE_z, B,
           airfoils,
           hubR, rotorR,
-            m,
+            m, sol,
           _wingsystem,
             _r, _chord, _theta,
             _LE_x, _LE_z,
@@ -183,78 +195,14 @@ function getHorseshoe(self::Rotor, m::Int64; t::Float64=0.0, extraVinf...)
   getHorseshoe(self._wingsystem, m; t=t, extraVinf...)
 end
 
-"Returns a CCBlade's rotor object. FLOWVLM defines the precone geometrically as
-it constructs the blade, meanwhile CCBlade needs a parametric precone; hence
-the value of precone must explicitely be given here."
-function FLOWVLM2CCBlade(self::Rotor, RPM::Float64, rho::Float64, Vinf;
-                          t::Float64=0.0)
-  setVinf(Vinf)
-
-  inflows = CCBladeInflow(self, RPM, rho, Vinf; t=t)
-
-  rotor = cc.Rotor(self._r, self._chord,
-                    self._theta, af[2:end-1],
-                    self.hubR, self.rotorR, self.B, precone)
-end
-
-"""
-  `CCBladeInflow(self::Rotor, RPM::Float64, rho::Float64, Vinf; t::Float64=0.0)`
-
-Returns a collection of CCBlade's Inflow objects specifying the inflow at each
-radial location (VLM's control points) along each blade.
-
-  **Arguments**
-  * `RPM::Float64`      : Revolution per minutes of the rotor.
-  * `rho::Float64`      : Density of air.
-  * `Vinf::Any`         : Function `V(X,t)` specifying the freestream.
-  **Optional Arguments**
-  * `t::Float64`        : Time for evaluating `Vinf`. Default to 0.
-
-  RETURNS: [inflow1, inflow2, ...] Inflows for blade1, blade2, ...
-"""
-function CCBladeInflow(self::Rotor, RPM::Float64, rho::Float64, Vinf;
-                          t::Float64=0.0)
-  out = cc.Inflow[]
-
-  # Velocity due to rotation in CCBlade's blade c.s.
-  rotVx = zeros(self._r)
-  rotVy = (2*pi*RPM/60)*self._r
-
-  # Iterates over each blade calculating the freestream at each control point
-  for blade in self._wingsystem
-
-    Vx, Vy = Float64[], Float64[]
-    for i in 1:get_m(blade) # Iterates over control points
-      # Freestream at CP in global c.s.
-      this_Vinf = Vinf(getControlPoint(blade, i), t)
-      # Freestream at CP in blade c.s.
-      this_Vinf = transform(this_Vinf, blade.Oaxis, zeros(Float64, 3))
-
-      # Freestream at CP in CCblade's blade c.s.
-      # NOTE: CCblade's blade x-axis = FLOWVLM Rotor's blade negative z-axis
-      #       CCblade's blade y-axis = FLOWVLM Rotor's blade x-axis
-      Vinfx, Vinfy = -Vinf[3], Vinf[1]
-
-      push!(Vx, rotVx+Vinfx)
-      push!(Vy, rotVy+Vinfy)
-    end
-
-    this_inflow = cc.Inflow(Vx, Vy, rho)
-    push!(out, this_inflow)
-  end
-
-  return out
-end
-
 "Saves the lofted surface of the blade"
 function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
   suf = "loft"
 
-  point_datas = []
-  lines = [] # Contour lines of cross sections
+  CP_index = []       # Stores the CP index in order to hash the points
+  lines = []          # Contour lines of cross sections
 
   # Iterates over each airfoil creating cross sections
-  cum_points = 0
   for (i,polar) in enumerate(self._polars)
     theta = pi/180*self._theta[i]   # Angle of attack
 
@@ -275,29 +223,20 @@ function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
     # Reformats the contour into FLOWVLM blade's c.s.
     points = [ O+[p[1], p[3], p[2]] for p in points]
 
+    # Adds this airfoil
     push!(lines, points)
 
-    # Dummy point data
-    push!(point_datas, cum_points+[j for j in 1:size(points)[1]])
-    cum_points += size(points)[1]
+    # Adds the CP index as point data for all points in this airfoil
+    push!(CP_index, [i for p in points])
   end
 
   # Generates vtk cells from cross sections
   sections = [ [(1.0, 1, 1.0, false)] for i in 1:size(lines)[1]-1]
-  points, vtk_cells, point_data = vtk.multilines2vtkmulticells(lines, sections;
-                                                      point_datas=point_datas)
-
-  # Formats the point data for generateVTK
-  data = []
-  push!(data, Dict(
-              "field_name" => "Point_index",
-              "field_type" => "scalar",
-              "field_data" => point_data
-              )
-        )
+  points, vtk_cells, CP_index = vtk.multilines2vtkmulticells(lines, sections;
+                                                      point_datas=CP_index)
 
   # Generates each blade
-  for i in 1:self.B
+  for i in 1:self.B # Iterates over blades
     this_blade = self._wingsystem.wings[i]
 
     # Transforms points from FLOWVLM blade's c.s. to FLOWVLM Rotor's c.s.
@@ -307,15 +246,145 @@ function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
     # Transforms points from FLOWVLM Rotor's c.s to global c.s.
     this_points = vtk.countertransform(this_points, self._wingsystem.invOaxis,
                                                             self._wingsystem.O)
+
+    # Formats the point data for generateVTK
+    data = []
+    # Control point indices
+    push!(data, Dict(
+                "field_name" => "ControlPoint_Index",
+                "field_type" => "scalar",
+                "field_data" => CP_index
+                )
+          )
+    # Stored fields
+    for (field_name, field) in self.sol # Iterates over fields
+      data_points = [] # Field data associated to each geometric point
+
+      for (j,p) in enumerate(this_points) # Iterates over geometric points
+        CP_i = Int(CP_index[j])  # Hashes the control point index of this geom point
+        push!(data_points, field["field_data"][i][CP_i])
+      end
+
+      push!(data, Dict(
+                  "field_name" => field["field_name"],
+                  "field_type" => field["field_type"],
+                  "field_data" => data_points
+                  )
+            )
+    end
+
     # Generates the vtk file
     this_name = filename*"_"*self._wingsystem.wing_names[i]*"_"*suf
     vtk.generateVTK(this_name, this_points; cells=vtk_cells, point_data=data,
                                 path=path, num=num)
   end
-
-
-
 end
+
+
+##### CALCULATION OF SOULTION FIELDS############################################
+"Receives the freestream velocity function V(x,t) and the current RPM of the
+rotor, and it calculates the inflow velocity field that each control point
+sees in the global coordinate system"
+function calc_inflow(self::Rotor, Vinf, RPM; t::Float64=0.0)
+  omega = 2*pi*RPM/60
+
+  data = []
+
+  for (i,blade) in enumerate(self._wingsystem.wings) # Iterates over blades
+    Vtots = []
+
+    for j in 1:get_m(blade) # Iterates over control points
+      CP = getControlPoint(blade, j)
+
+      # Freestream velocity in global c.s.
+      this_Vinf = Vinf(CP, t)
+
+      # Velocity due to rotation in FLOWVLM blade's c.s.
+      this_Vrot = [omega*self._r[j], 0.0, 0.0]
+      # Velocity due to rotation in global c.s.
+      this_Vrot = countertransform(this_Vrot, blade.invOaxis, zeros(3))
+
+      this_Vtot = this_Vinf + this_Vrot
+      push!(Vtots, this_Vtot)
+    end
+
+    push!(data, Vtots)
+  end
+
+  # Adds the solution field
+  field = Dict(
+              "field_name" => "GlobInflow",
+              "field_type" => "vector",
+              "field_data" => data
+              )
+  self.sol[field["field_name"]] = field
+end
+
+
+# "Returns a CCBlade's rotor object. FLOWVLM defines the precone geometrically as
+# it constructs the blade, meanwhile CCBlade needs a parametric precone; hence
+# the value of precone must explicitely be given here."
+# function FLOWVLM2CCBlade(self::Rotor, RPM::Float64, rho::Float64, Vinf;
+#                           t::Float64=0.0)
+#   setVinf(Vinf)
+#
+#   inflows = CCBladeInflow(self, RPM, rho, Vinf; t=t)
+#
+#   rotor = cc.Rotor(self._r, self._chord,
+#                     self._theta, af[2:end-1],
+#                     self.hubR, self.rotorR, self.B, precone)
+# end
+#
+# """
+#   `CCBladeInflow(self::Rotor, RPM::Float64, rho::Float64, Vinf; t::Float64=0.0)`
+#
+# Returns a collection of CCBlade's Inflow objects specifying the inflow at each
+# radial location (VLM's control points) along each blade.
+#
+#   **Arguments**
+#   * `RPM::Float64`      : Revolution per minutes of the rotor.
+#   * `rho::Float64`      : Density of air.
+#   * `Vinf::Any`         : Function `V(X,t)` specifying the freestream.
+#   **Optional Arguments**
+#   * `t::Float64`        : Time for evaluating `Vinf`. Default to 0.
+#
+#   RETURNS: [inflow1, inflow2, ...] Inflows for blade1, blade2, ...
+# """
+# function CCBladeInflow(self::Rotor, RPM::Float64, rho::Float64, Vinf;
+#                           t::Float64=0.0)
+#   out = cc.Inflow[]
+#
+#   # Velocity due to rotation in CCBlade's blade c.s.
+#   rotVx = zeros(self._r)
+#   rotVy = (2*pi*RPM/60)*self._r
+#
+#   # Iterates over each blade calculating the freestream at each control point
+#   for blade in self._wingsystem
+#
+#     Vx, Vy = Float64[], Float64[]
+#     for i in 1:get_m(blade) # Iterates over control points
+#       # Freestream at CP in global c.s.
+#       this_Vinf = Vinf(getControlPoint(blade, i), t)
+#       # Freestream at CP in blade c.s.
+#       this_Vinf = transform(this_Vinf, blade.Oaxis, zeros(Float64, 3))
+#
+#       # Freestream at CP in CCblade's blade c.s.
+#       # NOTE: CCblade's blade x-axis = FLOWVLM Rotor's blade negative z-axis
+#       #       CCblade's blade y-axis = FLOWVLM Rotor's blade x-axis
+#       Vinfx, Vinfy = -Vinf[3], Vinf[1]
+#
+#       push!(Vx, rotVx+Vinfx)
+#       push!(Vy, rotVy+Vinfy)
+#     end
+#
+#     this_inflow = cc.Inflow(Vx, Vy, rho)
+#     push!(out, this_inflow)
+#   end
+#
+#   return out
+# end
+
+
 
 ##### INTERNAL FUNCTIONS #######################################################
 "Checks for consistency in internal variables"
