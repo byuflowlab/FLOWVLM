@@ -239,13 +239,9 @@ function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
   for i in 1:self.B # Iterates over blades
     this_blade = self._wingsystem.wings[i]
 
-    # Transforms points from FLOWVLM blade's c.s. to FLOWVLM Rotor's c.s.
+    # Transforms points from FLOWVLM blade's c.s. to global c.s.
     this_points = Array{Float64,1}[ vtk.countertransform(p, this_blade.invOaxis,
                                     this_blade.O) for p in points]
-
-    # Transforms points from FLOWVLM Rotor's c.s to global c.s.
-    this_points = vtk.countertransform(this_points, self._wingsystem.invOaxis,
-                                                            self._wingsystem.O)
 
     # Formats the point data for generateVTK
     data = []
@@ -288,10 +284,12 @@ sees in the global coordinate system"
 function calc_inflow(self::Rotor, Vinf, RPM; t::Float64=0.0)
   omega = 2*pi*RPM/60
 
-  data = []
+  data_Vtots = Array{Array{Float64,1}}[]     # Inflow in the global c.s.
+  data_Vccbs = Array{Array{Float64,1}}[]     # Inflow in CCBlade's c.s.
 
   for (i,blade) in enumerate(self._wingsystem.wings) # Iterates over blades
-    Vtots = []
+    Vtots = Array{Float64,1}[]
+    Vccbs = Array{Float64,1}[]
 
     for j in 1:get_m(blade) # Iterates over control points
       CP = getControlPoint(blade, j)
@@ -306,18 +304,27 @@ function calc_inflow(self::Rotor, Vinf, RPM; t::Float64=0.0)
 
       this_Vtot = this_Vinf + this_Vrot
       push!(Vtots, this_Vtot)
+      push!(Vccbs, _global2ccblade(blade, this_Vtot, self.CW))
     end
 
-    push!(data, Vtots)
+    push!(data_Vtots, Vtots)
+    push!(data_Vccbs, Vccbs)
   end
 
-  # Adds the solution field
-  field = Dict(
+  # Adds solution fields
+  field_tots = Dict(
               "field_name" => "GlobInflow",
               "field_type" => "vector",
-              "field_data" => data
+              "field_data" => data_Vtots
               )
-  self.sol[field["field_name"]] = field
+  self.sol[field_tots["field_name"]] = field_tots
+
+  field_ccbs = Dict(
+              "field_name" => "CCBInflow",
+              "field_type" => "vector",
+              "field_data" => data_Vccbs
+              )
+  self.sol[field_ccbs["field_name"]] = field_ccbs
 end
 
 
@@ -678,14 +685,52 @@ function _rediscretize_airfoil(x, y, n_lower::Int64, n_upper::Int64, r::Float64,
   lower_points = vtk.discretize(fun_lower, 0, 1, n_lower, r[1]; central=central)
 
   # Put both surfaces back together from TE over the top and from LE over the bottom.
-  reverse!(upper_points)                           # Trailing edge over the top
+  reverse!(upper_points)                        # Trailing edge over the top
   new_x = [point[1] for point in upper_points]
-  new_y = [point[2] for point in upper_points]      # Leading edge over the bottom
+  new_y = [point[2] for point in upper_points]  # Leading edge over the bottom
   new_x = vcat(new_x, [point[1] for point in lower_points])
   new_y = vcat(new_y, [point[2] for point in lower_points])
 
   return new_x, new_y
 end
+
+"""Receives a vector in the global coordinate system and transforms it into
+CCBlade's coordinate system relative to `blade`. NOTE: This function only
+rotates `V` into the new axis without translating it unless otherwise indicated.
+
+NOTE TO SELF:
+CCblade's blade x-axis = FLOWVLM Rotor's blade z-axis
+CCblade's blade y-axis = FLOWVLM Rotor's blade x-axis
+CCblade's blade z-axis = FLOWVLM Rotor's blade y-axis"""
+function _global2ccblade(blade::Wing, V::Array{Float64,1}, CW; translate::Bool=false)
+
+  # V in FLOWVLM Rotor's blade c.s.
+  V_vlm = transform(V, blade.Oaxis, translate ? blade.O : zeros(3))
+  # V in CCBlade's c.s.
+  V_ccb = typeof(V)([ (-1)^(CW)*V_vlm[3],  V_vlm[1], V_vlm[2]])
+
+  return V_ccb
+end
+
+
+"""Receives a vector in CCBlade's coordinate system relative to `blade` and
+transforms it into the global coordinate system. NOTE: This function only
+rotates `V` into the new axis without translating it unless otherwise indicated.
+
+NOTE TO SELF:
+FLOWVLM Rotor's blade x-axis = CCblade's blade y-axis
+FLOWVLM Rotor's blade y-axis = CCblade's blade z-axis
+FLOWVLM Rotor's blade z-axis = CCblade's blade x-axis"""
+function _ccblade2global(blade::Wing, V::Array{Float64,1}; translate::Bool=false)
+
+  # V in FLOWVLM Rotor's blade c.s.
+  V_vlm = typeof(V)([ V[2],  V[3], (-1)^(CW)*V[1] ])
+  # V in global c.s.
+  V_glob = countertransform(V, blade.invOaxis, translate ? blade.O : zeros(3))
+
+  return V_glob
+end
+
 ##### END OF ROTOR CLASS #######################################################
 
 
