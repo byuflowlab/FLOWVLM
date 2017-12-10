@@ -5,7 +5,7 @@
 # CCBlade https://github.com/byuflowlab/ccblade
 ccblade_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/CCBlade/"
 include(ccblade_path*"src/CCBlade.jl")
-cc = CCBlade
+ccb = CCBlade
 
 
 
@@ -277,6 +277,77 @@ function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
 end
 
 
+
+"""
+Returns a CCBlade's rotor object corresponding to the i-th blade. The r position
+used to generate the object are the control points, `Rhub` is the minimum radius
+given when initializing the FLOWVLM Rotor object, and `Rtip` is the maximum. The
+precone given to CCBlade is 0 since precone it is expected to be already
+accounted for in the geometry given by the user when initializing the FLOWVLM
+Rotor.
+
+It applies 3D corrections to the airfoil polars given for initializing the
+FLOWVLM Rotor, hence the RPMs for those corrections must be specified.
+
+WARNING: This function will use the Inflow field, hence make sure they are
+updated.
+
+NOTE: In the current implementation it assumes a constant Reynolds number on
+each airfoil throughout operation as captured in the polar used for initializing
+the FLOWVLM Rotor. The implementation of a varying Reynolds will be left for
+future development as needed.
+"""
+function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::Int64)
+  # ERROR CASES
+  if size(self.airfoils)[1]<2
+    error("Airfoil data not found when generating CCBlade Rotor.")
+  elseif size(self._polars)[1]==0
+    error("Control point polars haven't been calculated yet."*
+              " Run `_calc_airfoils()` before calling this function.")
+  elseif !("CCBInflow" in keys(self.sol))
+    error("CCBInflow field not found. "*
+              "Call `calc_inflow()` before calling this function")
+  end
+
+  Rhub = self.hubR
+  Rtip = self.rotorR
+  precone = 0.0
+  inflows = self.sol["CCBInflow"]["field_data"][blade_i]
+
+  # Prepares airfoil polars
+  af = ccb.AirfoilData[]
+  for (i,polar) in enumerate(self._polars)
+
+    # 3D corrections
+    r_over_R = self._r[i] / Rtip
+    c_over_r = self._chord[i] / self._r[i]
+    #   NOTE: Here I'm taking the freestream to be the absolute value CCBlade's
+    #   x-component of inflow. This may cause problems when the flow is reversed
+    tsr = (2*pi*RPM/60 * Rtip) / abs(inflows[i][1])
+    this_polar = ap.correction3D(polar, r_over_R, c_over_r, tsr)
+
+    # 360 extrapolation
+    CDmax = 1.3
+    this_polar = ap.extrapolate(this_polar, CDmax)
+
+    # Converts to CCBlade's AirfoilData object
+    alpha, cl = ap.get_cl(this_polar)
+    _, cd = ap.get_cd(this_polar)
+    ap.PyPlot.plot(alpha, cl)
+    ap.PyPlot.plot(alpha, cd)
+    ccb_polar = ccb.af_from_data(alpha*pi/180, cl, cd)
+
+    push!(af, ccb_polar)
+  end
+
+  rotor = ccb.Rotor(self._r, self._chord,
+                    self._theta*pi/180, af,
+                    Rhub, Rtip, self.B, precone)
+
+  return rotor
+end
+
+
 ##### CALCULATION OF SOULTION FIELDS############################################
 "Receives the freestream velocity function V(x,t) and the current RPM of the
 rotor, and it calculates the inflow velocity field that each control point
@@ -327,71 +398,32 @@ function calc_inflow(self::Rotor, Vinf, RPM; t::Float64=0.0)
   self.sol[field_ccbs["field_name"]] = field_ccbs
 end
 
+"Calculates the distributed loads from CCBlade"
+function calc_distributedloads(self::Rotor, Vinf, RPM, rho::Float64;
+                                    t::Float64=0.0)
+  data = Array{Array{Float64,1}}[]
 
-# "Returns a CCBlade's rotor object. FLOWVLM defines the precone geometrically as
-# it constructs the blade, meanwhile CCBlade needs a parametric precone; hence
-# the value of precone must explicitely be given here."
-# function FLOWVLM2CCBlade(self::Rotor, RPM::Float64, rho::Float64, Vinf;
-#                           t::Float64=0.0)
-#   setVinf(Vinf)
-#
-#   inflows = CCBladeInflow(self, RPM, rho, Vinf; t=t)
-#
-#   rotor = cc.Rotor(self._r, self._chord,
-#                     self._theta, af[2:end-1],
-#                     self.hubR, self.rotorR, self.B, precone)
-# end
-#
-# """
-#   `CCBladeInflow(self::Rotor, RPM::Float64, rho::Float64, Vinf; t::Float64=0.0)`
-#
-# Returns a collection of CCBlade's Inflow objects specifying the inflow at each
-# radial location (VLM's control points) along each blade.
-#
-#   **Arguments**
-#   * `RPM::Float64`      : Revolution per minutes of the rotor.
-#   * `rho::Float64`      : Density of air.
-#   * `Vinf::Any`         : Function `V(X,t)` specifying the freestream.
-#   **Optional Arguments**
-#   * `t::Float64`        : Time for evaluating `Vinf`. Default to 0.
-#
-#   RETURNS: [inflow1, inflow2, ...] Inflows for blade1, blade2, ...
-# """
-# function CCBladeInflow(self::Rotor, RPM::Float64, rho::Float64, Vinf;
-#                           t::Float64=0.0)
-#   out = cc.Inflow[]
-#
-#   # Velocity due to rotation in CCBlade's blade c.s.
-#   rotVx = zeros(self._r)
-#   rotVy = (2*pi*RPM/60)*self._r
-#
-#   # Iterates over each blade calculating the freestream at each control point
-#   for blade in self._wingsystem
-#
-#     Vx, Vy = Float64[], Float64[]
-#     for i in 1:get_m(blade) # Iterates over control points
-#       # Freestream at CP in global c.s.
-#       this_Vinf = Vinf(getControlPoint(blade, i), t)
-#       # Freestream at CP in blade c.s.
-#       this_Vinf = transform(this_Vinf, blade.Oaxis, zeros(Float64, 3))
-#
-#       # Freestream at CP in CCblade's blade c.s.
-#       # NOTE: CCblade's blade x-axis = FLOWVLM Rotor's blade negative z-axis
-#       #       CCblade's blade y-axis = FLOWVLM Rotor's blade x-axis
-#       Vinfx, Vinfy = -Vinf[3], Vinf[1]
-#
-#       push!(Vx, rotVx+Vinfx)
-#       push!(Vy, rotVy+Vinfy)
-#     end
-#
-#     this_inflow = cc.Inflow(Vx, Vy, rho)
-#     push!(out, this_inflow)
-#   end
-#
-#   return out
-# end
+  # Calculates inflows
+  calc_inflow(self, Vinf, RPM; t=t)
 
+  # Distributed load on each blade
+  for blade_i in 1:self.B
 
+    # Formats the inflow as CCBlade's Inflow
+    inflow = self.sol["CCBInflow"]["field_data"][blade_i]
+    inflow_x = [V[1] for V in inflow]
+    inflow_y = [V[2] for V in inflow]
+    ccbinflow = ccb.Inflow(inflow_x, inflow_y, rho)
+
+    # Generates CCBlade Rotor object
+    ccbrotor = FLOWVLM2CCBlade(self, RPM, blade_i)
+
+    # Calls CCBlade
+    Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, false)
+
+    # Convert force to global c.s.
+  end
+end
 
 ##### INTERNAL FUNCTIONS #######################################################
 "Checks for consistency in internal variables"
