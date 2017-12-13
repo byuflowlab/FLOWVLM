@@ -23,7 +23,8 @@ Object defining the geometry of a rotor/propeller/wind turbine.
   * chord::Array{Float64,1}    : Chord length.
   * theta::Array{Float64,1}    : Angle of attack (deg) from the rotor's plane
                                   of rotation.
-  * LE_x::Array{Float64,1}     : x-position of leading edge.
+  * LE_x::Array{Float64,1}     : x-position of leading edge (positive is ahead
+                                  of radial axis relative to rotation).
   * LE_z::Array{Float64,1}     : z-position of leading edge (height from plane
                                   of rotation).
   * B::Int64                   : Number of blades.
@@ -130,30 +131,28 @@ function initialize(self::Rotor, n::Int64; r_lat::Float64=1.0,
   # Generates airfoil properties at all control points of this blade
   if rfl_flag; _calc_airfoils(self, n, r_lat, central, refinement); end;
 
-  # Generates full rotor
-  init_angle = pi/2
+  # ------------ Generates full rotor -----------------
+  # Default blade c.s. relative to rotor c.s.
+  blades_Oaxis = self.CW ? [0 -1 0; 0 0 1; -1.0 0 0] : [0 1 0; 0 0 1; 1.0 0 0]
+  init_angle = 0.0
   d_angle = 2*pi/self.B
-  blades_Oaxis = self.CW ? [0 0 -1; 0 1 0; 1 0 0] : [0 0 1; 0 1 0; -1 0 0]
   for i in 1:self.B
     this_blade = i==1 ? blade : copy(blade)
-    this_angle = init_angle + (i-1)*d_angle
+    this_angle = init_angle + (i-1)*d_angle # Azumithal angle of this blade
 
     # Sets the blade in the rotor coordinate system, and rotates it
-    # this_Oaxis = [0 0 -1;
-    #               -1 0 0;
-    #               0 1 0]*[
-    #               1 0 0;
-    #               0 cos(this_angle) sin(this_angle);
-    #               0 -sin(this_angle) cos(this_angle)]
-    this_Oaxis = blades_Oaxis*[
-                  1 0 0;
-                  0 cos(this_angle) sin(this_angle);
-                  0 -sin(this_angle) cos(this_angle)]
+    this_Oaxis = [ cos(this_angle) sin(this_angle) 0;
+                  -sin(this_angle) cos(this_angle) 0;
+                   0 0 1]*blades_Oaxis
     setcoordsystem(this_blade, [0.0,0,0], this_Oaxis)
 
     # Adds it to the rotor
     addwing(self._wingsystem, "Blade$(i)", this_blade)
   end
+
+  # Sets the rotor in the global coordinate system
+  rotor_Oaxis = [-1 0 0; 0 -1 0; 0 0 1.0]
+  setcoordsystem(self._wingsystem, [0.0,0,0], rotor_Oaxis)
 end
 
 "Sets Vinf(X,t) as the incoming freestream of this rotor"
@@ -171,8 +170,9 @@ function save(self::Rotor, filename::String; args...)
   end
 end
 
-function setcoordsystem(self::Rotor, args...)
-  setcoordsystem(self._wingsystem, args...)
+function setcoordsystem(self::Rotor, O::Array{Float64,1},
+                            Oaxis::Array{Float64,2}, args...)
+  setcoordsystem(self._wingsystem, O, Oaxis*[-1 0 0; 0 -1 0; 0 0 1.0], args...)
 end
 
 "Returns total number of lattices on each blade"
@@ -213,18 +213,19 @@ function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
 
     # Actual airfoil contour
     x, y = self._chord[i]*polar.x, self._chord[i]*polar.y
-    # Flips it if clockwise rotating rotor
-    if self.CW; y = -y; end;
     # Reformats x,y into point
     points = [ [x[i], y[i], 0.0] for i in 1:size(x)[1] ]
     # Rotates the contour in the right angle of attack
-    Oaxis = [ cos(theta) -sin(theta) 0; sin(theta) cos(theta) 0; 0 0 1]
+    # and orients the airfoil for CCW or CW rotation
+    Oaxis = [cos(theta) -sin(theta) 0; sin(theta) cos(theta) 0; 0 0 1]
+    Oaxis = [1 0 0; 0 (-1.0)^self.CW 0; 0 0 (-1.0)^self.CW]*Oaxis
     points = vtk.countertransform(points, inv(Oaxis), zeros(3))
 
     # Position of leading edge in FLOVLM blade's c.s.
     # Airfoil's x-axis = FLOWVLM blade's x-axis
     # Airfoil's y-axis = FLOWVLM blade's z-axis
     O = [self._LE_x[i], self._r[i], self._LE_z[i]]
+
     # Reformats the contour into FLOWVLM blade's c.s.
     points = [ O+[p[1], p[3], p[2]] for p in points]
 
@@ -347,7 +348,7 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::Int64)
   end
 
   rotor = ccb.Rotor(self._r, self._chord,
-                    self._theta*pi/180, af,
+                    (-1)^self.CW*self._theta*pi/180, af,
                     Rhub, Rtip, self.B, precone)
 
   return rotor
@@ -493,13 +494,13 @@ function _generate_blade(self::Rotor, n::Int64; r::Float64=1.0,
   spline_bc = "error"
   spline_s = 0.001
   _spl_chord = Dierckx.Spline1D(self.r, self.chord; k=spline_k,s=spline_s)
-  _spl_theta = Dierckx.Spline1D(self.r, -self.theta; k=spline_k,s=spline_s)
+  _spl_theta = Dierckx.Spline1D(self.r, self.theta; k=spline_k,s=spline_s)
   _spl_LE_x = Dierckx.Spline1D(self.r, self.LE_x; k=spline_k,s=spline_s)
   _spl_LE_z = Dierckx.Spline1D(self.r, self.LE_z; k=spline_k,s=spline_s)
   spl_chord(x) = Dierckx.evaluate(_spl_chord, x)
-  spl_theta(x) = (-1)^(self.CW==false)*Dierckx.evaluate(_spl_theta, x)
-  spl_LE_x(x) = Dierckx.evaluate(_spl_LE_x, x)
-  spl_LE_z(x) = Dierckx.evaluate(_spl_LE_z, x)
+  spl_theta(x) = (-1)^(self.CW)*Dierckx.evaluate(_spl_theta, x)
+  spl_LE_x(x) =(-1)*Dierckx.evaluate(_spl_LE_x, x)
+  spl_LE_z(x) = (-1)^(self.CW)*Dierckx.evaluate(_spl_LE_z, x)
 
   # Outputs
   out_r = Float64[]         # Radial position of each control point
@@ -749,17 +750,18 @@ end
 """Receives a vector in the global coordinate system and transforms it into
 CCBlade's coordinate system relative to `blade`. NOTE: This function only
 rotates `V` into the new axis without translating it unless otherwise indicated.
-
-NOTE TO SELF:
-CCblade's blade x-axis = FLOWVLM Rotor's blade z-axis
-CCblade's blade y-axis = FLOWVLM Rotor's blade x-axis
-CCblade's blade z-axis = FLOWVLM Rotor's blade y-axis"""
+(for definition of axes see notebook entry 20171202)
+"""
 function _global2ccblade(blade::Wing, V::Array{Float64,1}, CW::Bool;
                                                         translate::Bool=false)
   # V in FLOWVLM Rotor's blade c.s.
   V_vlm = transform(V, blade.Oaxis, translate ? blade.O : zeros(3))
+
+  # CCBlade c.s. transformation matrix
+  ccb_Oaxis = _ccbladeOaxis(blade, CW)
+
   # V in CCBlade's c.s.
-  V_ccb = typeof(V)([ (-1)^(CW)*V_vlm[3],  V_vlm[1], V_vlm[2]])
+  V_ccb = transform(V_vlm, ccb_Oaxis, zeros(3))
 
   return V_ccb
 end
@@ -768,19 +770,29 @@ end
 """Receives a vector in CCBlade's coordinate system relative to `blade` and
 transforms it into the global coordinate system. NOTE: This function only
 rotates `V` into the new axis without translating it unless otherwise indicated.
-
-NOTE TO SELF:
-FLOWVLM Rotor's blade x-axis = CCblade's blade y-axis
-FLOWVLM Rotor's blade y-axis = CCblade's blade z-axis
-FLOWVLM Rotor's blade z-axis = CCblade's blade x-axis"""
+"""
 function _ccblade2global(blade::Wing, V::Array{Float64,1}, CW::Bool;
                                                         translate::Bool=false)
+  # CCBlade c.s. transformation matrix
+  ccb_Oaxis = _ccbladeOaxis(blade, CW)
+
   # V in FLOWVLM Rotor's blade c.s.
-  V_vlm = typeof(V)([ V[2],  V[3], (-1)^(CW)*V[1] ])
+  V_vlm = countertransform(V, inv(ccb_Oaxis), zeros(3))
+
   # V in global c.s.
   V_glob = countertransform(V_vlm, blade.invOaxis, translate ? blade.O : zeros(3))
 
   return V_glob
+end
+
+"Returns the CCBlade's transformation matrix relative to the blade's c.s."
+function _ccbladeOaxis(blade::Wing, CW::Bool)
+  # CCBlade c.s. matrix
+  ccb_Oaxis = [ 0 0 (-1)^CW;  # CC x-dir = Blade z-dir
+                1.0 0 0;      # CC y-dir = Blade x-dir
+                0 (-1)^CW 0]  # CC z-dir = Blade y-dir
+
+  return ccb_Oaxis
 end
 
 ##### END OF ROTOR CLASS #######################################################
