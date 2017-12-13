@@ -180,6 +180,11 @@ function get_mBlade(self::Rotor)
   return self.m
 end
 
+"Returns the requested blade"
+function get_blade(self::Rotor, blade_i::Int64)
+  return get_wing(self._wingsystem, blade_i)
+end
+
 "Returns total number of lattices in the rotor"
 function get_m(self::Rotor)
   return get_m(self._wingsystem)
@@ -330,11 +335,12 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::Int64)
     CDmax = 1.3
     this_polar = ap.extrapolate(this_polar, CDmax)
 
+    # Makes sure the polar is injective for easing the spline
+    this_polar = ap.injective(this_polar)
+
     # Converts to CCBlade's AirfoilData object
     alpha, cl = ap.get_cl(this_polar)
     _, cd = ap.get_cd(this_polar)
-    ap.PyPlot.plot(alpha, cl)
-    ap.PyPlot.plot(alpha, cd)
     ccb_polar = ccb.af_from_data(alpha*pi/180, cl, cd)
 
     push!(af, ccb_polar)
@@ -419,10 +425,24 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::Float64;
     ccbrotor = FLOWVLM2CCBlade(self, RPM, blade_i)
 
     # Calls CCBlade
+    # NOTE TO SELF: Forces normal and tangential to the plane of rotation
     Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, false)
 
-    # Convert force to global c.s.
+    # Convert forces from CCBlade's c.s. to global c.s.
+    ccb_Fs = [ [Np[i], Tp[i], 0.0] for i in 1:get_mBlade(self) ]
+    Fs = [ _ccblade2global( get_blade(self, blade_i), ccb_F, self.CW;
+                          translate=false) for ccb_F in ccb_Fs ]
+    # Stores the field
+    push!(data, Fs)
   end
+
+  # Adds solution fields
+  field = Dict(
+              "field_name" => "DistributedLoad",
+              "field_type" => "vector",
+              "field_data" => data
+              )
+  self.sol[field["field_name"]] = field
 end
 
 ##### INTERNAL FUNCTIONS #######################################################
@@ -734,8 +754,8 @@ NOTE TO SELF:
 CCblade's blade x-axis = FLOWVLM Rotor's blade z-axis
 CCblade's blade y-axis = FLOWVLM Rotor's blade x-axis
 CCblade's blade z-axis = FLOWVLM Rotor's blade y-axis"""
-function _global2ccblade(blade::Wing, V::Array{Float64,1}, CW; translate::Bool=false)
-
+function _global2ccblade(blade::Wing, V::Array{Float64,1}, CW::Bool;
+                                                        translate::Bool=false)
   # V in FLOWVLM Rotor's blade c.s.
   V_vlm = transform(V, blade.Oaxis, translate ? blade.O : zeros(3))
   # V in CCBlade's c.s.
@@ -753,12 +773,12 @@ NOTE TO SELF:
 FLOWVLM Rotor's blade x-axis = CCblade's blade y-axis
 FLOWVLM Rotor's blade y-axis = CCblade's blade z-axis
 FLOWVLM Rotor's blade z-axis = CCblade's blade x-axis"""
-function _ccblade2global(blade::Wing, V::Array{Float64,1}; translate::Bool=false)
-
+function _ccblade2global(blade::Wing, V::Array{Float64,1}, CW::Bool;
+                                                        translate::Bool=false)
   # V in FLOWVLM Rotor's blade c.s.
   V_vlm = typeof(V)([ V[2],  V[3], (-1)^(CW)*V[1] ])
   # V in global c.s.
-  V_glob = countertransform(V, blade.invOaxis, translate ? blade.O : zeros(3))
+  V_glob = countertransform(V_vlm, blade.invOaxis, translate ? blade.O : zeros(3))
 
   return V_glob
 end
