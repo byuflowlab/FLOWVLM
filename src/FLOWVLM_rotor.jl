@@ -202,6 +202,14 @@ end
 
 "Saves the lofted surface of the blade"
 function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
+  # ERROR CASES
+  if size(self.airfoils)[1]<2
+    error("Requested lofted surface, but no airfoil geometry was given.")
+  elseif size(self._polars)[1]<2
+    error("Polars not found. Run `initialize()` and try again")
+  end
+
+
   suf = "loft"
 
   CP_index = []       # Stores the CP index in order to hash the points
@@ -303,7 +311,7 @@ each airfoil throughout operation as captured in the polar used for initializing
 the FLOWVLM Rotor. The implementation of a varying Reynolds will be left for
 future development as needed.
 """
-function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::Int64)
+function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::Int64, turbine_flag::Bool)
   # ERROR CASES
   if size(self.airfoils)[1]<2
     error("Airfoil data not found when generating CCBlade Rotor.")
@@ -329,7 +337,8 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::Int64)
     c_over_r = self._chord[i] / self._r[i]
     #   NOTE: Here I'm taking the freestream to be the absolute value CCBlade's
     #   x-component of inflow. This may cause problems when the flow is reversed
-    tsr = (2*pi*RPM/60 * Rtip) / abs(inflows[i][1])
+    this_Vinf = abs(inflows[i][1])
+    tsr = this_Vinf < 1e-4 ? nothing : (2*pi*RPM/60 * Rtip) / this_Vinf
     this_polar = ap.correction3D(polar, r_over_R, c_over_r, tsr)
 
     # 360 extrapolation
@@ -342,13 +351,13 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::Int64)
     # Converts to CCBlade's AirfoilData object
     alpha, cl = ap.get_cl(this_polar)
     _, cd = ap.get_cd(this_polar)
-    ccb_polar = ccb.af_from_data(alpha*pi/180, cl, cd)
+    ccb_polar = ccb.af_from_data(alpha, cl, cd)
 
     push!(af, ccb_polar)
   end
 
   rotor = ccb.Rotor(self._r, self._chord,
-                    (-1)^self.CW*self._theta*pi/180, af,
+                    (-1)^(turbine_flag)*(-1)^self.CW*self._theta*pi/180, af,
                     Rhub, Rtip, self.B, precone)
 
   return rotor
@@ -405,10 +414,20 @@ function calc_inflow(self::Rotor, Vinf, RPM; t::Float64=0.0)
   self.sol[field_ccbs["field_name"]] = field_ccbs
 end
 
-"Calculates the distributed loads from CCBlade"
+"Calculates the distributed loads from CCBlade. It also stores normal (Np) and
+tangential (Tp) components relative to the plane of rotation as given by
+CCBlade, if `include_comps==true`.
+
+NOTE: These loads are per unit length of span"
 function calc_distributedloads(self::Rotor, Vinf, RPM, rho::Float64;
-                                    t::Float64=0.0)
+                                    t::Float64=0.0, include_comps=false)
   data = Array{Array{Float64,1}}[]
+  if include_comps
+    data_Np = Array{Float64,1}[]
+    data_Tp = Array{Float64,1}[]
+  end
+
+  turbine_flag = false  # This is a flag for ccblade to swap signs
 
   # Calculates inflows
   calc_inflow(self, Vinf, RPM; t=t)
@@ -420,14 +439,15 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::Float64;
     inflow = self.sol["CCBInflow"]["field_data"][blade_i]
     inflow_x = [V[1] for V in inflow]
     inflow_y = [V[2] for V in inflow]
-    ccbinflow = ccb.Inflow(inflow_x, inflow_y, rho)
+    inflow_x = (-1)^(!turbine_flag)*inflow_x # The negative is needed to counteract the
+    ccbinflow = ccb.Inflow(inflow_x, inflow_y, rho) # propeller swapping sign in CCBlade
 
     # Generates CCBlade Rotor object
-    ccbrotor = FLOWVLM2CCBlade(self, RPM, blade_i)
+    ccbrotor = FLOWVLM2CCBlade(self, RPM, blade_i, turbine_flag)
 
     # Calls CCBlade
     # NOTE TO SELF: Forces normal and tangential to the plane of rotation
-    Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, false)
+    Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, turbine_flag)
 
     # Convert forces from CCBlade's c.s. to global c.s.
     ccb_Fs = [ [Np[i], Tp[i], 0.0] for i in 1:get_mBlade(self) ]
@@ -435,6 +455,10 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::Float64;
                           translate=false) for ccb_F in ccb_Fs ]
     # Stores the field
     push!(data, Fs)
+    if include_comps
+      push!(data_Np, Np)
+      push!(data_Tp, Tp)
+    end
   end
 
   # Adds solution fields
@@ -444,6 +468,20 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::Float64;
               "field_data" => data
               )
   self.sol[field["field_name"]] = field
+  if include_comps
+    field = Dict(
+                "field_name" => "Np",
+                "field_type" => "scalar",
+                "field_data" => data_Np
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "Tp",
+                "field_type" => "scalar",
+                "field_data" => data_Tp
+                )
+    self.sol[field["field_name"]] = field
+  end
 end
 
 ##### INTERNAL FUNCTIONS #######################################################
