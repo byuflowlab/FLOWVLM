@@ -175,6 +175,13 @@ function setcoordsystem(self::Rotor, O::Array{Float64,1},
   setcoordsystem(self._wingsystem, O, Oaxis*[-1 0 0; 0 -1 0; 0 0 1.0], args...)
 end
 
+"Rotates the rotor `degs` degrees"
+function rotate(self::Rotor, degs::Float64)
+  rotOaxis = vtk.rotation_matrix(0.0, 0.0, degs)*[-1 0 0; 0 -1 0; 0 0 1.0]
+  newOaxis = rotOaxis*self._wingsystem.Oaxis
+  setcoordsystem(self._wingsystem, self._wingsystem.O, newOaxis)
+end
+
 "Returns total number of lattices on each blade"
 function get_mBlade(self::Rotor)
   return self.m
