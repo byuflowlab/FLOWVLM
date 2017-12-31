@@ -56,7 +56,7 @@ function addwing(self::WingSystem, wing_name::String, wing;
   push!(self.wing_names,  wing_name)
 
   # Interprets its reference frame in relation to the system's frame
-  new_O, new_Oaxis = _interpret(wing.O, wing.Oaxis, self.O, self.invOaxis)
+  new_O, new_Oaxis = _interpret(_get_O(wing), _get_Oaxis(wing), self.O, self.invOaxis)
   setcoordsystem(wing, new_O, new_Oaxis)
 
   _reset(self)
@@ -95,7 +95,7 @@ function setcoordsystem(self::WingSystem, O::Array{Float64,1},
   # Transforms the local coordinate system of each wing
   for wing in self.wings
     # Current frame in global coordinates
-    curr_O, curr_Oaxis = wing.O, wing.Oaxis
+    curr_O, curr_Oaxis = _get_O(wing), _get_Oaxis(wing)
     # Current frame in the system's coordinates
     local_curr_O, local_curr_Oaxis = _counter_interpret(curr_O, curr_Oaxis,
                                                       self.O, self.Oaxis)
@@ -258,5 +258,12 @@ function _fetch_wing(self::WingSystem, m::Int64)
   end
 
   return wing, _m
+end
+
+function _get_O(wing)
+  return wing.O
+end
+function _get_Oaxis(wing)
+  return wing.Oaxis
 end
 ##### END OF CLASS #############################################################

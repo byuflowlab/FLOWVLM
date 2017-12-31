@@ -15,7 +15,9 @@ ccb = CCBlade
 """
   `Rotor(CW, r, chord, theta, LE_x, LE_z, B, airfoil)`
 
-Object defining the geometry of a rotor/propeller/wind turbine.
+Object defining the geometry of a rotor/propeller/wind turbine. This class
+behaves as an extension of the WingSystem class, hence all functions of
+WingSystem can be applied to a Rotor object.
 
   # Arguments
   * CW::Bool                   : True for clockwise rotation, false for CCW.
@@ -147,7 +149,7 @@ function initialize(self::Rotor, n::Int64; r_lat::Float64=1.0,
     setcoordsystem(this_blade, [0.0,0,0], this_Oaxis)
 
     # Adds it to the rotor
-    addwing(self._wingsystem, "Blade$(i)", this_blade)
+    addwing(self, "Blade$(i)", this_blade; force=true)
   end
 
   # Sets the rotor in the global coordinate system
@@ -175,9 +177,9 @@ function setcoordsystem(self::Rotor, O::Array{Float64,1},
   setcoordsystem(self._wingsystem, O, Oaxis*[-1 0 0; 0 -1 0; 0 0 1.0], args...)
 end
 
-"Rotates the rotor `degs` degrees"
+"Rotates the rotor `degs` degrees in the direction of rotation"
 function rotate(self::Rotor, degs::Float64)
-  rotOaxis = vtk.rotation_matrix(0.0, 0.0, degs)*[-1 0 0; 0 -1 0; 0 0 1.0]
+  rotOaxis = vtk.rotation_matrix(0.0, 0.0, (-1)^!self.CW*degs)
   newOaxis = rotOaxis*self._wingsystem.Oaxis
   setcoordsystem(self._wingsystem, self._wingsystem.O, newOaxis)
 end
@@ -189,7 +191,7 @@ end
 
 "Returns the requested blade"
 function get_blade(self::Rotor, blade_i::Int64)
-  return get_wing(self._wingsystem, blade_i)
+  return get_wing(self, blade_i)
 end
 
 "Returns total number of lattices in the rotor"
@@ -266,13 +268,13 @@ function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
 
     # Formats the point data for generateVTK
     data = []
-    # Control point indices
-    push!(data, Dict(
-                "field_name" => "ControlPoint_Index",
-                "field_type" => "scalar",
-                "field_data" => CP_index
-                )
-          )
+    # # Control point indices
+    # push!(data, Dict(
+    #             "field_name" => "ControlPoint_Index",
+    #             "field_type" => "scalar",
+    #             "field_data" => CP_index
+    #             )
+    #       )
     # Stored fields
     for (field_name, field) in self.sol # Iterates over fields
       data_points = [] # Field data associated to each geometric point
@@ -371,7 +373,7 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::Int64, turbine_flag::Bool)
 end
 
 
-##### CALCULATION OF SOULTION FIELDS############################################
+##### CALCULATION OF SOLUTION FIELDS ###########################################
 "Receives the freestream velocity function V(x,t) and the current RPM of the
 rotor, and it calculates the inflow velocity field that each control point
 sees in the global coordinate system"
@@ -840,6 +842,39 @@ function _ccbladeOaxis(blade::Wing, CW::Bool)
   return ccb_Oaxis
 end
 
+"Extension of WingSystem's `addwing()` function"
+function addwing(self::Rotor, wing_name::String, wing; force=false, args...)
+  if !force
+    error("This function is preserved for development."*
+          " If doing so give `force=true`.")
+  end
+  addwing(self._wingsystem, wing_name, wing; args...)
+end
+
+"Extension of WingSystem's `get_wing()` function"
+function get_wing(self::Rotor, args...; optargs...)
+  return get_wing(self._wingsystem, args...; optargs...)
+end
+
+"Extension of WingSystem's `_addsolution()` function"
+function _addsolution(self::Rotor, args...; optargs...)
+  _addsolution(self._wingsystem, args...; optargs...)
+end
+
+"Extension of WingSystem's `_fetch_wing()` function"
+function _fetch_wing(self::Rotor, args...)
+  return _fetch_wing(self._wingsystem, args...)
+end
+
+"Extension of WingSystem's `_get_O()` function"
+function _get_O(rotor::Rotor)
+  return _get_O(rotor._wingsystem)
+end
+
+"Extension of WingSystem's `_get_O()` function"
+function _get_Oaxis(rotor::Rotor)
+  return _get_Oaxis(rotor._wingsystem)
+end
 ##### END OF ROTOR CLASS #######################################################
 
 
