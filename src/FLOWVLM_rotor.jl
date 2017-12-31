@@ -172,9 +172,15 @@ function save(self::Rotor, filename::String; args...)
   end
 end
 
+"Sets a coordinate system for the rotor. If the user is calling this function,
+give `user=true`, otherwise it won't do the automatic translation to blade c.s."
 function setcoordsystem(self::Rotor, O::Array{Float64,1},
-                            Oaxis::Array{Float64,2}, args...)
-  setcoordsystem(self._wingsystem, O, Oaxis*[-1 0 0; 0 -1 0; 0 0 1.0], args...)
+                            Oaxis::Array{Float64,2}; user=false, args...)
+  if user
+    setcoordsystem(self._wingsystem, O, Oaxis*[-1 0 0; 0 -1 0; 0 0 1.0],args...)
+  else
+    setcoordsystem(self._wingsystem, O, Oaxis ,args...)
+  end
 end
 
 "Rotates the rotor `degs` degrees in the direction of rotation"
