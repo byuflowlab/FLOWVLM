@@ -157,6 +157,53 @@ function initialize(self::Rotor, n::Int64; r_lat::Float64=1.0,
   setcoordsystem(self._wingsystem, [0.0,0,0], rotor_Oaxis)
 end
 
+"Solves for the Gamma field (circulation) on each blade using CCBlade. It also
+includes the fields Ftot, L, D, and S.
+
+If
+include_comps==true it stores CCBlade-calculated normal and tangential forces
+in the Rotor."
+function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::Float64; t::Float64=0.0,
+                            include_comps::Bool=false)
+
+  setVinf(self, Vinf)
+
+  # Calculates distributed load from CCBlade
+  calc_distributedloads(self, Vinf, RPM, rho; t=t, include_comps=include_comps)
+
+  # Decomposes load into aerodynamic forces and calculates circulation
+  gamma = calc_aerodynamicforces(self, rho)
+
+  new_gamma = Float64[]
+  new_Ftot = Array{Float64, 1}[]
+  new_L = Array{Float64, 1}[]
+  new_D = Array{Float64, 1}[]
+  new_S = Array{Float64, 1}[]
+
+  # Formats solution fields as a FLOWVLM solution
+  for i in 1:self.B  # Iterates over blades
+
+    # (Calls a HS to make sure they have been calculated)
+    _ = getHorseshoe(get_blade(self, i), 1)
+
+    for j in 1:get_mBlade(self) # Iterates over lattices on blade
+      push!(new_gamma, gamma[i][j])
+      push!(new_Ftot, self.sol["DistributedLoad"]["field_data"][i][j])
+      push!(new_L, self.sol["Lift"]["field_data"][i][j])
+      push!(new_D, self.sol["Drag"]["field_data"][i][j])
+      push!(new_S, self.sol["RadialForce"]["field_data"][i][j])
+    end
+
+  end
+
+  # Adds the fields as FLOWVLM solutions
+  _addsolution(self._wingsystem, "Gamma", new_gamma; t=t)
+  _addsolution(self._wingsystem, "Ftot", new_Ftot; t=t)
+  _addsolution(self._wingsystem, "L", new_L; t=t)
+  _addsolution(self._wingsystem, "D", new_D; t=t)
+  _addsolution(self._wingsystem, "S", new_S; t=t)
+end
+
 "Sets Vinf(X,t) as the incoming freestream of this rotor"
 function setVinf(self::Rotor, Vinf)
   _reset(self)
@@ -498,6 +545,78 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::Float64;
     self.sol[field["field_name"]] = field
   end
 end
+
+"Calculates sectional aerodynamic forces in a rotor where the field
+DistributedLoad has already been solved for. It also calculates the bound
+circulation Gamma"
+function calc_aerodynamicforces(self::Rotor, rho::Float64)
+  if !("DistributedLoad" in keys(self.sol))
+    error("Field `DistributedLoad` not found."*
+          " Call `calc_distributedloads()` before calling this function.")
+  end
+
+  data_L = Array{Array{Float64,1}}[]
+  data_D = Array{Array{Float64,1}}[]
+  data_R = Array{Array{Float64,1}}[]
+  data_gamma = Array{Float64,1}[]
+
+  for blade_i in 1:self.B
+    V = self.sol["GlobInflow"]["field_data"][blade_i]   # Inflow at each element
+    Vmag = [norm(Vi) for Vi in V]
+    F = self.sol["DistributedLoad"]["field_data"][blade_i]# Total force
+    n_elem = size(F)[1]                                   # Number of elements
+
+    # Unit directions
+    dunit = V./Vmag                                       # Drag direction
+    runit = [cross(F[i],V[i]) for i in 1:n_elem]          # Radial direction
+    runit = runit./[norm(r) for r in runit]
+    lunit = [cross(dunit[i], runit[i]) for i in 1:n_elem] # Lift direction
+    lunit = lunit./[norm(l) for l in lunit]
+
+    # Decomposition of total force
+    Lmag = [dot(F[i], lunit[i]) for i in 1:n_elem]
+    L = Lmag.*lunit                                       # Lift
+    D = [dot(F[i], dunit[i]) for i in 1:n_elem].*dunit    # Drag
+    R = [dot(F[i], runit[i]) for i in 1:n_elem].*runit    # Radial
+
+    # Calculates circulation
+    gamma = Lmag./(rho*Vmag)
+
+    push!(data_L, L)
+    push!(data_D, D)
+    push!(data_R, R)
+    push!(data_gamma, gamma)
+  end
+
+  # Adds solution fields
+  field = Dict(
+              "field_name" => "Lift",
+              "field_type" => "vector",
+              "field_data" => data_L
+              )
+  self.sol[field["field_name"]] = field
+  field = Dict(
+              "field_name" => "Drag",
+              "field_type" => "vector",
+              "field_data" => data_D
+              )
+  self.sol[field["field_name"]] = field
+  field = Dict(
+              "field_name" => "RadialForce",
+              "field_type" => "vector",
+              "field_data" => data_R
+              )
+  self.sol[field["field_name"]] = field
+  field = Dict(
+              "field_name" => "Gamma",
+              "field_type" => "scalar",
+              "field_data" => data_gamma
+              )
+  self.sol[field["field_name"]] = field
+
+  return data_gamma
+end
+
 
 ##### INTERNAL FUNCTIONS #######################################################
 "Checks for consistency in internal variables"
