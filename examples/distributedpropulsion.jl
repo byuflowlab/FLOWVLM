@@ -7,7 +7,7 @@ vlm = FLOWVLM
 # ------------ GLOBAL VARIABLES ------------------------------------------------
 global module_path; module_path,_ = splitdir(@__FILE__);   # Path to this module
 global data_path = joinpath(module_path,"data/")            # Path to data
-global save_horseshoes = false
+global save_horseshoes = true
 
 function distributedpropulsion(; save_path=module_path*"/../temps/distprop03/",
                                   paraview=true, verbose=false, delete=false,
@@ -239,6 +239,10 @@ function distributedpropulsion(; save_path=module_path*"/../temps/distprop03/",
   # SIMULATION
   ##############################################################################
   # ------------ SIMULATION SETUP ----------------------------------------
+  vlm.setVinf(system, Vinf)
+  for prop in props_w; vlm.setRPM(prop, RPM); end;
+  for prop in props_tw; vlm.setRPM(prop, RPM); end;
+
   # Creates save path
   if save_path!=nothing; vlm.create_path(save_path, prompt); end;
 
@@ -305,9 +309,9 @@ function distributedpropulsion(; save_path=module_path*"/../temps/distprop03/",
       num_blades = propellers[1].B
       for (sys_name, num_props) in [("MainWing", np_w*2), ("TandemWing", np_tw*2)]
         for j in 1:num_props
-          # for i in 1:num_blades
-          #   strn = strn * save_name * "_" * sys_name * "_Prop$j" * "_Blade$(i)_vlm...vtk;"
-          # end
+          for i in 1:num_blades
+            strn = strn * save_name * "_" * sys_name * "_Prop$j" * "_Blade$(i)_vlm...vtk;"
+          end
           for i in 1:num_blades
             strn = strn * save_name * "_" * sys_name * "_Prop$j" * "_Blade$(i)_loft...vtk;"
           end

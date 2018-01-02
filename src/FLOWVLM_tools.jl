@@ -514,6 +514,7 @@ function save(self::Wing, filename::String;
   end
   ## Horseshoes
   x_vor_end = maximum(self._xtwingdcr)*1.25
+  factor_tol = abs(self._ywingdcr[end]-self._ywingdcr[1])
   for i in 1:nhs
     global raise_warning1
     Ap, A, B, Bp, CP, infDA, infDB, Gamma  = getHorseshoe(self, i; t=t)
@@ -521,7 +522,7 @@ function save(self::Wing, filename::String;
     # Calculates how long to extend the semi-infinite vortices
     # factor = (x_vor_end - Ap[1])/infDA[1]
     factor = (x_vor_end - self._xtwingdcr[i])/dot(infDA, self.Oaxis[1,:])
-    if factor>1/10^1
+    if factor>factor_tol#1/10^1
       if raise_warning1
         warn("Infinite vortex sheet avoided in visualization")
         raise_warning1 = false
@@ -531,7 +532,7 @@ function save(self::Wing, filename::String;
     Apinf = Ap + factor*infDA
     # factor = (x_vor_end - Bp[1])/infDB[1]
     factor = (x_vor_end - self._xtwingdcr[i+1])/dot(infDB, self.Oaxis[1,:])
-    if factor>1/10^1
+    if factor>factor_tol#1/10^1
       if raise_warning1
         warn("Infinite vortex sheet avoided in visualization")
         raise_warning1 = false

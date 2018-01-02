@@ -75,6 +75,7 @@ type Rotor
   airfoils::Array{Tuple{Float64,ap.Polar},1} # 2D airfoil properties along blade
 
   # Properties
+  RPM::Any                      # Current revs per minute
   hubR::Float64                 # Hub radius
   rotorR::Float64               # Rotor radius
   m::Int64                      # Number of control points (per blade)
@@ -95,7 +96,8 @@ type Rotor
   Rotor(
           CW, r, chord, theta, LE_x, LE_z, B,
           airfoils=Tuple{Float64, ap.Polar}[],
-          hubR=r[1], rotorR=r[end],
+          RPM=nothing,
+            hubR=r[1], rotorR=r[end],
             m=0, sol=Dict(),
           _wingsystem=WingSystem(),
             _r=Float64[], _chord=Float64[], _theta=Float64[],
@@ -105,7 +107,8 @@ type Rotor
         ) = new(
           CW, r, chord, theta, LE_x, LE_z, B,
           airfoils,
-          hubR, rotorR,
+          RPM,
+            hubR, rotorR,
             m, sol,
           _wingsystem,
             _r, _chord, _theta,
@@ -210,8 +213,17 @@ function setVinf(self::Rotor, Vinf)
   setVinf(self._wingsystem, Vinf)
 end
 
+"Sets `RPM` as the revolutions per minutes of this rotor"
+function setRPM(self::Rotor, RPM)
+  _reset(self; keep_Vinf=true)
+  _resetRotor(self)
+  self.RPM = RPM
+end
+
 "Saves the rotor in VTK legacy format"
 function save(self::Rotor, filename::String; args...)
+  _ = getHorseshoe(self, 1) # Makes sure the wake is calculated right
+
   save(self._wingsystem, filename; args...)
 
   if size(self.airfoils)[1]!=0
@@ -228,6 +240,8 @@ function setcoordsystem(self::Rotor, O::Array{Float64,1},
   else
     setcoordsystem(self._wingsystem, O, Oaxis ,args...)
   end
+
+  _resetRotor(self; keep_RPM=true)
 end
 
 "Rotates the rotor `degs` degrees in the direction of rotation"
@@ -259,7 +273,48 @@ end
 
 "Returns the m-th horseshoe of the system in the global coordinate system"
 function getHorseshoe(self::Rotor, m::Int64; t::Float64=0.0, extraVinf...)
-  getHorseshoe(self._wingsystem, m; t=t, extraVinf...)
+  # Checks if horseshoes will be recalculated
+  flag = true in [get_blade(self, i)._HSs==nothing for i in 1:self.B]
+
+  # ERROR CASE IF NEEDS TO CALCULATE HORSESHOES
+  if flag
+    if self.RPM==nothing
+      error("RPM hasn't been defined yet."*
+            " Call function `setRPM()` before calling this function.")
+    elseif self._wingsystem.Vinf==nothing
+        error("Freestream hasn't been define yet, please call function set_Vinf()")
+    end
+  end
+
+
+  # If horseshoes will be calculated, it forces to do it now and replaces
+  # the regular infinite vortex with vortex in the direction of inflow at the
+  # control point
+  if flag
+    for i in 1:self.B # Iterates over blades
+      blade = get_blade(self, i)
+
+      # Case horseshoes haven't been calculated yet
+      if blade._HSs==nothing
+        O = blade.O # Center of rotation
+
+        # Forces to calculate horseshoes now
+        _calculateHSs(blade; t=t, extraVinf...)
+
+        # Calculates the inflow at each side Ap and Bp of each HS
+        VApBp = _calc_inflowApBp(blade, self.RPM, t)
+
+        # Corrects each infinite vortex (infDA and infDB)
+        for j in 1:size(blade._HSs)[1] # Iterates over horseshoes
+          blade._HSs[j][6] = VApBp[j][1]/norm(VApBp[j][1])
+          blade._HSs[j][7] = VApBp[j][2]/norm(VApBp[j][2])
+        end
+      end
+
+    end
+  end
+
+  return getHorseshoe(self._wingsystem, m; t=t, extraVinf...)
 end
 
 "Saves the lofted surface of the blade"
@@ -652,9 +707,16 @@ function _check(self::Rotor)
   end
 end
 
-function _reset(self::Rotor; verbose=false, keep_Vinf=false)
-  if verbose; println("Resetting Rotor"); end;
+function _reset(self::Rotor;
+                verbose=false, keep_Vinf=false, keep_RPM=true, keep_sol=true)
   _reset(self._wingsystem; verbose=verbose, keep_Vinf=keep_Vinf)
+  _resetRotor(self; verbose=verbose, keep_RPM=keep_RPM)
+end
+
+function _resetRotor(self::Rotor; verbose=false, keep_RPM=false)
+  if verbose; println("Resetting Rotor"); end;
+  self.sol = Dict()
+  if !keep_RPM; self.RPM = nothing; end;
 end
 
 "Generates the blade and discretizes it into lattices"
@@ -917,6 +979,38 @@ function _rediscretize_airfoil(x, y, n_lower::Int64, n_upper::Int64, r::Float64,
   new_y = vcat(new_y, [point[2] for point in lower_points])
 
   return new_x, new_y
+end
+
+"Returns the inflow velocity at points Ap and Bp of each horseshoe in the
+format out[i] = [VAp, VAb] with `VAp` the freestream + rotational velocity at
+point Ap of the i-th horseshoe."
+function _calc_inflowApBp(blade::Wing, RPM, t::Float64)
+  omega = 2*pi*RPM/60
+  out = Array{Array{Float64, 1}, 1}[]
+  O = blade.O                   # Center of rotation
+  runit = blade.Oaxis[2,:]      # Radial direction
+  tunit = blade.Oaxis[1,:]      # Tangential direction
+
+  for HS in blade._HSs # Iterates over horseshoes
+    Ap, A, B, Bp, _, _, _, _ = HS
+
+    # Calculates the rotational velocity at each side of the HS
+    ## A side
+    Ar = abs(dot(Ap-O, runit))     # Radius of rotation
+    rotAp = omega*Ar*tunit         # Rotational velocity
+
+    ## B side
+    Br = abs(dot(Bp-O, runit))     # Radius of rotation
+    rotBp = omega*Br*tunit         # Rotational velocity
+
+    # Total velocities
+    VAp = blade.Vinf(Ap, t) + rotAp
+    VBp = blade.Vinf(Bp, t) + rotBp
+
+    push!(out, [VAp, VBp])
+  end
+
+  return out
 end
 
 """Receives a vector in the global coordinate system and transforms it into

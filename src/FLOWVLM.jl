@@ -55,6 +55,7 @@ const def_airfoil = ap.data_path*"oval00.txt"  # Default airfoil shape
 # Each new field must be implemented into `calculate_field()`
 const FIELDS = Dict(
     "Gamma" =>    [[], "scalar"],         # Vortex strength
+    "Vinf"  =>    [[], "vector"],         # Velocity at each CP used for Gamma
     ################## LIFT AND SIDEWASH ####################
     "Ftot"  =>    [["Gamma"], "vector"],     # Aerodynamic force (D+L+S)
     "D"     =>    [["Gamma"], "vector"],     # Drag
@@ -92,11 +93,29 @@ const FIELDS = Dict(
 "Solves the VLM of the Wing or WingSystem"
 function solve(wing, Vinf; t::Float64=0.0,
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
+
+  # Sets Vinf (this forces to recalculate horseshoes)
   setVinf(wing, Vinf)
+
+  # Obtain horseshoes
   HSs = getHorseshoes(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
-  Gammas = VLMSolver.solve(HSs, Vinf; t=t, vortexsheet=vortexsheet,
-                            extraVinf=extraVinf, extraVinfArgs...)
+
+  # Calculates Vinf at each control point
+  Vinfs = Array{Float64, 1}[]
+  for (i, HS) in enumerate(HSs)
+    _, _, _, _, CP, _, _, _ = HS
+    this_Vinf = Vinf(CP, t)
+    if extraVing!=nothing; this_Vinf += extraVinf(i, t; extraVinfArgs...); end;
+
+    push!(Vinfs, this_Vinf)
+  end
+
+  # Calls the solver
+  Gammas = VLMSolver.solve(HSs, Vinfs; t=t, vortexsheet=vortexsheet)
+                            # extraVinf=extraVinf, extraVinfArgs...)
+
   _addsolution(wing, "Gamma", Gammas; t=t)
+  _addsolution(wing, "Vinf", Vinfs; t=t)
 end
 
 "Returns all the horseshoes of the Wing or WingSystem"

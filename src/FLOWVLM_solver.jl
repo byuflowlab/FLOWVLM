@@ -36,8 +36,9 @@ Solves for the circulation of a collection of horseshoe vortices with the
 boundary condition of no-through flow.
 
   # Arguments
-  * `HSs::Array{Float64,1}` : Collection of horseshoes.
-  * `Vinf::function(X,t)`   : Undisturbed freestream.
+  * `HSs::Array{Float64,1}`             : Collection of horseshoes.
+  * `Vinf::Array{Array{Float64, 1}}`    : Undisturbed freestream at each control
+                                          point.
 
   # Optional arguments
   * `t::Float64`            : Time argument for evaluation of Vinf.
@@ -50,7 +51,8 @@ boundary condition of no-through flow.
                               it expects (Wing, ...).
 
 """
-function solve(HSs::Array{Array{Any,1},1}, Vinf; t::Float64=0.0,
+function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{Array{Float64, 1}};
+                t::Float64=0.0,
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
 
   n = size(HSs)[1]    # Number of horseshoes
@@ -76,7 +78,8 @@ function solve(HSs::Array{Array{Any,1},1}, Vinf; t::Float64=0.0,
     end
 
     # Normal component of Vinf
-    this_Vinf = Vinf(CPi, t)
+    # this_Vinf = Vinf(CPi, t)
+    this_Vinf = Vinfs[i]
     Vinfn = dot(this_Vinf, nhat)
     Vn[i] = -Vinfn
 
