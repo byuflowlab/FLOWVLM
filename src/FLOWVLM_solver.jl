@@ -51,7 +51,7 @@ boundary condition of no-through flow.
                               it expects (Wing, ...).
 
 """
-function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{Array{Float64, 1}};
+function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{Array{Float64, 1},1};
                 t::Float64=0.0,
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
 

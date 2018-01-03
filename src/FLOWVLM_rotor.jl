@@ -248,7 +248,50 @@ end
 function rotate(self::Rotor, degs::Float64)
   rotOaxis = vtk.rotation_matrix(0.0, 0.0, (-1)^!self.CW*degs)
   newOaxis = rotOaxis*self._wingsystem.Oaxis
-  setcoordsystem(self._wingsystem, self._wingsystem.O, newOaxis)
+  # setcoordsystem(self._wingsystem, self._wingsystem.O, newOaxis)
+  setcoordsystem(self, self._wingsystem.O, newOaxis)
+end
+
+
+"Returns the undisturbed freestream at each control point"
+function getVinfs(self::Rotor; t::Float64=0.0,
+                              extraVinf=nothing, extraVinfArgs...)
+
+  # Calculates it if not calculated yet
+  if !("GlobInflow" in keys(self.sol)) || true
+    calc_inflow(self, self._wingsystem.Vinf, get_RPM(self); t=t)
+  end
+
+  # Vinfs as calculated from `calc_inflow()`
+  blade_Vinfs = self.sol["GlobInflow"]["field_data"]
+
+  # Formats it for `solve()`
+  Vinfs = Array{Float64, 1}[]
+  for blade_Vinf in blade_Vinfs
+    for V in blade_Vinf
+      push!(Vinfs, V)
+    end
+  end
+
+  # Adds any extra terms
+  if extraVinf!=nothing
+    for i in 1:self.B
+      blade = get_blade(self, i)
+      for j in 1:get_m(blade)
+        Vinfs[i][j] += extraVinf(j, t; extraVinfArgs..., wing=blade)
+      end
+    end
+  end
+
+  return Vinfs
+end
+
+function get_RPM(self::Rotor)
+  if self.RPM==nothing
+    error("RPM not defined yet."*
+          " Call function `setRPM()` before calling this function.")
+  end
+  return self.RPM
 end
 
 "Returns total number of lattices on each blade"
@@ -302,7 +345,7 @@ function getHorseshoe(self::Rotor, m::Int64; t::Float64=0.0, extraVinf...)
         _calculateHSs(blade; t=t, extraVinf...)
 
         # Calculates the inflow at each side Ap and Bp of each HS
-        VApBp = _calc_inflowApBp(blade, self.RPM, t)
+        VApBp = _calc_inflowApBp(blade, get_RPM(self), t)
 
         # Corrects each infinite vortex (infDA and infDB)
         for j in 1:size(blade._HSs)[1] # Iterates over horseshoes

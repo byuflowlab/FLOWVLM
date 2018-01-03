@@ -99,16 +99,7 @@ function solve(wing, Vinf; t::Float64=0.0,
 
   # Obtain horseshoes
   HSs = getHorseshoes(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
-
-  # Calculates Vinf at each control point
-  Vinfs = Array{Float64, 1}[]
-  for (i, HS) in enumerate(HSs)
-    _, _, _, _, CP, _, _, _ = HS
-    this_Vinf = Vinf(CP, t)
-    if extraVing!=nothing; this_Vinf += extraVinf(i, t; extraVinfArgs...); end;
-
-    push!(Vinfs, this_Vinf)
-  end
+  Vinfs = getVinfs(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
 
   # Calls the solver
   Gammas = VLMSolver.solve(HSs, Vinfs; t=t, vortexsheet=vortexsheet)

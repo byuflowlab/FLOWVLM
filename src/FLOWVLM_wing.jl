@@ -300,6 +300,22 @@ function getControlPoint(self::Wing, m::Int64)
   return CP
 end
 
+"Returns the undisturbed freestream at each control point"
+function getVinfs(self::Wing; t::Float64=0.0,
+                              extraVinf=nothing, extraVinfArgs...)
+  # Calculates Vinf at each control point
+  Vinfs = Array{Float64, 1}[]
+  for i in 1:get_m(self)
+    CP = getControlPoint(self, i)
+    this_Vinf = self.Vinf(CP, t)
+    if extraVinf!=nothing; this_Vinf += extraVinf(i, t; extraVinfArgs...); end;
+
+    push!(Vinfs, this_Vinf)
+  end
+
+  return Vinfs
+end
+
 "Returns the m-th horseshoe in the global coordinate system"
 function getHorseshoe(self::Wing, m::Int64; t::Float64=0.0, extraVinf...)
   # ERROR CASES

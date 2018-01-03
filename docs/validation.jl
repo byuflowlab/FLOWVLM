@@ -370,7 +370,7 @@ function planarwing_lowreynolds(; save_w=false)
   b = [7.0, 10.5, 14.0, 17.5, 6.95, 10.43, 13.91, 6.75, 10.13, 13.5,]*0.0254 #m
   AR = [2.0, 3.0, 4.0, 5.0, 2.0, 3.0, 4.0, 2.0, 3.0, 4.0]     # aspect ratios
   tr = [1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.5, 0.5, 0.5]  # taper ratios
-  lambda = atan(   (  (1-tr)./(1+tr)  )./AR   ) * 180 / pi    # sweep
+  lambda = atan.(   (  (1-tr)./(1+tr)  )./AR   ) * 180 / pi    # sweep
   bar_c = b./AR   # mean chord
 
   # Aspect ratio as defined in simpleWing() (b/c_tip)

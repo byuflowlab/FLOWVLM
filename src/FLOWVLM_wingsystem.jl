@@ -133,6 +133,19 @@ function setVinf(self::WingSystem, Vinf)
   end
 end
 
+"Returns the undisturbed freestream at each control point"
+function getVinfs(self::WingSystem; t::Float64=0.0,
+                              extraVinf=nothing, extraVinfArgs...)
+
+  Vinfs = Array{Float64, 1}[]
+  for wing in self.wings
+    for V in getVinfs(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
+      push!(Vinfs, V)
+    end
+  end
+  return Vinfs
+end
+
 "Returns the m-th control point of the system"
 function getControlPoint(self::WingSystem, m::Int64)
   wing, _m = _fetch_wing(self, m)

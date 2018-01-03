@@ -170,6 +170,7 @@ function _calculate_forces(wing, rhoinf::Float64;
       X = (BV[1] + BV[2])/2
       # Freestream velocity (undisturbed+induced)
       V = wing.Vinf(X,t)
+      # V = wing.sol["Vinf"][i]
       V += Vind(wing, X; t=t, ign_col=true)
       # Vinf x (B-A)
       crss = cross(V, BV[2]-BV[1])
@@ -248,6 +249,7 @@ end
 "Decomposes a force field into sideslip, drag, and lift components"
 function _decompose(wing, F; t::Float64=0.0)
   Vinf = _aveVinf(wing; t=t)     # Vinf used for decomposing forces
+  # Vinf = mean(wing.sol["Vinf"])
 
   # Unit vectors
   s_hat = wing.Oaxis[2, :]                                  # Sideslip
