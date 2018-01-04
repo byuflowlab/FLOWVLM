@@ -162,13 +162,15 @@ end
 "Solves for the Gamma field (circulation) on each blade using CCBlade. It also
 includes the fields Ftot, L, D, and S.
 
-If
-include_comps==true it stores CCBlade-calculated normal and tangential forces
+If include_comps==true it stores CCBlade-calculated normal and tangential forces
 in the Rotor."
 function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::Float64; t::Float64=0.0,
                             include_comps::Bool=false)
 
   setVinf(self, Vinf)
+
+  # (Calls a HS to make sure they have been calculated)
+  _ = getHorseshoe(self, 1)
 
   # Calculates distributed load from CCBlade
   calc_distributedloads(self, Vinf, RPM, rho; t=t, include_comps=include_comps)
@@ -184,9 +186,6 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::Float64; t::Float64=0.0,
 
   # Formats solution fields as a FLOWVLM solution
   for i in 1:self.B  # Iterates over blades
-
-    # (Calls a HS to make sure they have been calculated)
-    _ = getHorseshoe(get_blade(self, i), 1)
 
     for j in 1:get_mBlade(self) # Iterates over lattices on blade
       push!(new_gamma, gamma[i][j])
@@ -325,7 +324,6 @@ function getHorseshoe(self::Rotor, m::Int64; t::Float64=0.0, extraVinf...)
         error("Freestream hasn't been define yet, please call function set_Vinf()")
     end
   end
-
 
   # If horseshoes will be calculated, it forces to do it now and replaces
   # the regular infinite vortex with vortex in the direction of inflow at the
