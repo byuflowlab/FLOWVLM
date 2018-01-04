@@ -9,7 +9,16 @@ global mute_warning = false
 function _mute_warning(booln::Bool)
   global mute_warning = booln
 end
-
+# Data structure of a horseshoe
+global HS_hash = Dict( "Ap" => 1,
+                       "A"  => 2,
+                       "B"  => 3,
+                       "Bp" => 4,
+                       "CP" => 5,
+                       "infDA"  => 6,
+                       "infDB"  => 7,
+                       "Gamma"  => 8
+                     )
 
 # A horseshoe is defined as a 5-segments vortex by the array
 # HS = [Ap, A, B, Bp, CP, infDA, infDB, Gamma], with

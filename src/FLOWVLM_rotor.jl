@@ -8,7 +8,6 @@ include(ccblade_path*"src/CCBlade.jl")
 ccb = CCBlade
 
 
-
 ################################################################################
 # ROTOR CLASS
 ################################################################################
@@ -254,21 +253,19 @@ end
 
 
 "Returns the undisturbed freestream at each control point"
-function getVinfs(self::Rotor; t::Float64=0.0,
+function getVinfs(self::Rotor; t::Float64=0.0, target="CP",
                               extraVinf=nothing, extraVinfArgs...)
-
-  # Calculates it if not calculated yet
-  if !("GlobInflow" in keys(self.sol)) || true
-    calc_inflow(self, self._wingsystem.Vinf, get_RPM(self); t=t)
+  if !(target in keys(VLMSolver.HS_hash))
+    error("Logic error! Invalid target $target.")
   end
 
-  # Vinfs as calculated from `calc_inflow()`
-  blade_Vinfs = self.sol["GlobInflow"]["field_data"]
+  _ = getHorseshoe(self, 1; t=t, extraVinf=extraVinf, extraVinfArgs...)
 
-  # Formats it for `solve()`
   Vinfs = Array{Float64, 1}[]
-  for blade_Vinf in blade_Vinfs
-    for V in blade_Vinf
+  for i in 1:self.B
+    blade_Vinfs = _calc_inflow(get_blade(self, i), get_RPM(self), t;
+                                                                target=target)
+    for V in blade_Vinfs
       push!(Vinfs, V)
     end
   end
@@ -345,12 +342,14 @@ function getHorseshoe(self::Rotor, m::Int64; t::Float64=0.0, extraVinf...)
         _calculateHSs(blade; t=t, extraVinf...)
 
         # Calculates the inflow at each side Ap and Bp of each HS
-        VApBp = _calc_inflowApBp(blade, get_RPM(self), t)
+        VAp = _calc_inflow(blade, get_RPM(self), t; target="Ap")
+        VBp = _calc_inflow(blade, get_RPM(self), t; target="Bp")
+
 
         # Corrects each infinite vortex (infDA and infDB)
         for j in 1:size(blade._HSs)[1] # Iterates over horseshoes
-          blade._HSs[j][6] = VApBp[j][1]/norm(VApBp[j][1])
-          blade._HSs[j][7] = VApBp[j][2]/norm(VApBp[j][2])
+          blade._HSs[j][6] = VAp[j]/norm(VAp[j])
+          blade._HSs[j][7] = VBp[j]/norm(VBp[j])
         end
       end
 
@@ -1024,33 +1023,36 @@ function _rediscretize_airfoil(x, y, n_lower::Int64, n_upper::Int64, r::Float64,
   return new_x, new_y
 end
 
-"Returns the inflow velocity at points Ap and Bp of each horseshoe in the
-format out[i] = [VAp, VAb] with `VAp` the freestream + rotational velocity at
-point Ap of the i-th horseshoe."
-function _calc_inflowApBp(blade::Wing, RPM, t::Float64)
+"""
+Returns the inflow velocity at the requested target point on all horseshoes,
+where the inflow is calculated as freestream + rotational velocity.
+"""
+function _calc_inflow(blade::Wing, RPM, t::Float64; target="CP")
+  if !(target in keys(VLMSolver.HS_hash))
+    error("Logic error! Invalid target $target.")
+  elseif blade._HSs==nothing
+    error("Horseshoes haven't been initiated yet!")
+  end
+  t_i = VLMSolver.HS_hash[target]
+
   omega = 2*pi*RPM/60
-  out = Array{Array{Float64, 1}, 1}[]
+  out = Array{Float64, 1}[]
   O = blade.O                   # Center of rotation
   runit = blade.Oaxis[2,:]      # Radial direction
   tunit = blade.Oaxis[1,:]      # Tangential direction
 
   for HS in blade._HSs # Iterates over horseshoes
-    Ap, A, B, Bp, _, _, _, _ = HS
+    T = HS[t_i]                    # Targeted point
 
     # Calculates the rotational velocity at each side of the HS
     ## A side
-    Ar = abs(dot(Ap-O, runit))     # Radius of rotation
-    rotAp = omega*Ar*tunit         # Rotational velocity
+    Tr = abs(dot(T-O, runit))      # Radius of rotation of target
+    rotT = omega*Tr*tunit          # Rotational velocity
 
-    ## B side
-    Br = abs(dot(Bp-O, runit))     # Radius of rotation
-    rotBp = omega*Br*tunit         # Rotational velocity
+    # Total velocity
+    VT = blade.Vinf(T, t) + rotT
 
-    # Total velocities
-    VAp = blade.Vinf(Ap, t) + rotAp
-    VBp = blade.Vinf(Bp, t) + rotBp
-
-    push!(out, [VAp, VBp])
+    push!(out, VT)
   end
 
   return out

@@ -133,13 +133,15 @@ function setVinf(self::WingSystem, Vinf)
   end
 end
 
-"Returns the undisturbed freestream at each control point"
-function getVinfs(self::WingSystem; t::Float64=0.0,
+"Returns the undisturbed freestream at each control point, or at the horseshoe
+point indicated as `target`."
+function getVinfs(self::WingSystem; t::Float64=0.0, target="CP",
                               extraVinf=nothing, extraVinfArgs...)
 
   Vinfs = Array{Float64, 1}[]
   for wing in self.wings
-    for V in getVinfs(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
+    for V in getVinfs(wing; t=t, target=target,
+                                  extraVinf=extraVinf, extraVinfArgs...)
       push!(Vinfs, V)
     end
   end

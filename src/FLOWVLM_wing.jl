@@ -300,14 +300,25 @@ function getControlPoint(self::Wing, m::Int64)
   return CP
 end
 
-"Returns the undisturbed freestream at each control point"
-function getVinfs(self::Wing; t::Float64=0.0,
+"Returns the undisturbed freestream at each control point, or at the horseshoe
+point indicated as `target`."
+function getVinfs(self::Wing; t::Float64=0.0, target="CP",
                               extraVinf=nothing, extraVinfArgs...)
+  if !(target in keys(VLMSolver.HS_hash))
+    error("Logic error! Invalid target $target.")
+  end
+  t_i = VLMSolver.HS_hash[target]
+
   # Calculates Vinf at each control point
   Vinfs = Array{Float64, 1}[]
   for i in 1:get_m(self)
-    CP = getControlPoint(self, i)
-    this_Vinf = self.Vinf(CP, t)
+    if target=="CP"
+      T = getControlPoint(self, i)      # Targeted point
+    else
+      T = getHorseshoe(self, i; t=t, extraVinf=extraVinf, extraVinfArgs...)[t_i]
+    end
+
+    this_Vinf = self.Vinf(T, t)
     if extraVinf!=nothing; this_Vinf += extraVinf(i, t; extraVinfArgs...); end;
 
     push!(Vinfs, this_Vinf)

@@ -129,6 +129,10 @@ function Vind(wing, X; t::Float64=0.0, ign_col::Bool=false)
   end
   return V
 end
+
+function get_hash(var::String)
+  return VLMSolver.HS_hash[var]
+end
 ##### END OF COMMONS ###########################################################
 
 
