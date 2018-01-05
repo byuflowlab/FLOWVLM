@@ -675,7 +675,7 @@ function calc_aerodynamicforces(self::Rotor, rho::Float64)
     R = [dot(F[i], runit[i]) for i in 1:n_elem].*runit    # Radial
 
     # Calculates circulation
-    gamma = Lmag./(rho*Vmag)
+    gamma = (-1)^(self.CW) * Lmag./(rho*Vmag)
 
     push!(data_L, L)
     push!(data_D, D)
