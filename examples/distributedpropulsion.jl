@@ -9,7 +9,7 @@ global module_path; module_path,_ = splitdir(@__FILE__);   # Path to this module
 global data_path = joinpath(module_path,"data/")            # Path to data
 global save_horseshoes = true
 
-function distributedpropulsion(; save_path=module_path*"/../temps/distprop03/",
+function distributedpropulsion(; save_path=module_path*"/../temps/distprop04/",
                                   paraview=true, verbose=false, delete=false,
                                   prompt=false,
                                   rotor_file="apc9x4_5.jl",

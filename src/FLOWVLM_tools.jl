@@ -513,7 +513,8 @@ function save(self::Wing, filename::String;
     write(f, string("\n", line))
   end
   ## Horseshoes
-  x_vor_end = maximum(self._xtwingdcr)*1.25
+  # x_vor_end = maximum(self._xtwingdcr)*1.25
+  x_vor_end = maximum(self._xtwingdcr)*2.5
   factor_tol = abs(self._ywingdcr[end]-self._ywingdcr[1])
   for i in 1:nhs
     global raise_warning1
