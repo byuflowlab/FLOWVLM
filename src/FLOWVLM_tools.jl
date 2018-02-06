@@ -461,6 +461,121 @@ function simpleWing(b::Float64, ar::Float64, tr::Float64,
   return wing
 end
 
+"""
+    `complexWing(b::Float64, AR::Float64, tr::Float64, n::Int64,
+                        pos::Array{Float64,1}, twist::Array{Float64,1},
+                        sweep::Array{Float64,1}, dihed::Array{Float64,1};
+                        symmetric::Bool=true)`
+
+Returns a Wing object made of multiple sections with the specified dimensions.
+
+# Arguments
+  * `b::Float64`          : Span.
+  * `AR::Float64`         : Aspect ratio (span over tip chord).
+  * `n::Int64`            : Number of lattices in semi-span.
+  * `pos::Array{Float64,1}`   : Position of each chord along semi-span.
+  * `clen::Array{Float64,1}`  : Length of each chord as a fraction of tip chord.
+  * `twist::Array{Float64,1}` : (deg) twist of each chord.
+  * `sweep::Array{Float64,1}` : (deg) sweep of each section.
+  * `dihed::Array{Float64,1}` : (deg) dihedral of each section.
+
+# Optional Arguments
+  * `symmetric::Bool=true`    : If false, returns only the semi-span.
+
+# Example
+```julia
+  # Wing Parameters
+  b = 1.0                     # (m) span
+  AR = 12.0                   # Span over tip chord
+  n = 50                      # Lattices in semi-span
+
+  # Chords
+  pos = Float64[0, 0.25, 0.75, 1]  # Position of each chord along semi-span
+  clen = Float64[2, 1.5, 1.5, 1]   # Length of each chord
+  twist = Float64[0, 0, -2, -4]    # (deg) twist at each chord
+  sweep = Float64[10, 15, 35]      # (deg) sweep of each section
+  dihed = Float64[2, 5, 7.5]       # (deg) dihedral of each section
+
+  # Generates the wing
+  wing = vlm.complexWing(b, AR, n, pos, clen, twist, sweep, dihed)
+```
+"""
+function complexWing(b::Float64, AR::Float64, n::Int64, pos::Array{Float64,1},
+                      clen::Array{Float64,1}, twist::Array{Float64,1},
+                      sweep::Array{Float64,1}, dihed::Array{Float64,1};
+                      symmetric::Bool=true)
+
+  nchords = size(pos)[1]      # Number of chords
+
+  # ERROR CASES
+  if nchords<2
+    error("At least two chords are required.")
+  elseif pos[1]!=0 || pos[end]!=1
+    error("First chord must be at pos=0 and last at pos=1, got $pos.")
+  end
+  for (arr, lbl) in [(clen, "clen"), (twist, "twist")]
+    if size(arr)[1]!=nchords
+      error("Invalid # elements in `$lbl`. ($(size(arr)[1])!=$(nchords)).")
+    end
+  end
+  for (arr, lbl) in [(sweep, "sweep"), (dihed, "dihed")]
+    if size(arr)[1]!=nchords-1
+      error("Invalid # elements in `$lbl`. "*
+                "($(size(arr)[1])!=$(nchords-1)).")
+    end
+  end
+
+  # ------------------- CHORDS COORDINATES -------------------------------------
+  xs, ys, zs, cs, twists = [Float64[] for i in 1:5] # Coordinates
+  ns = Int64[]                # Lattice distribution
+  chord_tip = b/AR            # Chord length at tip
+
+  # Iterates over chords calculating coordinates
+  prev_x, prev_y, prev_z, sec_lambda, sec_gamma = zeros(6)
+  for i in 1:nchords
+      y = b/2*pos[i]
+      x = prev_x + (y-prev_y)*tan(sec_lambda)
+      z = prev_z + (y-prev_y)*tan(sec_gamma)
+
+      push!(xs, x); push!(ys, y); push!(zs, z);
+      push!(cs, chord_tip*clen[i])
+      push!(twists, twist[i])
+
+      if i!=1
+        if i!=nchords
+          this_n = maximum([ 1, Int64(round(n*(pos[i]-pos[i-1]))) ])
+        else
+          this_n = n-sum(ns)
+        end
+        push!(ns, this_n)
+      end
+
+      if i!=nchords
+        sec_lambda = sweep[i]*pi/180
+        sec_gamma = dihed[i]*pi/180
+      end
+      prev_x, prev_y, prev_z = x, y, z
+  end
+
+  # Mirror coordinates if symmetric wing
+  if symmetric
+    ys = vcat(-reverse(ys[2:end]), ys)
+    xs = vcat(reverse(xs[2:end]), xs)
+    zs = vcat(reverse(zs[2:end]), zs)
+    cs = vcat(reverse(cs[2:end]), cs)
+    twists = vcat(reverse(twists[2:end]), twists)
+    ns = vcat(reverse(ns), ns)
+  end
+
+  # ------------------- BUILD WING ---------------------------------------------
+  wing = Wing(xs[1], ys[1], zs[1], cs[1], twists[1])
+  for i in 2:(symmetric ? 2*nchords-1 : nchords)
+    addchord(wing, xs[i], ys[i], zs[i], cs[i], twists[i], ns[i-1] )
+  end
+
+  return wing
+end
+
 "Saves the wing domain in VTK legacy format"
 function save(self::Wing, filename::String;
                   save_horseshoes::Bool=true,
