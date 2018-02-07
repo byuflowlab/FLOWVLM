@@ -33,7 +33,8 @@ vtk = VTKtools
 
 
 # ------------ HEADERS ---------------------------------------------------------
-for header_name in ["solver", "wing", "wingsystem", "tools", "postprocessing"]
+for header_name in ["dt", "solver", "wing", "wingsystem",
+                                    "tools", "postprocessing"]
   include("FLOWVLM_"*header_name*".jl")
 end
 include("utilities.jl")
@@ -43,6 +44,7 @@ include("utilities.jl")
 # catch e
 #   warn("FLOWVLM_rotor.jl module failed to load: $e")
 # end
+
 
 # ------------ GLOBAL VARIABLES ------------------------------------------------
 const pm = 3/4 # Default chord-position of the control point
@@ -87,11 +89,14 @@ const FIELDS = Dict(
 
 
 
+
+
+
 ################################################################################
 # WING AND WINGSYSTEM COMMON FUNCTIONS
 ################################################################################
 "Solves the VLM of the Wing or WingSystem"
-function solve(wing, Vinf; t::Float64=0.0,
+function solve(wing, Vinf; t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
 
   # Sets Vinf (this forces to recalculate horseshoes)
@@ -110,7 +115,7 @@ function solve(wing, Vinf; t::Float64=0.0,
 end
 
 "Returns all the horseshoes of the Wing or WingSystem"
-function getHorseshoes(wing; t::Float64=0.0, extraVinf...)
+function getHorseshoes(wing; t::FWrap=0.0, extraVinf...)
   m = get_m(wing)
   HSs = Array{Any,1}[]
   for i in 1:m
@@ -120,7 +125,7 @@ function getHorseshoes(wing; t::Float64=0.0, extraVinf...)
 end
 
 "Returns the velocity induced at point X"
-function Vind(wing, X; t::Float64=0.0, ign_col::Bool=false)
+function Vind(wing, X; t::FWrap=0.0, ign_col::Bool=false)
   V = zeros(3)
   # Adds the velocity induced by each horseshoe
   for i in 1:get_m(wing)

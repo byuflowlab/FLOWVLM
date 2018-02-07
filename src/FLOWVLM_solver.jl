@@ -1,25 +1,11 @@
 
 module VLMSolver
 
-# Criteria of colinearity
-const col_crit = 1/10^12  # NOTE: Anything less than 1/10^15 reaches float precision.
-global n_col = 0          # Number of colinears found
-# global colinears = []     # Store colinear points here
-global mute_warning = false
-function _mute_warning(booln::Bool)
-  global mute_warning = booln
-end
-# Data structure of a horseshoe
-global HS_hash = Dict( "Ap" => 1,
-                       "A"  => 2,
-                       "B"  => 3,
-                       "Bp" => 4,
-                       "CP" => 5,
-                       "infDA"  => 6,
-                       "infDB"  => 7,
-                       "Gamma"  => 8
-                     )
+# ------------ DATA STRUCTURES -------------------------------------------------
+# NUMBER DATA TYPES
+include("FLOWVLM_dt.jl")
 
+# HORSESHOE
 # A horseshoe is defined as a 5-segments vortex by the array
 # HS = [Ap, A, B, Bp, CP, infDA, infDB, Gamma], with
 #
@@ -34,6 +20,28 @@ global HS_hash = Dict( "Ap" => 1,
 #
 # infDA and infDB must be unitary vectors pointing from the trailing edge in
 # the direction of infinite.
+global HS_hash = Dict( "Ap" => 1,
+                       "A"  => 2,
+                       "B"  => 3,
+                       "Bp" => 4,
+                       "CP" => 5,
+                       "infDA"  => 6,
+                       "infDB"  => 7,
+                       "Gamma"  => 8
+                     )
+
+# ------------ PARAMETERS ------------------------------------------------------
+# Criteria of colinearity
+const col_crit = 1/10^12  # NOTE: Anything less than 1/10^15 reaches float precision.
+
+
+global n_col = 0          # Number of colinears found
+# global colinears = []     # Store colinear points here
+global mute_warning = false
+function _mute_warning(booln::Bool)
+  global mute_warning = booln
+end
+
 
 
 ################################################################################
@@ -60,13 +68,16 @@ boundary condition of no-through flow.
                               it expects (Wing, ...).
 
 """
-function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{Array{Float64, 1},1};
-                t::Float64=0.0,
+function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
+                t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
 
-  n = size(HSs)[1]    # Number of horseshoes
-  G = zeros(n, n)     # Geometry matrix
-  Vn = zeros(n)       # Normal velocity matrix
+  n = size(HSs)[1]            # Number of horseshoes
+  G = zeros(FWrap, n, n)      # Geometry matrix
+  Vn = zeros(FWrap, n)        # Normal velocity matrix
+
+  ad_flag = false             # Flag of automatic differentiation detected
+  ad_type = nothing           # AD dual number type
 
   # ------------ BUILD MATRICES G AND Vn ------------
   # Iterates over control points
@@ -84,6 +95,21 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{Array{Float64, 1},1};
       Gij = (1/4/pi)*GeomFac
       Gijn = dot(Gij, nhat)
       G[i,j] = Gijn
+
+      # Checks for automatic differentiation
+      Gijn_type = typeof(Gijn)
+      if !(supertype(Gijn_type) in [AbstractFloat, Signed])
+        # Case that AD was already detected: Checks for consistency of type
+        if ad_flag
+          if ad_type!=Gijn_type
+            error("Fail to recognize AD dual number type: Found more than one"*
+                    " ($ad_type, $Gijn_type)")
+          end
+        else
+          ad_flag = true
+          ad_type = Gijn_type
+        end
+      end
     end
 
     # Normal component of Vinf
@@ -106,8 +132,15 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{Array{Float64, 1},1};
   end
 
   # ------------ SOLVES FOR GAMMA ------------
-  invG = inv(G)
-  Gamma = invG * Vn
+  if ad_flag
+    adG = zeros(ad_type, n, n)
+    adG[:,:] = G[:,:]
+    Gamma = adG \ Vn
+  else
+    # invG = inv(G)
+    # Gamma = invG * Vn
+    Gamma = G \ Vn
+  end
   return Gamma
 end
 
@@ -139,7 +172,7 @@ end
 Returns the induced velocity of the bound vortex AB on point `C`.
 Give gamma=nothing to return the geometric factor (Fac1*Fac2).
 """
-function _V_AB(A::Array{Float64,1}, B, C, gamma; ign_col::Bool=false)
+function _V_AB(A::FArrWrap, B, C, gamma; ign_col::Bool=false)
 
   r0 = B-A
   r1 = C-A
@@ -172,8 +205,8 @@ Returns the induced velocity on point `C` by the semi-infinite vortex `Ainf.`
 The vortex outgoes from `A` in the direction of `infD`.
 Give `gamma=nothing` to return the geometric factor `(Fac1*Fac2)`.
 """
-function _V_Ainf_out(A::Array{Float64,1},
-                      infD::Array{Float64,1}, C, gamma;
+function _V_Ainf_out(A::FArrWrap,
+                      infD::FArrWrap, C, gamma;
                       ign_col::Bool=false)
   AC = C-A
 
@@ -212,7 +245,7 @@ Returns the induced velocity on point `C` by the semi-infinite vortex `Ainf.`
 The vortex incomes from the direction of `infD` to `A`.
 Give `gamma=nothing` to return the geometric factor `(Fac1*Fac2)`.
 """
-function _V_Ainf_in(A::Array{Float64,1}, infD::Array{Float64,1}, C,
+function _V_Ainf_in(A::FArrWrap, infD::FArrWrap, C,
                gamma; ign_col::Bool=false)
   aux = _V_Ainf_out(A, infD, C, gamma; ign_col=ign_col)
   return (-1)*aux

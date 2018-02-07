@@ -63,30 +63,30 @@ type Rotor
 
   # Initialization variables (USER INPUT)
   CW::Bool                      # True for clockwise rotation
-  r::Array{Float64,1}           # Radius position for the following variables
-  chord::Array{Float64,1}       # Chord length
-  theta::Array{Float64,1}       # Angle of attack (deg) from the rotor's axis
-  LE_x::Array{Float64,1}        # x-position of leading edge
-  LE_z::Array{Float64,1}        # z-position of leading edge (Height from plane
+  r::FArrWrap                   # Radius position for the following variables
+  chord::FArrWrap               # Chord length
+  theta::FArrWrap               # Angle of attack (deg) from the rotor's axis
+  LE_x::FArrWrap                # x-position of leading edge
+  LE_z::FArrWrap                # z-position of leading edge (Height from plane
                                 #                                  of rotation)
-  B::Int64                      # Number of blades
+  B::IWrap                      # Number of blades
   # Optional inputs
-  airfoils::Array{Tuple{Float64,ap.Polar},1} # 2D airfoil properties along blade
+  airfoils::Array{Tuple{FWrap,ap.Polar},1} # 2D airfoil properties along blade
 
   # Properties
   RPM::Any                      # Current revs per minute
-  hubR::Float64                 # Hub radius
-  rotorR::Float64               # Rotor radius
-  m::Int64                      # Number of control points (per blade)
+  hubR::FWrap                   # Hub radius
+  rotorR::FWrap                 # Rotor radius
+  m::IWrap                      # Number of control points (per blade)
   sol::Dict{String,Any}         # Solution fields for CCBlade (not FLOWVLM)
 
   # Data storage
   _wingsystem::WingSystem       # Rotor assembly
-  _r::Array{Float64,1}          # Radius of each control point (on one blade)
-  _chord::Array{Float64,1}      # Chord length at each control point
-  _theta::Array{Float64,1}      # Angle of attack (deg) at each control point
-  _LE_x::Array{Float64,1}
-  _LE_z::Array{Float64,1}
+  _r::FArrWrap                  # Radius of each control point (on one blade)
+  _chord::FArrWrap              # Chord length at each control point
+  _theta::FArrWrap              # Angle of attack (deg) at each control point
+  _LE_x::FArrWrap
+  _LE_z::FArrWrap
   _polars::Array{ap.Polar, 1}   # Polar object at each control point (with x,y
                                 #  containing the exact geometric airfoil)
   _polarroot::ap.Polar          # Polar at the root
@@ -94,13 +94,13 @@ type Rotor
 
   Rotor(
           CW, r, chord, theta, LE_x, LE_z, B,
-          airfoils=Tuple{Float64, ap.Polar}[],
+          airfoils=Tuple{FWrap, ap.Polar}[],
           RPM=nothing,
             hubR=r[1], rotorR=r[end],
             m=0, sol=Dict(),
           _wingsystem=WingSystem(),
-            _r=Float64[], _chord=Float64[], _theta=Float64[],
-            _LE_x=Float64[], _LE_z=Float64[],
+            _r=FWrap[], _chord=FWrap[], _theta=FWrap[],
+            _LE_x=FWrap[], _LE_z=FWrap[],
             _polars=ap.Polar[],
               _polarroot=ap.dummy_polar(), _polartip=ap.dummy_polar()
         ) = new(
@@ -117,7 +117,7 @@ type Rotor
 end
 
 "Initializes the geometry of the rotor, discretizing each blade into n lattices"
-function initialize(self::Rotor, n::Int64; r_lat::Float64=1.0,
+function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
                           central=false, refinement=[])
   # Checks for arguments consistency
   _check(self)
@@ -164,7 +164,7 @@ includes the fields Ftot, L, D, and S.
 
 If include_comps==true it stores CCBlade-calculated normal and tangential forces
 in the Rotor."
-function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::Float64; t::Float64=0.0,
+function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=false)
 
   setVinf(self, Vinf)
@@ -178,11 +178,11 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::Float64; t::Float64=0.0,
   # Decomposes load into aerodynamic forces and calculates circulation
   gamma = calc_aerodynamicforces(self, rho)
 
-  new_gamma = Float64[]
-  new_Ftot = Array{Float64, 1}[]
-  new_L = Array{Float64, 1}[]
-  new_D = Array{Float64, 1}[]
-  new_S = Array{Float64, 1}[]
+  new_gamma = FWrap[]
+  new_Ftot = FArrWrap[]
+  new_L = FArrWrap[]
+  new_D = FArrWrap[]
+  new_S = FArrWrap[]
 
   # Formats solution fields as a FLOWVLM solution
   for i in 1:self.B  # Iterates over blades
@@ -231,8 +231,8 @@ end
 
 "Sets a coordinate system for the rotor. If the user is calling this function,
 give `user=true`, otherwise it won't do the automatic translation to blade c.s."
-function setcoordsystem(self::Rotor, O::Array{Float64,1},
-                            Oaxis::Array{Float64,2}; user=false, args...)
+function setcoordsystem(self::Rotor, O::FArrWrap,
+                            Oaxis::FMWrap; user=false, args...)
   if user
     setcoordsystem(self._wingsystem, O, Oaxis*[-1 0 0; 0 -1 0; 0 0 1.0],args...)
   else
@@ -243,7 +243,7 @@ function setcoordsystem(self::Rotor, O::Array{Float64,1},
 end
 
 "Rotates the rotor `degs` degrees in the direction of rotation"
-function rotate(self::Rotor, degs::Float64)
+function rotate(self::Rotor, degs::FWrap)
   rotOaxis = vtk.rotation_matrix(0.0, 0.0, (-1)^!self.CW*degs)
   newOaxis = rotOaxis*self._wingsystem.Oaxis
   # setcoordsystem(self._wingsystem, self._wingsystem.O, newOaxis)
@@ -252,7 +252,7 @@ end
 
 
 "Returns the undisturbed freestream at each control point"
-function getVinfs(self::Rotor; t::Float64=0.0, target="CP",
+function getVinfs(self::Rotor; t::FWrap=0.0, target="CP",
                               extraVinf=nothing, extraVinfArgs...)
   if !(target in keys(VLMSolver.HS_hash))
     error("Logic error! Invalid target $target.")
@@ -260,7 +260,7 @@ function getVinfs(self::Rotor; t::Float64=0.0, target="CP",
 
   _ = getHorseshoe(self, 1; t=t, extraVinf=extraVinf, extraVinfArgs...)
 
-  Vinfs = Array{Float64, 1}[]
+  Vinfs = FArrWrap[]
   for i in 1:self.B
     blade_Vinfs = _calc_inflow(get_blade(self, i), get_RPM(self), t;
                                                                 target=target)
@@ -296,7 +296,7 @@ function get_mBlade(self::Rotor)
 end
 
 "Returns the requested blade"
-function get_blade(self::Rotor, blade_i::Int64)
+function get_blade(self::Rotor, blade_i::IWrap)
   return get_wing(self, blade_i)
 end
 
@@ -306,12 +306,12 @@ function get_m(self::Rotor)
 end
 
 "Returns the m-th control point of the system"
-function getControlPoint(self::Rotor, m::Int64)
+function getControlPoint(self::Rotor, m::IWrap)
   return getControlPoint(self._wingsystem, m)
 end
 
 "Returns the m-th horseshoe of the system in the global coordinate system"
-function getHorseshoe(self::Rotor, m::Int64; t::Float64=0.0, extraVinf...)
+function getHorseshoe(self::Rotor, m::IWrap; t::FWrap=0.0, extraVinf...)
   # Checks if horseshoes will be recalculated
   flag = true in [get_blade(self, i)._HSs==nothing for i in 1:self.B]
 
@@ -411,7 +411,7 @@ function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
     this_blade = self._wingsystem.wings[i]
 
     # Transforms points from FLOWVLM blade's c.s. to global c.s.
-    this_points = Array{Float64,1}[ vtk.countertransform(p, this_blade.invOaxis,
+    this_points = FArrWrap[ vtk.countertransform(p, this_blade.invOaxis,
                                     this_blade.O) for p in points]
 
     # Formats the point data for generateVTK
@@ -468,7 +468,7 @@ each airfoil throughout operation as captured in the polar used for initializing
 the FLOWVLM Rotor. The implementation of a varying Reynolds will be left for
 future development as needed.
 """
-function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::Int64, turbine_flag::Bool)
+function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::IWrap, turbine_flag::Bool)
   # ERROR CASES
   if size(self.airfoils)[1]<2
     error("Airfoil data not found when generating CCBlade Rotor.")
@@ -525,15 +525,15 @@ end
 "Receives the freestream velocity function V(x,t) and the current RPM of the
 rotor, and it calculates the inflow velocity field that each control point
 sees in the global coordinate system"
-function calc_inflow(self::Rotor, Vinf, RPM; t::Float64=0.0)
+function calc_inflow(self::Rotor, Vinf, RPM; t::FWrap=0.0)
   omega = 2*pi*RPM/60
 
-  data_Vtots = Array{Array{Float64,1}}[]     # Inflow in the global c.s.
-  data_Vccbs = Array{Array{Float64,1}}[]     # Inflow in CCBlade's c.s.
+  data_Vtots = Array{FArrWrap}[]     # Inflow in the global c.s.
+  data_Vccbs = Array{FArrWrap}[]     # Inflow in CCBlade's c.s.
 
   for (i,blade) in enumerate(self._wingsystem.wings) # Iterates over blades
-    Vtots = Array{Float64,1}[]
-    Vccbs = Array{Float64,1}[]
+    Vtots = FArrWrap[]
+    Vccbs = FArrWrap[]
 
     for j in 1:get_m(blade) # Iterates over control points
       CP = getControlPoint(blade, j)
@@ -576,12 +576,12 @@ tangential (Tp) components relative to the plane of rotation as given by
 CCBlade, if `include_comps==true`.
 
 NOTE: These loads are per unit length of span"
-function calc_distributedloads(self::Rotor, Vinf, RPM, rho::Float64;
-                                    t::Float64=0.0, include_comps=false)
-  data = Array{Array{Float64,1}}[]
+function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
+                                    t::FWrap=0.0, include_comps=false)
+  data = Array{FArrWrap}[]
   if include_comps
-    data_Np = Array{Float64,1}[]
-    data_Tp = Array{Float64,1}[]
+    data_Np = FArrWrap[]
+    data_Tp = FArrWrap[]
   end
 
   turbine_flag = false  # This is a flag for ccblade to swap signs
@@ -644,16 +644,16 @@ end
 "Calculates sectional aerodynamic forces in a rotor where the field
 DistributedLoad has already been solved for. It also calculates the bound
 circulation Gamma"
-function calc_aerodynamicforces(self::Rotor, rho::Float64)
+function calc_aerodynamicforces(self::Rotor, rho::FWrap)
   if !("DistributedLoad" in keys(self.sol))
     error("Field `DistributedLoad` not found."*
           " Call `calc_distributedloads()` before calling this function.")
   end
 
-  data_L = Array{Array{Float64,1}}[]
-  data_D = Array{Array{Float64,1}}[]
-  data_R = Array{Array{Float64,1}}[]
-  data_gamma = Array{Float64,1}[]
+  data_L = Array{FArrWrap}[]
+  data_D = Array{FArrWrap}[]
+  data_R = Array{FArrWrap}[]
+  data_gamma = FArrWrap[]
 
   for blade_i in 1:self.B
     V = self.sol["GlobInflow"]["field_data"][blade_i]   # Inflow at each element
@@ -760,7 +760,7 @@ function _resetRotor(self::Rotor; verbose=false, keep_RPM=false)
 end
 
 "Generates the blade and discretizes it into lattices"
-function _generate_blade(self::Rotor, n::Int64; r::Float64=1.0,
+function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
                           central=false, refinement=[])
 
   # Splines
@@ -777,11 +777,11 @@ function _generate_blade(self::Rotor, n::Int64; r::Float64=1.0,
   spl_LE_z(x) = (-1)^(self.CW)*Dierckx.evaluate(_spl_LE_z, x)
 
   # Outputs
-  out_r = Float64[]         # Radial position of each control point
-  out_chord = Float64[]     # Chord at each control point
-  out_theta = Float64[]     # Angle of attach at each control point
-  out_LE_x = Float64[]
-  out_LE_z = Float64[]
+  out_r = FWrap[]         # Radial position of each control point
+  out_chord = FWrap[]     # Chord at each control point
+  out_theta = FWrap[]     # Angle of attach at each control point
+  out_LE_x = FWrap[]
+  out_LE_z = FWrap[]
 
 
   # Precalulations of complex refinement
@@ -889,10 +889,10 @@ function _generate_blade(self::Rotor, n::Int64; r::Float64=1.0,
 end
 
 "Calculates the airfoils at each control point"
-function _calc_airfoils(self::Rotor, n::Int64, r::Float64,
+function _calc_airfoils(self::Rotor, n::IWrap, r::FWrap,
                         central, refinement; rediscretize::Bool=true,
-                        rfl_n_lower::Int64=15, rfl_n_upper::Int64=15,
-                        rfl_r::Float64=14.0, rfl_central::Bool=true)
+                        rfl_n_lower::IWrap=15, rfl_n_upper::IWrap=15,
+                        rfl_r::FWrap=14.0, rfl_central::Bool=true)
 
   # Erases previous polars
   self._polars = ap.Polar[]
@@ -998,7 +998,7 @@ function _calc_airfoils(self::Rotor, n::Int64, r::Float64,
 
 end
 
-function _rediscretize_airfoil(x, y, n_lower::Int64, n_upper::Int64, r::Float64,
+function _rediscretize_airfoil(x, y, n_lower::IWrap, n_upper::IWrap, r::FWrap,
                                 central::Bool)
   # Separate upper and lower sides to make the contour injective in x
   upper, lower = ap.splitcontour(x, y)
@@ -1025,7 +1025,7 @@ end
 Returns the inflow velocity at the requested target point on all horseshoes,
 where the inflow is calculated as freestream + rotational velocity.
 """
-function _calc_inflow(blade::Wing, RPM, t::Float64; target="CP")
+function _calc_inflow(blade::Wing, RPM, t::FWrap; target="CP")
   if !(target in keys(VLMSolver.HS_hash))
     error("Logic error! Invalid target $target.")
   elseif blade._HSs==nothing
@@ -1034,7 +1034,7 @@ function _calc_inflow(blade::Wing, RPM, t::Float64; target="CP")
   t_i = VLMSolver.HS_hash[target]
 
   omega = 2*pi*RPM/60
-  out = Array{Float64, 1}[]
+  out = FArrWrap[]
   O = blade.O                   # Center of rotation
   runit = blade.Oaxis[2,:]      # Radial direction
   tunit = blade.Oaxis[1,:]      # Tangential direction
@@ -1061,7 +1061,7 @@ CCBlade's coordinate system relative to `blade`. NOTE: This function only
 rotates `V` into the new axis without translating it unless otherwise indicated.
 (for definition of axes see notebook entry 20171202)
 """
-function _global2ccblade(blade::Wing, V::Array{Float64,1}, CW::Bool;
+function _global2ccblade(blade::Wing, V::FArrWrap, CW::Bool;
                                                         translate::Bool=false)
   # V in FLOWVLM Rotor's blade c.s.
   V_vlm = transform(V, blade.Oaxis, translate ? blade.O : zeros(3))
@@ -1080,7 +1080,7 @@ end
 transforms it into the global coordinate system. NOTE: This function only
 rotates `V` into the new axis without translating it unless otherwise indicated.
 """
-function _ccblade2global(blade::Wing, V::Array{Float64,1}, CW::Bool;
+function _ccblade2global(blade::Wing, V::FArrWrap, CW::Bool;
                                                         translate::Bool=false)
   # CCBlade c.s. transformation matrix
   ccb_Oaxis = _ccbladeOaxis(blade, CW)

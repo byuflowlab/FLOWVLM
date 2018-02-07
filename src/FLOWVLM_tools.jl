@@ -7,7 +7,7 @@ global raise_warning1 = true # Warning of infinite vortex sheet
 Returns the area of the m-th panel, with `self` either Wing or WingSystem.
 For derivation, see notebook entry 20170619.
 """
-function get_A(self, m::Int64)
+function get_A(self, m::IWrap)
   Ap, A, B, Bp, CP, infDA, infDB, Gamma = getHorseshoe(self, m)
   CPAB = (A+B)/2
   lcp = norm(CPAB-CP)/(pm-pn)
@@ -20,7 +20,7 @@ end
 Returns the center of gravity of the m-th panel, with `self` either Wing or
 WingSystem.
 """
-function get_r(self, m::Int64)
+function get_r(self, m::IWrap)
   Ap, A, B, Bp, CP, infDA, infDB, Gamma = getHorseshoe(self, m)
   CPAB = (A+B)/2
   r = (CPAB+CP)/2
@@ -431,10 +431,10 @@ end
   *   n       :   (int)   number of horseshoes per side of the wing.
   *   r       :   (float) horseshoes' expansion ratio
 """
-function simpleWing(b::Float64, ar::Float64, tr::Float64,
-                    twist::Float64, lambda::Float64, gamma::Float64;
+function simpleWing(b::FWrap, ar::FWrap, tr::FWrap,
+                    twist::FWrap, lambda::FWrap, gamma::FWrap;
                     twist_tip=nothing,
-                    n::Int64=20, r::Float64=2.0, central=false, refinement=[])
+                    n::IWrap=20, r::FWrap=2.0, central=false, refinement=[])
   cr = 1/tr
   c_tip = b/ar
   c_root = cr*c_tip
@@ -500,9 +500,9 @@ Returns a Wing object made of multiple sections with the specified dimensions.
   wing = vlm.complexWing(b, AR, n, pos, clen, twist, sweep, dihed)
 ```
 """
-function complexWing(b::Float64, AR::Float64, n::Int64, pos::Array{Float64,1},
-                      clen::Array{Float64,1}, twist::Array{Float64,1},
-                      sweep::Array{Float64,1}, dihed::Array{Float64,1};
+function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
+                      clen::FArrWrap, twist::FArrWrap,
+                      sweep::FArrWrap, dihed::FArrWrap;
                       symmetric::Bool=true)
 
   nchords = size(pos)[1]      # Number of chords
@@ -526,8 +526,8 @@ function complexWing(b::Float64, AR::Float64, n::Int64, pos::Array{Float64,1},
   end
 
   # ------------------- CHORDS COORDINATES -------------------------------------
-  xs, ys, zs, cs, twists = [Float64[] for i in 1:5] # Coordinates
-  ns = Int64[]                # Lattice distribution
+  xs, ys, zs, cs, twists = [FWrap[] for i in 1:5] # Coordinates
+  ns = IWrap[]                # Lattice distribution
   chord_tip = b/AR            # Chord length at tip
 
   # Iterates over chords calculating coordinates
@@ -543,7 +543,7 @@ function complexWing(b::Float64, AR::Float64, n::Int64, pos::Array{Float64,1},
 
       if i!=1
         if i!=nchords
-          this_n = maximum([ 1, Int64(round(n*(pos[i]-pos[i-1]))) ])
+          this_n = maximum([ 1, IWrap(round(n*(pos[i]-pos[i-1]))) ])
         else
           this_n = n-sum(ns)
         end
@@ -580,7 +580,7 @@ end
 function save(self::Wing, filename::String;
                   save_horseshoes::Bool=true,
                   path::String="", comment::String="",
-                  num=nothing, t::Float64=0.0)
+                  num=nothing, t::FWrap=0.0)
   aux = num!=nothing ? ".$num" : ""
   ext = "_vlm"*aux*".vtk"
 
@@ -750,7 +750,7 @@ end
 function save(self::WingSystem, filename::String;
                     save_horseshoes::Bool=true,
                     path::String="", comment::String="",
-                    num=nothing, t::Float64=0.0)
+                    num=nothing, t::FWrap=0.0)
   for (i, wing) in enumerate(self.wings)
     save(wing, "$(filename)_$(self.wing_names[i])",
                 save_horseshoes=save_horseshoes,
@@ -865,14 +865,14 @@ Receives the i', j', k' unit vectors of an euclidean system with origin T, and
 returns V'. (In this version, the unit vectors have been organized as a matrix
 M)
 """
-function transform(V::typeof(Float64[]),
-                    M::Array{Float64,2}, T::typeof(Float64[]))
+function transform(V::FArrWrap,
+                    M::FMWrap, T::FArrWrap)
   return M*(V-T)
 end
 
-function transform(Vs::Array{Array{Float64,1},1},
-                    M::Array{Float64,2}, T::typeof(Float64[]))
-  out = Array{Float64,1}[]
+function transform(Vs::Array{T,1} where {T<:AbstractArray},
+                    M::FMWrap, T::FArrWrap)
+  out = FArrWrap[]
   for V in Vs
     push!(out, transform(V, M, T))
   end
@@ -885,14 +885,13 @@ into the system (i', j', k') with origin T, and returns the original V.
 To ease repetitive computation, instead of giving the unit vectors, give the
 inverse of their matrix.
 """
-function countertransform(Vp::typeof(Float64[]),
-                          invM::Array{Float64,2}, T::typeof(Float64[]))
+function countertransform(Vp::FArrWrap, invM::FMWrap, T::FArrWrap)
   return invM*Vp + T
 end
 
-function countertransform(Vps::Array{Array{Float64,1},1},
-                          invM::Array{Float64,2}, T::typeof(Float64[]))
-  out = Array{Float64,1}[]
+function countertransform(Vps::Array{T,1} where {T<:AbstractArray},
+                            invM::FMWrap, T::FArrWrap)
+  out = FArrWrap[]
   for Vp in Vps
     push!(out, countertransform(Vp, invM, T))
   end
@@ -901,7 +900,7 @@ end
 
 "Checks that the unit vectors given as the matrix M=[i;j;k] define a coordinate
 system"
-function check_coord_sys(M::Array{Float64,2}; raise_error::Bool=true)
+function check_coord_sys(M::FMWrap; raise_error::Bool=true)
   # Checks normalization
   for i in 1:size(M)[1]
     if abs(norm(M[i,:])-1) > 0.00000001
@@ -930,7 +929,7 @@ function check_coord_sys(M::Array{Float64,2}; raise_error::Bool=true)
   return true
 end
 
-function check_coord_sys(M::Array{Array{Float64,1},1}; raise_error::Bool=true)
+function check_coord_sys(M::Array{FArrWrap,1}; raise_error::Bool=true)
   dims = 3
   newM = zeros(dims,dims)
   for i in 1:dims

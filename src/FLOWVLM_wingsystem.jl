@@ -11,20 +11,20 @@ between wings.
 """
 type WingSystem
   # Properties
-  wings::typeof([])             # Wings in the system
-  wing_names::typeof(String[])      # Names of the wings
-  O::Array{Float64,1}               # Origin of local reference frame
-  Oaxis::Array{Float64,2}           # Unit vectors of the local reference frame
-  invOaxis::Array{Float64,2}        # Inverse unit vectors
-  Vinf::Any                         # Vinf function used in current solution
+  wings::Array{Any,1}             # Wings in the system
+  wing_names::Array{String,1}     # Names of the wings
+  O::FArrWrap                     # Origin of local reference frame
+  Oaxis::FMWrap                   # Unit vectors of the local reference frame
+  invOaxis::FMWrap                # Inverse unit vectors
+  Vinf::Any                       # Vinf function used in current solution
 
   # Data storage
-  sol::typeof(Dict())               # Solution fields available
+  sol::Dict{String, Any}          # Solution fields available
 
   WingSystem( wings=[], wing_names=String[],
-                O=[0.0,0.0,0.0],
-                Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
-                invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
+                O=FWrap[0.0,0.0,0.0],
+                Oaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
+                invOaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
                 Vinf=nothing,
               sol=Dict()
       ) = new(wings, wing_names,
@@ -72,8 +72,8 @@ To change the local coordinate system of a specific wing relative to the
 system's coordinate system, give the name of the wing in an array under argument
 `wings`.
 """
-function setcoordsystem(self::WingSystem, O::Array{Float64,1},
-                            Oaxis::Array{Float64,2};
+function setcoordsystem(self::WingSystem, O::FArrWrap,
+                            Oaxis::FMWrap;
                             check=true, wings::Array{String,1}=String[])
 
   if check; check_coord_sys(Oaxis); end;
@@ -113,8 +113,8 @@ function setcoordsystem(self::WingSystem, O::Array{Float64,1},
   _reset(self; keep_Vinf=true)
 end
 
-function setcoordsystem(self::WingSystem, O::Array{Float64,1},
-                            Oaxis::Array{Array{Float64,1},1};
+function setcoordsystem(self::WingSystem, O::FArrWrap,
+                            Oaxis::Array{T,1} where {T<:AbstractArray};
                             check=true)
   dims = 3
   M = zeros(dims, dims)
@@ -135,10 +135,10 @@ end
 
 "Returns the undisturbed freestream at each control point, or at the horseshoe
 point indicated as `target`."
-function getVinfs(self::WingSystem; t::Float64=0.0, target="CP",
+function getVinfs(self::WingSystem; t::FWrap=0.0, target="CP",
                               extraVinf=nothing, extraVinfArgs...)
 
-  Vinfs = Array{Float64, 1}[]
+  Vinfs = FArrWrap[]
   for wing in self.wings
     for V in getVinfs(wing; t=t, target=target,
                                   extraVinf=extraVinf, extraVinfArgs...)
@@ -149,13 +149,13 @@ function getVinfs(self::WingSystem; t::Float64=0.0, target="CP",
 end
 
 "Returns the m-th control point of the system"
-function getControlPoint(self::WingSystem, m::Int64)
+function getControlPoint(self::WingSystem, m::IWrap)
   wing, _m = _fetch_wing(self, m)
   return getControlPoint(wing, _m)
 end
 
 "Returns the m-th horseshoe of the system in the global coordinate system"
-function getHorseshoe(self::WingSystem, m::Int64; t::Float64=0.0, extraVinf...)
+function getHorseshoe(self::WingSystem, m::IWrap; t::FWrap=0.0, extraVinf...)
   wing, _m = _fetch_wing(self, m)
   return getHorseshoe(wing, _m; t=t, extraVinf...)
 end
@@ -184,7 +184,7 @@ function get_wing(self::WingSystem, wing_names::Array{String,1})
 end
 
 "Returns the i-th wing in the system"
-function get_wing(self::WingSystem, wing_i::Int64)
+function get_wing(self::WingSystem, wing_i::IWrap)
   return self.wings[wing_i]
 end
 
@@ -201,8 +201,8 @@ end
 "For a coordinate system 'inception2' that is incapsulated inside another
 coordinate system 'inception1', it returns its interpretation in the global
 coordinate system"
-function _interpret(O2::Array{Float64,1}, Oaxis2::Array{Float64,2},
-                    O1::Array{Float64,1}, invOaxis1::Array{Float64,2})
+function _interpret(O2::FArrWrap, Oaxis2::FMWrap,
+                    O1::FArrWrap, invOaxis1::FMWrap)
   new_O = countertransform(O2, invOaxis1, O1)
   new_Oaxis = zeros(3,3)
   for i in 1:3
@@ -216,8 +216,8 @@ end
 "For a coordinate system 'inception2' that is incapsulated inside another
 coordinate system 'inception1', it receives its interpretation in the global
 coordinate system and counterinterprets it back to the 'inception1' system."
-function _counter_interpret(O2::Array{Float64,1}, Oaxis2::Array{Float64,2},
-                    O1::Array{Float64,1}, Oaxis1::Array{Float64,2})
+function _counter_interpret(O2::FArrWrap, Oaxis2::FMWrap,
+                    O1::FArrWrap, Oaxis1::FMWrap)
   new_O = transform(O2, Oaxis1, O1)
   new_Oaxis = zeros(3,3)
   for i in 1:3
@@ -239,7 +239,7 @@ function _reset(self::WingSystem; verbose=false, keep_Vinf=false)
   end
 end
 
-function _addsolution(self::WingSystem, field_name::String, sol_field; t::Float64=0.0)
+function _addsolution(self::WingSystem, field_name::String, sol_field; t::FWrap=0.0)
   self.sol[field_name] = sol_field
   prev_m = 0
   for wing in self.wings
@@ -251,7 +251,7 @@ end
 
 "Given a panel index in the system, it returns the wing the panel belongs to
 and that wing's index of the panel"
-function _fetch_wing(self::WingSystem, m::Int64)
+function _fetch_wing(self::WingSystem, m::IWrap)
   if m<=0 || m>get_m(self)
     error("Requested unexistent panel (m<=0 || m>get_m(self))")
   end

@@ -26,54 +26,54 @@ leading edge in the direction of the -xaxis and trailing in the direction of the
 type Wing
 
   # Initialization variables (USER INPUT)
-  leftxl::Float64       # x-position of leading edge of the left tip
-  lefty::Float64        # y-position of left tip
-  leftzl::Float64       # z-position of leading edge of the left tip
-  leftchord::Float64    # Chord of the left tip
-  leftchordtwist::Float64    # Angle of the chord of the left tip in degrees
+  leftxl::FWrap                 # x-position of leading edge of the left tip
+  lefty::FWrap                  # y-position of left tip
+  leftzl::FWrap                 # z-position of leading edge of the left tip
+  leftchord::FWrap              # Chord of the left tip
+  leftchordtwist::FWrap         # Angle of the chord of the left tip in degrees
 
   # Properties
-  m::Int64                      # Number of lattices
-  O::Array{Float64,1}           # Origin of local reference frame
-  Oaxis::Array{Float64,2}       # Unit vectors of the local reference frame
-  invOaxis::Array{Float64,2}    # Inverse unit vectors
+  m::IWrap                      # Number of lattices
+  O::FArrWrap                   # Origin of local reference frame
+  Oaxis::FMWrap                 # Unit vectors of the local reference frame
+  invOaxis::FMWrap              # Inverse unit vectors
   Vinf::Any                     # Vinf function used in current solution
 
   # Data storage
   ## Solved fields
   sol::Dict{String,Any}         # Dictionary storing every solved field
   ## Discretized wing geometry
-  _xlwingdcr::typeof(Float64[]) # x-position of leading edge
-  _xtwingdcr::typeof(Float64[]) # x-position of trailing edge
-  _ywingdcr::typeof(Float64[])  # y-position of the chord
-  _zlwingdcr::typeof(Float64[]) # z-position of leading edge
-  _ztwingdcr::typeof(Float64[]) # z-position of trailing edge
+  _xlwingdcr::FArrWrap          # x-position of leading edge
+  _xtwingdcr::FArrWrap          # x-position of trailing edge
+  _ywingdcr::FArrWrap           # y-position of the chord
+  _zlwingdcr::FArrWrap          # z-position of leading edge
+  _ztwingdcr::FArrWrap          # z-position of trailing edge
   ## VLM domain
-  _xm::typeof(Float64[]) # x-position of the control point
-  _ym::typeof(Float64[]) # y-position of the control point
-  _zm::typeof(Float64[]) # z-position of the control point
-  _xn::typeof(Float64[]) # x-position of the bound vortex
-  _yn::typeof(Float64[]) # y-position of the bound vortex
-  _zn::typeof(Float64[]) # z-position of the bound vortex
+  _xm::FArrWrap                 # x-position of the control point
+  _ym::FArrWrap                 # y-position of the control point
+  _zm::FArrWrap                 # z-position of the control point
+  _xn::FArrWrap                 # x-position of the bound vortex
+  _yn::FArrWrap                 # y-position of the bound vortex
+  _zn::FArrWrap                 # z-position of the bound vortex
   ## Calculation data
   _HSs::Any              # Horseshoes
 
   Wing(leftxl, lefty, leftzl, leftchord, leftchordtwist,
                   m=0,
-                    O=[0.0,0.0,0.0],
-                    Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
-                    invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
+                    O=FWrap[0.0,0.0,0.0],
+                    Oaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
+                    invOaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
                     Vinf=nothing,
                   sol=Dict(),
-                  _xlwingdcr=[leftxl],
-                    _xtwingdcr=[leftxl+leftchord*cos(leftchordtwist*pi/180)],
-                    _ywingdcr=[lefty],
-                    _zlwingdcr=[leftzl],
-                    _ztwingdcr=[leftzl-leftchord*sin(leftchordtwist*pi/180)],
-                  _xm=Float64[], _ym=Float64[], _zm=Float64[],
-                  _xn=[leftxl+pn*leftchord*cos(leftchordtwist*pi/180)],
-                    _yn=[lefty],
-                    _zn=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
+                  _xlwingdcr=FWrap[leftxl],
+                    _xtwingdcr=FWrap[leftxl+leftchord*cos(leftchordtwist*pi/180)],
+                    _ywingdcr=FWrap[lefty],
+                    _zlwingdcr=FWrap[leftzl],
+                    _ztwingdcr=FWrap[leftzl-leftchord*sin(leftchordtwist*pi/180)],
+                  _xm=FWrap[], _ym=FWrap[], _zm=FWrap[],
+                  _xn=FWrap[leftxl+pn*leftchord*cos(leftchordtwist*pi/180)],
+                    _yn=FWrap[lefty],
+                    _zn=FWrap[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
                   _HSs=nothing
               ) = new(leftxl, lefty, leftzl, leftchord, leftchordtwist,
                       m, O, Oaxis, invOaxis, Vinf,
@@ -117,9 +117,9 @@ must be build from left to right.
     `julia> addchord(wing, 2.5, 10.0, 5.0, 5.0, 0.0, 10);`
 """
 function addchord(self::Wing,
-                  x::Float64, y::Float64, z::Float64,
-                  c::Float64, twist::Float64,
-                  n::Int64; r::Float64=1.0, central=false, refinement=[])
+                  x::FWrap, y::FWrap, z::FWrap,
+                  c::FWrap, twist::FWrap,
+                  n::IWrap; r::FWrap=1.0, central=false, refinement=[])
   # ERROR CASES
   if c <= 0
     error("Invalid chord length (c <= 0)")
@@ -261,8 +261,8 @@ end
 Redefines the local coordinate system of the wing, where `O` is the new origin
 and `Oaxis` is the matrix [i; j; k] of unit vectors
 """
-function setcoordsystem(self::Wing, O::Array{Float64,1},
-                            Oaxis::Array{Float64,2};
+function setcoordsystem(self::Wing, O::FArrWrap,
+                            Oaxis::FMWrap;
                             check=true)
 
   if check; check_coord_sys(Oaxis); end;
@@ -274,8 +274,8 @@ function setcoordsystem(self::Wing, O::Array{Float64,1},
 end
 
 
-function setcoordsystem(self::Wing, O::Array{Float64,1},
-                            Oaxis::Array{Array{Float64,1},1};
+function setcoordsystem(self::Wing, O::FArrWrap,
+                            Oaxis::Array{T,1} where {T<:AbstractArray};
                             check=true)
   dims = 3
   M = zeros(dims, dims)
@@ -292,7 +292,7 @@ function setVinf(self::Wing, Vinf)
 end
 
 "Returns the m-th control point"
-function getControlPoint(self::Wing, m::Int64)
+function getControlPoint(self::Wing, m::IWrap)
   # Local coordinate system
   CP = [self._xm[m], self._ym[m], self._zm[m]]
   # Global coordinate system
@@ -302,7 +302,7 @@ end
 
 "Returns the undisturbed freestream at each control point, or at the horseshoe
 point indicated as `target`."
-function getVinfs(self::Wing; t::Float64=0.0, target="CP",
+function getVinfs(self::Wing; t::FWrap=0.0, target="CP",
                               extraVinf=nothing, extraVinfArgs...)
   if !(target in keys(VLMSolver.HS_hash))
     error("Logic error! Invalid target $target.")
@@ -310,7 +310,7 @@ function getVinfs(self::Wing; t::Float64=0.0, target="CP",
   t_i = VLMSolver.HS_hash[target]
 
   # Calculates Vinf at each control point
-  Vinfs = Array{Float64, 1}[]
+  Vinfs = FArrWrap[]
   for i in 1:get_m(self)
     if target=="CP"
       T = getControlPoint(self, i)      # Targeted point
@@ -328,7 +328,7 @@ function getVinfs(self::Wing; t::Float64=0.0, target="CP",
 end
 
 "Returns the m-th horseshoe in the global coordinate system"
-function getHorseshoe(self::Wing, m::Int64; t::Float64=0.0, extraVinf...)
+function getHorseshoe(self::Wing, m::IWrap; t::FWrap=0.0, extraVinf...)
   # ERROR CASES
   if m>self.m || m<=0
     error("Invalid m (m>self.m or m<=0)")
@@ -345,7 +345,7 @@ function getHorseshoe(self::Wing, m::Int64; t::Float64=0.0, extraVinf...)
 end
 
 "Returns leading-edge coordinates of the n-th chord"
-function getLE(self::Wing, n::Int64)
+function getLE(self::Wing, n::IWrap)
   # Local coordinate system
   LE = [self._xlwingdcr[n], self._ywingdcr[n], self._zlwingdcr[n]]
   # Global coordinate system
@@ -354,7 +354,7 @@ function getLE(self::Wing, n::Int64)
 end
 
 "Returns trailing-edge coordinates of the n-th chord"
-function getTE(self::Wing, n::Int64)
+function getTE(self::Wing, n::IWrap)
   # Local coordinate system
   TE = [self._xtwingdcr[n], self._ywingdcr[n], self._ztwingdcr[n]]
   # Global coordinate system
@@ -380,7 +380,7 @@ function _reset(self::Wing; verbose=false, keep_Vinf=false)
   self._HSs = nothing
 end
 
-function _addsolution(self::Wing, field_name::String, sol_field; t::Float64=0.0)
+function _addsolution(self::Wing, field_name::String, sol_field; t::FWrap=0.0)
   self.sol[field_name] = sol_field
   if field_name=="Gamma"
     # _calculateHSs(self; t=t)
@@ -390,7 +390,7 @@ function _addsolution(self::Wing, field_name::String, sol_field; t::Float64=0.0)
   end
 end
 
-function _calculateHSs(self::Wing; t::Float64=0.0, extraVinf=nothing, extraVinfArgs...)
+function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArgs...)
   HSs = Array{Any,1}[]
   for i in 1:get_m(self)
     # Horseshoe geometry

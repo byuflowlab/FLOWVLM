@@ -15,7 +15,7 @@ a list of implemented fields.
 function calculate_field(wing, field_name::String;
                         rhoinf=nothing, qinf="automatic",
                         S="automatic", l="automatic", r_cg="automatic",
-                        t::Float64=0.0)
+                        t::FWrap=0.0)
 
   # --- ERROR CASES
   ## Unknown field
@@ -152,8 +152,8 @@ end
 
 "Aerodynamic force calculated through Kutta-Joukowski theorem.
 Give it `per_unit_span=true` to calculate the force per unit length of span."
-function _calculate_forces(wing, rhoinf::Float64;
-                          t::Float64=0.0, per_unit_span::Bool=false)
+function _calculate_forces(wing, rhoinf::FWrap;
+                          t::FWrap=0.0, per_unit_span::Bool=false)
 
   F = []
   m = get_m(wing)
@@ -195,8 +195,8 @@ function _calculate_forces(wing, rhoinf::Float64;
 end
 
 
-function _calculate_force_coeffs(wing, rhoinf::Float64, qinf::Float64,
-                                  S::Float64; t::Float64=0.0,
+function _calculate_force_coeffs(wing, rhoinf::FWrap, qinf::FWrap,
+                                  S::FWrap; t::FWrap=0.0,
                                   per_unit_span::Bool=false)
   F,SS,D,L = _calculate_forces(wing, rhoinf; t=t, per_unit_span=per_unit_span)
   aux = qinf*S
@@ -237,7 +237,7 @@ function _calculate_moments(wing, r_cg)
 end
 
 "Returns the average Vinf from all control points"
-function _aveVinf(wing; t::Float64=0.0)
+function _aveVinf(wing; t::FWrap=0.0)
   Vinf = zeros(3)
   for i in 1:get_m(wing)
     Vinf += wing.Vinf(getControlPoint(wing, i), t)
@@ -247,7 +247,7 @@ function _aveVinf(wing; t::Float64=0.0)
 end
 
 "Decomposes a force field into sideslip, drag, and lift components"
-function _decompose(wing, F; t::Float64=0.0)
+function _decompose(wing, F; t::FWrap=0.0)
   Vinf = _aveVinf(wing; t=t)     # Vinf used for decomposing forces
   # Vinf = mean(wing.sol["Vinf"])
 
