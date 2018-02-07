@@ -929,7 +929,7 @@ function check_coord_sys(M::FMWrap; raise_error::Bool=true)
   return true
 end
 
-function check_coord_sys(M::Array{FArrWrap,1}; raise_error::Bool=true)
+function check_coord_sys(M::Array{T,1} where {T<:AbstractArray}; raise_error::Bool=true)
   dims = 3
   newM = zeros(dims,dims)
   for i in 1:dims
