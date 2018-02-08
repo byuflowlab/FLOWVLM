@@ -545,7 +545,7 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
         if i!=nchords
           this_n = maximum([ 1, IWrap( floor(n*(pos[i]-pos[i-1])) ) ])
         else
-          this_n = max(n-sum(ns))
+          this_n = max(n-sum(ns), 1)
         end
         push!(ns, this_n)
       end
