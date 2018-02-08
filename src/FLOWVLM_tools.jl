@@ -543,9 +543,9 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
 
       if i!=1
         if i!=nchords
-          this_n = maximum([ 1, IWrap(round(n*(pos[i]-pos[i-1]))) ])
+          this_n = maximum([ 1, IWrap( floor(n*(pos[i]-pos[i-1])) ) ])
         else
-          this_n = n-sum(ns)
+          this_n = max(n-sum(ns))
         end
         push!(ns, this_n)
       end
@@ -629,8 +629,8 @@ function save(self::Wing, filename::String;
   end
   ## Horseshoes
   # x_vor_end = maximum(self._xtwingdcr)*1.25
-  x_vor_end = maximum(self._xtwingdcr)*2.5
-  factor_tol = abs(self._ywingdcr[end]-self._ywingdcr[1])
+  x_vor_end = (maximum(self._xtwingdcr)-minimum(self._xtwingdcr))*2.5
+  factor_tol = 3*abs(self._ywingdcr[end]-self._ywingdcr[1])
   for i in 1:nhs
     global raise_warning1
     Ap, A, B, Bp, CP, infDA, infDB, Gamma  = getHorseshoe(self, i; t=t)
