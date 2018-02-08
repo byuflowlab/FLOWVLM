@@ -12,8 +12,8 @@ Julia vortex lattice method developed by Eduardo Alvarez
 For documentation, examples, and validation, see notebooks in `docs/`.
 
 <img src="docs/img/example01.png" alt="Drawing" style="width: 600px;"/>
-<img src="docs/vid/exampleforce.gif" alt="Drawing" style="width: 600px;"/>
 <img src="docs/vid/examplestreams.gif" alt="Drawing" style="width: 600px;"/>
+<img src="docs/vid/eagle00.gif" alt="Drawing" style="width: 600px;"/>
 
 ## License
 Under GNU Affero General Public License v3.0.
