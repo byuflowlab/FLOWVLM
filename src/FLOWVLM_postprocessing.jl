@@ -15,7 +15,7 @@ a list of implemented fields.
 function calculate_field(wing, field_name::String;
                         rhoinf=nothing, qinf="automatic",
                         S="automatic", l="automatic", r_cg="automatic",
-                        t::FWrap=0.0)
+                        t::FWrap=0.0, lifting_interac::Bool=true)
 
   # --- ERROR CASES
   ## Unknown field
@@ -37,7 +37,8 @@ function calculate_field(wing, field_name::String;
       error("$(field_name) requested but rhoinf is missing")
     end
 
-    F, SS, D, L = _calculate_forces(wing, rhoinf; t=t)
+    F, SS, D, L = _calculate_forces(wing, rhoinf; t=t,
+                                            lifting_interac=lifting_interac)
     _addsolution(wing, "Ftot", F)
     _addsolution(wing, "S", SS)
     _addsolution(wing, "D", D)
@@ -61,7 +62,8 @@ function calculate_field(wing, field_name::String;
     end
     _S = S=="automatic" ? _S = planform_area(wing) : S
 
-    CF, CS, CD, CL = _calculate_force_coeffs(wing, _rhoinf, _qinf, _S; t=t)
+    CF, CS, CD, CL = _calculate_force_coeffs(wing, _rhoinf, _qinf, _S; t=t,
+                                              lifting_interac=lifting_interac)
     _addsolution(wing, "CFtot", CF)
     _addsolution(wing, "CS", CS)
     _addsolution(wing, "CD", CD)
@@ -86,14 +88,21 @@ function calculate_field(wing, field_name::String;
     _S = S=="automatic" ? _S = planform_area(wing) : S
 
     Cf, Cs, Cd, Cl = _calculate_force_coeffs(wing, _rhoinf, _qinf, _S;
-                                              per_unit_span=true, t=t)
+                                              per_unit_span=true, t=t,
+                                              lifting_interac=lifting_interac)
 
     # Converts them into scalars
     s_Cf, s_Cs, s_Cd, s_Cl = [], [], [],[]
     scalars = [s_Cf, s_Cs, s_Cd, s_Cl]
+    aveVinf = _aveVinf(wing; t=t)
     for (i, f) in enumerate([Cf, Cs, Cd, Cl])
       for elem in f
-        push!(scalars[i], norm(elem))
+        if i==3     # Keeps the sign for the drag direction
+          sgn = sign(dot(elem, aveVinf))
+        else
+          sgn = 1
+        end
+        push!(scalars[i], sgn*norm(elem))
       end
     end
 
@@ -151,9 +160,14 @@ end
 
 
 "Aerodynamic force calculated through Kutta-Joukowski theorem.
-Give it `per_unit_span=true` to calculate the force per unit length of span."
+Give it `per_unit_span=true` to calculate the force per unit length of span.
+If `lifting_interac`==false, the force doesn't include the induced velocity,
+hence, no interaction between lifting surfaces is calculated and induced drag
+will be zero, but it is an efficient way of calculating the lift of an
+individual lifting surface"
 function _calculate_forces(wing, rhoinf::FWrap;
-                          t::FWrap=0.0, per_unit_span::Bool=false)
+                          t::FWrap=0.0, per_unit_span::Bool=false,
+                          lifting_interac::Bool=true)
 
   F = []
   m = get_m(wing)
@@ -171,7 +185,14 @@ function _calculate_forces(wing, rhoinf::FWrap;
       # Freestream velocity (undisturbed+induced)
       V = wing.Vinf(X,t)
       # V = wing.sol["Vinf"][i]
-      V += Vind(wing, X; t=t, ign_col=true)
+      # NOTE: This line is the bottle neck, here the problem becomes order
+      #       O((4*N)^2), with N the number of lattices. It is necessary
+      #       to calculate the induced velocity if interaction between
+      #       lifting surfaces is wanted. If not, induced drag can be
+      #       efficiently calculated in the far field (Trefftz plane)
+      if lifting_interac
+        V += Vind(wing, X; t=t, ign_col=true)
+      end
       # Vinf x (B-A)
       crss = cross(V, BV[2]-BV[1])
 
@@ -188,6 +209,16 @@ function _calculate_forces(wing, rhoinf::FWrap;
     push!(F, force)
   end
 
+  # Case of calculating drag at the far field
+  if !lifting_interac
+    aveVinf = _aveVinf(wing; t=t)
+    Ftrefftz = calculate_force_trefftz(wing, aveVinf, rhoinf;
+                                          per_unit_span=per_unit_span)
+    for i in 1:m
+      F[i] += Ftrefftz[i]
+    end
+  end
+
   # -------------- DECOMPOSES F INTO COMPONENTS
   S,D,L = _decompose(wing, F; t=t)
 
@@ -197,8 +228,10 @@ end
 
 function _calculate_force_coeffs(wing, rhoinf::FWrap, qinf::FWrap,
                                   S::FWrap; t::FWrap=0.0,
-                                  per_unit_span::Bool=false)
-  F,SS,D,L = _calculate_forces(wing, rhoinf; t=t, per_unit_span=per_unit_span)
+                                  per_unit_span::Bool=false,
+                                  lifting_interac::Bool=true)
+  F,SS,D,L = _calculate_forces(wing, rhoinf; t=t, per_unit_span=per_unit_span,
+                                    lifting_interac=lifting_interac)
   aux = qinf*S
 
   return F/aux, SS/aux, D/aux, L/aux
@@ -234,6 +267,79 @@ function _calculate_moments(wing, r_cg)
   end
 
   return Mtot, M_L, M_M, M_N
+end
+
+"Calculates the force induced by the wake sheet assuming it planar in the
+direction of Vinf. This method works well only for an isolated lifting surface
+and should not be used on interacting lifting surfaces."
+function calculate_force_trefftz(wing, Vinf::FArrWrap, rho::FWrap;
+                                        per_unit_span::Bool=false)
+  HSs = getHorseshoes(wing)
+  m = get_m(wing)
+
+  DVinf = Vinf/norm(Vinf)
+
+  Vinds = zeros(FWrap, m)   # Vortex sheet induced velocity at each bound vortex
+  for i in 1:m  # Iterates over semi-infinite vortices calculating Vind
+
+    if i==1 || HSs[i-1][3]!=HSs[i][2]
+      gamma = HSs[i][8]
+    else
+      gamma = HSs[i][8] - HSs[i-1][8]
+    end
+    headVortex = HSs[i][2]      # Head of semi-infinite vortex at A
+
+    bgamma = nothing
+    if i==m || HSs[i][3]!=HSs[i+1][2]
+      bgamma = -HSs[i][8]
+      bheadVortex = HSs[i][3]
+    end
+
+    for j in 1:m    # Iterates over HS
+
+      # Determines distance from semi-infinite vortex
+      meanAB = (HSs[j][3]+HSs[j][2])/2 # Position half-way A and B of this HS
+      H = meanAB - headVortex          # Vector between head vortex and AB mean
+      count_proj = H - DVinf*(dot(H, DVinf))  # Counter projection to inf vortex
+      h = norm(count_proj)            # Normal distance to semi-infinite vortex
+
+      # Determines sign of induced velocity
+      AB = HSs[j][3]-HSs[j][2]        # Direction from A to B
+      sgn = sign(dot(cross(DVinf, AB), cross(DVinf, H)))
+
+      if h>1e-8
+        Vinds[j] += sgn*gamma/(4*pi*h)
+      end
+
+      if bgamma!=nothing # Case this was the end of a wing
+        H = meanAB - bheadVortex
+        count_proj = H - DVinf*(dot(H, DVinf))
+        h = norm(count_proj)
+        sgn = sign(dot(cross(DVinf, AB), cross(DVinf, H)))
+        if h>1e-8
+          Vinds[j] += sgn*bgamma/(4*pi*h)
+        end
+      end
+
+    end
+  end
+
+
+  F = FArrWrap[zeros(3) for i in 1:m]
+  for i in 1:m  # Iterates over bound vortex calculating induced force
+    _, A, B, _, _, _, _, Gamma  = HSs[i]
+    AB = B-A
+    count_proj = AB - DVinf*(dot(AB, DVinf))  # Counter projection about inf vortex
+    l = norm(count_proj)        # Length normal to inf vortex direction
+    if per_unit_span
+      unitspan = l
+    else
+      unitspan = 1
+    end
+    F[i] += rho*Gamma*Vinds[i]*l*DVinf / unitspan
+  end
+
+  return F
 end
 
 "Returns the average Vinf from all control points"

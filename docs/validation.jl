@@ -34,7 +34,8 @@ function planarWing()
   central = false
 
   wing = nothing
-  CLs, CDs = [], [];
+  CLs1, CDs1 = [], []
+  CLs2, CDs2 = [], []
   for alpha in alphas
     function Vinf(X, t)
       return magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
@@ -45,8 +46,13 @@ function planarWing()
     vlm.calculate_field(wing, "CFtot"; S=b^2/ar)
 
     info = vlm.fields_summary(wing)
-    push!(CLs, info["CL"]);
-    push!(CDs, info["CD"]);
+    push!(CLs1, info["CL"])
+    push!(CDs1, info["CD"])
+
+    vlm.calculate_field(wing, "CFtot"; S=b^2/ar, lifting_interac=false)
+    info = vlm.fields_summary(wing)
+    push!(CLs2, info["CL"]);
+    push!(CDs2, info["CD"]);
   end
 
   # Weber's experimental data (Table 4)
@@ -61,11 +67,12 @@ function planarWing()
         label="Bertin's hand calculation")
   plot(data[1], data[2], "ok",
         label="Weber's experimental data")
-  plot(alphas, CLs, "or", label="FLOWVLM")
+  plot(alphas, CLs2, "or", label="FLOWVLM Trefftz")
+  plot(alphas, CLs1, "*g", label="FLOWVLM")
 
   xlim([0,12]);
   xlabel("Angle of attack (deg)");
-  ylim([0,  maximum([ 0.0601*maximum(alphas), maximum(CLs)  ])*1.1]);
+  ylim([0,  maximum([ 0.0601*maximum(alphas), maximum(CLs1)  ])*1.1]);
   ylabel("CL");
   grid(true, color="0.8", linestyle="--")
   legend(loc="best");
@@ -76,11 +83,12 @@ function planarWing()
   plot(data[1], data[3], "ok",
         label="Weber's experimental data")
   # plot(alphas, CDs*0.035/0.00035, "or", label="FLOWVLM")
-  plot(alphas, CDs, "or", label="FLOWVLM")
+  plot(alphas, CDs2, "or", label="FLOWVLM Trefftz")
+  plot(alphas, CDs1, "*g", label="FLOWVLM")
 
   xlim([0,12]);
   xlabel("Angle of attack (deg)");
-  ylim( [0,  maximum(  [ maximum(data[3][2:end]), maximum(CDs) ]  )*1.1]  );
+  ylim( [0,  maximum(  [ maximum(data[3][2:end]), maximum(CDs1) ]  )*1.1]  );
   ylabel("CD");
   grid(true, color="0.8", linestyle="--")
   legend(loc="best");
@@ -101,8 +109,13 @@ function planarWing()
   vlm.solve(wing, Vinf)
   vlm.calculate_field(wing, "CFtot"; S=b^2/ar)
   vlm.calculate_field(wing, "Cftot/CFtot"; S=b^2/ar)
+  ClCL1 = wing.sol["Cl/CL"]
+  CdCD1 = wing.sol["Cd/CD"]
+  vlm.calculate_field(wing, "CFtot"; S=b^2/ar, lifting_interac=false)
+  vlm.calculate_field(wing, "Cftot/CFtot"; S=b^2/ar, lifting_interac=false)
+  ClCL2 = wing.sol["Cl/CL"]
+  CdCD2 = wing.sol["Cd/CD"]
   y2b = 2*wing._ym/b
-  ClCL = wing.sol["Cl/CL"]
 
   # Weber's data (Table 3)
   web_2yb = [0.0, 0.041, 0.082, 0.163, 0.245, 0.367, 0.510, 0.653, 0.898, 0.949]
@@ -111,20 +124,20 @@ function planarWing()
   web_ClCL = web_Cl/web_CL
 
   subplot(223)
-  plot(y2b, ClCL, "or", label="FLOWVLM")
   plot(web_2yb, web_ClCL, "ok", label="Weber's experimental data")
+  plot(y2b, ClCL2, "or", label="FLOWVLM Trefftz")
+  plot(y2b, ClCL1, "*g", label="FLOWVLM")
 
   xlim([0,1]);
   xlabel(L"$\frac{2y}{b}$");
-  ylim([minimum([minimum(ClCL), minimum(web_ClCL), 0]),
-        maximum([maximum(ClCL), maximum(web_ClCL)])*1.1]);
+  ylim([minimum([minimum(ClCL1), minimum(web_ClCL), 0]),
+        maximum([maximum(ClCL1), maximum(web_ClCL)])*1.1]);
   ylabel(L"$\frac{Cl}{CL}$");
   grid(true, color="0.8", linestyle="--")
   legend(loc="best");
   title(L"Spanwise lift distribution at $\alpha=4.2^\circ$");
 
   # --- DRAG DISTRIBUTION AT ALPHA=4.2
-  CdCD = wing.sol["Cd/CD"]
 
   # Weber's data (Table 3)
   web_2yb = [0.0, 0.041, 0.082, 0.163, 0.245, 0.367, 0.510, 0.653, 0.898, 0.949]
@@ -133,13 +146,14 @@ function planarWing()
   web_CdCD = web_Cd/web_CD
 
   subplot(224)
-  plot(y2b, CdCD, "or", label="FLOWVLM")
   plot(web_2yb, web_CdCD, "ok", label="Weber's experimental data")
+  plot(y2b, CdCD2, "or", label="FLOWVLM Trefftz")
+  plot(y2b, CdCD1, "*g", label="FLOWVLM")
 
   xlim([0,1]);
   xlabel(L"$\frac{2y}{b}$");
-  ylim([minimum([minimum(CdCD), minimum(web_CdCD), 0]),
-        maximum([maximum(CdCD), maximum(web_CdCD)])*1.1]);
+  ylim([minimum([minimum(CdCD1), minimum(web_CdCD), 0]),
+        maximum([maximum(CdCD1), maximum(web_CdCD)])*1.1]);
   ylabel(L"$\frac{Cd}{CD}$");
   grid(true, color="0.8", linestyle="--")
   legend(loc="best");
