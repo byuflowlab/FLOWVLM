@@ -1,17 +1,26 @@
+#   Induced drag minimization respect to twist distribution using Bertin's wing
+# as the baseline, subject to a specific lift coefficient and local angle of
+# attacks not exceeding separation angles.
+
+
 import ForwardDiff
 import Snopt
 import JLD
 
-vlm_path = "../"
+include("functions.jl")
+
+modulepath, this_file = splitdir(@__FILE__)
+
+vlm_path = joinpath(modulepath,"../../")
 include(vlm_path*"src/FLOWVLM.jl")
 vlm = FLOWVLM
 
-save_path = "../temps/opt_bwing03/"  # Output folder
+save_path = joinpath(modulepath, "../../temps/opt_bwing10/")  # Output folder
 run_name = "opt_bwing"
 paraview = true                   # Calls paraview when done
 prompt = true                     # Whether to prompt the user
 verbose = true                    # Prints verbose on function calls
-verbosetype = 2                   # 1:Short, 2:Shorter 3:Long
+verbosetype = 2                   # 1:Short, 2:Shorter, 3:Long
 stepsverbose = 1                  # Steps between verbose
 
 
@@ -20,7 +29,7 @@ stepsverbose = 1                  # Steps between verbose
 b = 98*0.0254               # (m) span
 AR = 5.0                    # Span over tip chord
 Sref=b^2/AR                 # Reference area for coefficients
-n = 100                      # Lattices in semi-span
+n = 100                     # Lattices in semi-span
 nc = 50                     # Chord positions along semi-span
 
 # Freestream
@@ -33,8 +42,11 @@ rhoinf = 9.093/10^1         # (kg/m^3) air density
 pos = 1.0*[i for i in 0:1/(nc-1):1]   # Position of each chord along semi-span
 clen = 1.0*[1 for i in 1:nc]      # Length of each chord as a fraction of tip chord
 twist = 0.0*[1 for i in 1:nc]     # (deg) twist at each chord
-sweep = 40.0*[1 for i in 1:nc-1]  # (deg) sweep of each section
+sweep = 45.0*[1 for i in 1:nc-1]  # (deg) sweep of each section
 dihed = 0.0*[1 for i in 1:nc-1]   # (deg) dihedral of each section
+
+# Calculations
+trefftz = true              # Calculates induced drag at the Trefftz plane
 
 # ------------------- OPTIMIZATION PARAMETERS ----------------------------------
 fobj_nin = nc-1             # Number of input variables on objective (same than x0)
@@ -42,18 +54,20 @@ fcomp_nin = fobj_nin        # Number of input variables on computation function
 fcomp_nout = 2              # Dimension ouput of computation function to differentiate
 
 x0 = twist[2:end]                     # Initial guess
-lb = -10.0*[1 for i in 1:fobj_nin]      # Lower bounds
-ub = 15.0*[1 for i in 1:fobj_nin]       # Upper bounds
+lb = -(10.0+AOA)*ones(fobj_nin)       # Lower bounds
+ub = (15.0-AOA)*ones(fobj_nin)        # Upper bounds
 
 options = Dict{String, Any}(          # SNOPT options
+        "Scale option"                 => 1,
         "Derivative option"            => 1,
-        "Verify level"                 => 1,
-        "Major optimality tolerance"   => 1e-6
+        "Verify level"                 => 0,
+        "Major optimality tolerance"   => 1e-7,
+        "Minor optimality tolerance"   => 1e-8,
+        "Major feasibility tolerance"  => 1e-7,
+        "Minor feasibility tolerance"  => 1e-8,
+        "Scale tolerance"              => .95,
+        "Print frequency"              => stepsverbose
     )
-
-
-
-
 
 # ------------------- OPTIMIZATION SETUP ---------------------------------------
 # Constraints
@@ -68,12 +82,12 @@ gs = []                     # Gradient along path
 # Creates save path
 if save_path!=nothing
   vlm.vtk.create_path(save_path, prompt)
-  _, this_file = splitdir(@__FILE__)
-  run(`cp $this_file $(joinpath(save_path,this_file))`)   # Saves this run file
+  # Saves this run file
+  run(`cp $(joinpath(modulepath,this_file)) $(joinpath(save_path,this_file))`)
 end
 
 "Computation functions: compute here objective and some constrains"
-function funs(x; output_vlm=true)
+function funs(x; output_vlm=true, output_wing=nothing)
 # Induced drag as a function of twist distribution on Bertin's wing
     this_twist = vcat(twist[1], x)   # Forces the root to be fixed
 
@@ -89,12 +103,17 @@ function funs(x; output_vlm=true)
     vlm.solve(wing, Vinf)
 
     # Calculates induced drag
-    vlm.calculate_field(wing, "CFtot"; S=Sref)
+    vlm.calculate_field(wing, "CFtot"; S=Sref, lifting_interac=!trefftz)
+    vlm.calculate_field(wing, "Cftot/CFtot"; S=Sref, lifting_interac=!trefftz)
 
     # Saves the wing
     if output_vlm && save_path!=nothing
-      vlm.calculate_field(wing, "Cftot/CFtot"; S=Sref)
       vlm.save(wing, run_name; path=save_path, num=fcalls)
+    end
+
+    # Outputs the wing
+    if output_wing!=nothing && typeof(output_wing)==Array{Any,1}
+      push!(output_wing, wing)
     end
 
     info = vlm.fields_summary(wing)
@@ -137,30 +156,18 @@ function SNOPTfun(x)
     dCDdx = gradseval[1,:]
     dCLdx = gradseval[2,:]
 
-    f = CD                # Optimization objective
-    g = dCDdx             # Optimization gradient
-    fail = false          # Fail flag
+    f = CD*1e3                # Optimization objective
+    g = dCDdx*1e3             # Optimization gradient
+    fail = false              # Fail flag
 
     # Constrains
-    con1 = -CL + 0.25                         # Minimum CL
-    conxmins = [-(xi+AOA)-10 for xi in x]     # Min local AOA
-    conxmaxs = [(xi+AOA)-15 for xi in x]      # Max local AOA
-    ncons = 1 + 2*fobj_nin                    # Number of constraints
-    c = vcat(con1, conxmins, conxmaxs)
+    con1 = -CL + 0.232
+    ncons = 1                 # Number of constraints
+    c = [con1]
 
     # Constrains gradients
     dcdx = zeros(ncons, fobj_nin)
     dcdx[1,:] = -dCLdx   # con1
-    for i in 1:fobj_nin # conxmins
-      for j in 1:fobj_nin
-        dcdx[1+i, j] = -Int64(j==i)
-      end
-    end
-    for i in 1:fobj_nin # conxmaxs
-      for j in 1:fobj_nin
-        dcdx[1+fobj_nin+i, j] = Int64(j==i)
-      end
-    end
 
     # Saves path
     global fcalls += 1
@@ -213,6 +220,9 @@ end
 
 
 # ------------------- RUN OPTIMIZATION -----------------------------------------
+println("***********************************************************")
+println("RUNNING OPTIMIZATION $save_path$run_name")
+println("***********************************************************")
 xopt, fopt, info = Snopt.snopt(SNOPTfun, deepcopy(x0), lb, ub, options)
 
 
@@ -233,7 +243,13 @@ println("\tfopt: $fopt")
 # Saves optimization path
 if save_path!=nothing
   JLD.save(joinpath(save_path,run_name*".jld"), "Xs", Xs, "fs", fs, "gs", gs)
+  for fl in ["snopt-summary.out", "snopt-print.out"]
+    cp(fl, joinpath(save_path, fl))
+  end
 end
+
+# Compares with Bertin's wing
+compareBertins(x0, xopt, funs)
 
 # Calls paraview
 if save_path!=nothing && paraview

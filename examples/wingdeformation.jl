@@ -19,6 +19,8 @@ function wingdeformation(; save_path=module_path*"/../temps/wingdeformation00/",
                                   paraview=true, verbose=false, delete=false,
                                   prompt=false)
 
+println("Rabbit1: vars def")
+prev_t = time()
   # ------------------- GEOMETRY FROM ASWING -----------------------------------
   # Wing
   w_x=[3.70114, 3.68389, 3.63262, 3.54877, 3.43465, 3.29332, 3.12842, 2.94402,
@@ -96,7 +98,6 @@ function wingdeformation(; save_path=module_path*"/../temps/wingdeformation00/",
     r_twist = vcat(w_twist[end], r_twist)
   end
 
-
   # ------------------- FLOWVLM PARAMETERS -------------------------------------
   magVinf = 1.0                         # Freestream magnitude
   Vinf(X,t) = magVinf*[1,0,0]           # Freestream
@@ -113,8 +114,11 @@ function wingdeformation(; save_path=module_path*"/../temps/wingdeformation00/",
 
   O_rwl = [r_x[1], r_y[1], r_z[1]]      # Centers it about its joint
   Oaxis_rwl = vlm.vtk.rotation_matrix(0.0, 0.0, -wl_angle)  # Inclination
+println("\ttime: $(time()-prev_t) s\n")
 
 
+println("Rabbit2: FLOWVLM geometry def")
+prev_t = time()
   # ------------------- FLOWVLM WINGSYSTEM -------------------------------------
   # Builds wing
   wing = nothing                        # Wing object
@@ -171,22 +175,31 @@ function wingdeformation(; save_path=module_path*"/../temps/wingdeformation00/",
   vlm.addwing(system, "Wing", wing)
   vlm.addwing(system, "LWinglet", lwinglet)
   vlm.addwing(system, "RWinglet", rwinglet)
+println("\ttime: $(time()-prev_t) s\n")
 
 
+println("Rabbit3: FLOWVLM solver")
+prev_t = time()
   # ------------ RUN FLOWVLM ---------------------------------------------------
   # Solves the lattice
   vlm.solve(system, Vinf)
+println("\ttime: $(time()-prev_t) s\n")
+println("Rabbit4: Aerodynamic properties")
+prev_t = time()
 
   # Calculates aerodynamic properties
   vlm.calculate_field(system, "CFtot"; S=Sref)
 
+println("\ttime: $(time()-prev_t) s\n")
+println("Rabbit5: Generate vtk")
+prev_t = time()
   # Outputs vtk geometry
   if save_path!=nothing
     vlm.vtk.create_path(save_path, prompt)
     vlm.save(system, run_name;
               save_horseshoes=save_horseshoes, path=save_path)
   end
-
+println("\ttime: $(time()-prev_t) s\n")
 
   # ------------ VISUALIZATION -------------------------------------------------
   # Calls Paraview and deletes temp files
