@@ -9,15 +9,18 @@ import JLD
 
 include("functions.jl")
 
+println("Defining parameters...")
+
 modulepath, this_file = splitdir(@__FILE__)
 
 vlm_path = joinpath(modulepath,"../../")
 include(vlm_path*"src/FLOWVLM.jl")
 vlm = FLOWVLM
 
-save_path = joinpath(modulepath, "../../temps/opt_bwing10/")  # Output folder
+save_path = joinpath(modulepath, "../../temps/opt_bwing11/")  # Output folder
 run_name = "opt_bwing"
 paraview = true                   # Calls paraview when done
+vis_des_space = true              # Plots design space when done (time consuming)
 prompt = true                     # Whether to prompt the user
 verbose = true                    # Prints verbose on function calls
 verbosetype = 2                   # 1:Short, 2:Shorter, 3:Long
@@ -40,10 +43,10 @@ rhoinf = 9.093/10^1         # (kg/m^3) air density
 
 # Chords
 pos = 1.0*[i for i in 0:1/(nc-1):1]   # Position of each chord along semi-span
-clen = 1.0*[1 for i in 1:nc]      # Length of each chord as a fraction of tip chord
-twist = 0.0*[1 for i in 1:nc]     # (deg) twist at each chord
-sweep = 45.0*[1 for i in 1:nc-1]  # (deg) sweep of each section
-dihed = 0.0*[1 for i in 1:nc-1]   # (deg) dihedral of each section
+clen = 1.0*ones(nc)         # Length of each chord as a fraction of tip chord
+twist = 0.0*ones(nc)        # (deg) twist at each chord
+sweep = 45.0*ones(nc-1)     # (deg) sweep of each section
+dihed = 0.0*ones(nc-1)      # (deg) dihedral of each section
 
 # Calculations
 trefftz = true              # Calculates induced drag at the Trefftz plane
@@ -69,6 +72,7 @@ options = Dict{String, Any}(          # SNOPT options
         "Print frequency"              => stepsverbose
     )
 
+println("Preparing optimization...")
 # ------------------- OPTIMIZATION SETUP ---------------------------------------
 # Constraints
 # (See SNOPTfun)
@@ -87,7 +91,7 @@ if save_path!=nothing
 end
 
 "Computation functions: compute here objective and some constrains"
-function funs(x; output_vlm=true, output_wing=nothing)
+function funs(x; output_vlm=true, output_wing=nothing, distrcoeffs=true)
 # Induced drag as a function of twist distribution on Bertin's wing
     this_twist = vcat(twist[1], x)   # Forces the root to be fixed
 
@@ -104,7 +108,9 @@ function funs(x; output_vlm=true, output_wing=nothing)
 
     # Calculates induced drag
     vlm.calculate_field(wing, "CFtot"; S=Sref, lifting_interac=!trefftz)
-    vlm.calculate_field(wing, "Cftot/CFtot"; S=Sref, lifting_interac=!trefftz)
+    if distrcoeffs
+      vlm.calculate_field(wing, "Cftot/CFtot"; S=Sref, lifting_interac=!trefftz)
+    end
 
     # Saves the wing
     if output_vlm && save_path!=nothing
@@ -240,18 +246,47 @@ println("\txopt: $xopt")
 println("\tfopt: $fopt")
 
 
+println("Plotting twist distribution...")
+fig = figure("twistdistr")
+plot([1, nc], -[AOA, AOA], "-k", label="Neutral angle")
+plot(1:nc, vcat(twist[1], x0), "-.b", label="Baseline")
+plot(1:nc, vcat(twist[1], xopt), "--r", label="Optimized")
+xlim([1, nc])
+ylim([minimum(lb), maximum(ub)])
+xlabel("Chord number")
+ylabel(L"Twist ($^\circ$)")
+legend(loc="best")
+grid(true, color="0.8", linestyle="--")
+title("Semi-span twist distribution")
+
+
+println("Saving results...")
 # Saves optimization path
 if save_path!=nothing
-  JLD.save(joinpath(save_path,run_name*".jld"), "Xs", Xs, "fs", fs, "gs", gs)
+  # Saves variables
+  JLD.save(joinpath(save_path,run_name*".jld"), "Xs", Xs, "fs", fs, "gs", gs,
+                                                    "xopt", xopt, "fopt", fopt)
+  # NOTE: For loading the variables, do:
+  #       `Xs, fs, gs = JLD.load(save_path*run_name*".jld", "Xs", "fs", "gs");`
+  # Saves SNOPT outputs
   for fl in ["snopt-summary.out", "snopt-print.out"]
     cp(fl, joinpath(save_path, fl))
   end
 end
 
 # Compares with Bertin's wing
+println("Plotting comparison...")
 compareBertins(x0, xopt, funs)
 
 # Calls paraview
+println("Calling paraview...")
 if save_path!=nothing && paraview
   run(`paraview --data=$(save_path*run_name)_vlm...vtk`)
+end
+
+# Plots the design space
+if vis_des_space
+  println("Visualizing design space...")
+  design_space(funs, Xs, xopt, lb, ub; ndiscr=25, alive=true, lbl_add_val=false,
+                    output_vlm=false, output_wing=nothing, distrcoeffs=false)
 end

@@ -52,12 +52,17 @@ function compareBertins(x0, xopt, compfuns; verbose=true)
     web_Cl = [0.235, 0.241, 0.248, 0.253, 0.251, 0.251, 0.251, 0.246, 0.192, 0.171]
     web_ClCL = web_Cl/web_CL
 
+    # Elliptic load
+    ell_2yb = linspace(0, 1, 101)
+    ell_ClCL = maximum(ClCL_opt) * sqrt.(1-ell_2yb.^2)
+
 
     fig = figure("BertinWingComparison",figsize=(7*2,5*1))
     subplot(121)
     plot(web_2yb, web_ClCL, "ok", label="Experimental")
     plot(y2b_0, ClCL_0, "--.b", label=L"FLOWVLM $x_0$")
-    plot(y2b_opt, ClCL_opt, ".-.r", label=L"FLOWVLM $x_{opt}$")
+    plot(y2b_opt, ClCL_opt, ".r", label=L"FLOWVLM $x_{opt}$")
+    plot(ell_2yb, ell_ClCL, "--k", label="Elliptic distribution")
 
     xlim([0,1]);
     xlabel(L"$\frac{2y}{b}$");
@@ -66,7 +71,7 @@ function compareBertins(x0, xopt, compfuns; verbose=true)
     ylabel(L"$\frac{Cl}{CL}$");
     grid(true, color="0.8", linestyle="--")
     legend(loc="best");
-    title(L"Spanwise lift distribution at $\alpha=4.2^\circ$");
+    title(L"Spanwise lift distribution at $\alpha=4.2^\circ$")
 
     # --- DRAG DISTRIBUTION AT ALPHA=4.2
     CdCD_0 = wing0.sol["Cd/CD"]
@@ -96,16 +101,9 @@ function compareBertins(x0, xopt, compfuns; verbose=true)
 end
 
 
-
-
-
-
-using PyPlot
-import Roots
-
 "Plots a design space of only two dimensions"
 function plot_space(f, xmin,xmax, ymin,ymax, n;
-                    Xs=nothing, fs=nothing, cons=nothing,
+                    Xs=nothing, xopt=nothing, x_i=1, y_i=2,
                     xlbl=L"x", ylbl=L"y", zlbl=L"f(x,y)",
                     title_str="Objective function")
   x = linspace(xmin, xmax, n)
@@ -120,7 +118,6 @@ function plot_space(f, xmin,xmax, ymin,ymax, n;
           z[j,i] = f([x[i],y[j]])[1]
       end
   end
-#     zmin, zmax = minimum(z), maximum(z)
 
 
   # ----------------- Objective plots --------------------
@@ -137,18 +134,18 @@ function plot_space(f, xmin,xmax, ymin,ymax, n;
               linewidth=0.05)
   ## Optimization path
   if Xs!=nothing
-      ax1[:plot]([this_X[1] for this_X in Xs],
-                  [this_X[2] for this_X in Xs],
-                  [f(x)[1] for x in Xs], "--ok")
-      ax1[:scatter3D]([Xs[end][1]], [Xs[end][2]],
-          [f(Xs[end])[1]], marker="*", c="y", label="Optimum")
+      ax1[:plot]([x[x_i] for x in Xs], [x[y_i] for x in Xs],
+                                      [f(x)[1] for x in Xs], "--.k")
+      # ax1[:scatter3D]([x[x_i] for x in Xs], [x[y_i] for x in Xs],
+      #                 [f(x)[1] for x in Xs], marker="o", c="k", label="Optimum")
+      ax1[:scatter3D]([xopt[x_i]], [xopt[y_i]], [f(xopt)[1]],
+                                      s=100, marker="*", c="r", label="Optimum")
   end
   xlabel(xlbl)
   ylabel(ylbl)
   zlabel(zlbl)
   xlim([xmin, xmax])
   ylim([ymin, ymax])
-#     zlim([zmin, zmax])
 
   # Contour plot
   subplot(122)
@@ -157,64 +154,14 @@ function plot_space(f, xmin,xmax, ymin,ymax, n;
                   colors="black", linewidth=2.0)
   ax2[:clabel](cp, inline=1, fontsize=10)
   if Xs!=nothing
-      ax2[:plot]([this_X[1] for this_X in Xs],
-                  [this_X[2] for this_X in Xs], "-ok")
-      ax2[:plot]([Xs[end][1]], [Xs[end][2]], "*y", label="Optimum")
+      ax2[:plot]([x[x_i] for x in Xs], [x[y_i] for x in Xs], "-ok")
+      ax2[:plot]([xopt[x_i]], [xopt[y_i]], "*r", label="Optimum")
   end
   xlabel(xlbl)
   ylabel(ylbl)
   xlim([xmin, xmax])
   ylim([ymin, ymax])
   tight_layout()
-
-  # Constraints cons[i](x) < 0
-  if cons!=nothing
-      plot_flag = false
-      ax2[:plot]([], []) # Dummy to match coloring
-      for (i,con) in enumerate(cons)  # Iterates over constrains
-          line_x, line_y, line_z = [], [], []
-          for xi in x  # Iterates over x finding y cons[i](x,y) = 0
-              wrap_con(yi) = con([xi,yi])[1]
-              try
-                  yi = Roots.fzero(wrap_con, ymin, ymax)
-                  push!(line_x, xi)
-                  push!(line_y, yi)
-                  push!(line_z, f([xi,yi])[1])
-              catch e
-                  nothing
-              end
-          end
-          if size(line_x)[1]!=0
-              if size(line_x)[1]==1 # Case c(X)=c(X1)
-                  line_x, line_y, line_z = [], [], []
-                  for yi in y
-                      wrap_con(xi) = con([xi,yi])[1]
-                      try
-                          xi = Roots.fzero(wrap_con, xmin, xmax)
-                          push!(line_x, xi)
-                          push!(line_y, yi)
-                          push!(line_z, f([xi,yi])[1])
-                      catch e
-                          nothing
-                      end
-                  end
-                  if size(line_x)[1]!=0
-                      plot_flag=true
-                      ax1[:plot](line_x, line_y, line_z, label="Cons. #$i")
-                      ax2[:plot](line_x, line_y, label="Cons. #$i")
-                  end
-              else
-                  plot_flag=true
-                  ax1[:plot](line_x, line_y, line_z, label="Cons. #$i")
-                  ax2[:plot](line_x, line_y, label="Cons. #$i")
-              end
-          end
-      end
-      if plot_flag
-          ax1[:legend](loc="best")
-          ax2[:legend](loc="best")
-      end
-  end
 end
 
 "Give the path of the optimizer and it will plot it"
@@ -234,38 +181,113 @@ function plot_opt(fs, gs; fig_name="opt_path")
   grid(true, color="0.8", linestyle="--")
 end
 
-"Plots the design space of the pipeline problem at a fixed d value"
-function design_space(d, lb, ub;
-                      Xs=nothing, fs=nothing, cons=nothing)
-  xmin, ymin = lb[1], lb[2]
-  xmax, ymax = ub[1], ub[2]
-  n = 100
-  wrap_objf(x) = objf([x[1],x[2],d])
-  plot_space(wrap_objf, xmin,xmax, ymin,ymax, n;
-                  Xs=Xs, fs=fs, cons=cons,
-                  xlbl=L"Flow velocity $V$",
-                  ylbl=L"Pipe diameter $D$",
-                  zlbl=L"Cost$(V,D,d)$",
-          title_str="Objective function at d=$(round(d,6))")
+"""
+Receives the computation function `compfun`, optimization path `Xs`, the
+optimum `xopt`, and linear constraints `lb`,`ub`, and generates a three
+dimensional plot on the two variables of maximum variation showing the
+optimization path.
+
+NOTE: It expects to find the objective in the first output of `compfun`.
+"""
+function design_space(compfun, Xs,
+                        xopt::AbstractArray, lb::AbstractArray,
+                        ub::AbstractArray; x_i::Int64=-1, y_i::Int64=-1,
+                        ndiscr::Int64=15, lbl="\nxopt", lbl_add_val=true,
+                        alive=false,
+                        compfun_args...)
+
+  # ---------- Chooses what variables to put in axes x and y -------------------
+  x_is = [x_i, y_i]
+  # Case of automatic choice
+  if -1 in x_is
+    n = size(xopt, 1) # Number of variables
+    needed = size([i for i in x_is if i==-1],1) # Number of variables needed
+
+    # Calculates variation range of each variable
+    variations = [
+    ( maximum([X[i] for X in Xs]) - minimum([X[i] for X in Xs]) )/(ub[i]-lb[i])
+                                          for i in 1:n ]
+
+    # Finds the two variables with max variation
+    max1_i = indmax(variations)
+    max2_i = indmax(vcat( variations[1:max1_i-1], variations[max1_i+1:end] ))
+
+    # Saves selection
+    if needed==1
+      if x_i==-1; x_is[1]=max1_i; else; x_is[2]=max1_i; end;
+    else
+      x_is[1] = max1_i
+      x_is[2] = max2_i
+    end
+  end
+
+  _x_i, _y_i = x_is
+
+  # Ranges for surface plotting
+  xmin, ymin = lb[_x_i], lb[_y_i]
+  xmax, ymax = ub[_x_i], ub[_y_i]
+
+  # Wraps compfun as a 2D function
+  fncalls = 0
+  function wrap_compfun(x)
+    fncalls += 1
+    prev_t = time()
+    if size(x,1)==2 # Case of generating surface and contour plots
+      compfun_x = deepcopy(xopt)
+      compfun_x[_x_i] = x[1]
+      compfun_x[_y_i] = x[2]
+      out = compfun(compfun_x; compfun_args...)[1]
+    else  # Case of plotting the path
+      compfun_x = deepcopy(xopt)
+      compfun_x[_x_i] = x[_x_i]
+      compfun_x[_y_i] = x[_y_i]
+      out = compfun(compfun_x; compfun_args...)[1]
+    end
+    if alive; println("\tFunction call #$fncalls: $(time()-prev_t) (s)"); end;
+    return out
+  end
+
+  ttl = lbl * (lbl_add_val ? "=$(signif.(xopt,3))" : "")
+
+  plot_space(wrap_compfun, xmin, xmax, ymin, ymax, ndiscr;
+                      Xs=Xs, xlbl="x$(_x_i)", ylbl="x$(_y_i)",
+                      zlbl="f(x$(_x_i),y$(_y_i))",
+                      title_str="Design space at"*ttl,
+                      x_i=_x_i, y_i=_y_i, xopt=xopt)
 end
 
-function report(xopt,fopt)
-  design_space(xopt[3], lb, ub; Xs=Xs, fs=fs, cons=cons)
-  plot_opt(fs)
-  println("***************************************************")
-  println("*       CONSTRAINTS")
-  println("***************************************************")
-  print_constraints(xopt, cons)
-  println("\n***************************************************")
-  println("*       ANALYSIS FUNCTIONS")
-  println("***************************************************")
-  print_summary(xopt[1],xopt[2],xopt[3])
-  println("\n***************************************************")
-  println("*       OPTIMUM")
-  println("***************************************************")
-  println("\tFunction calls:\t\t$(size(Xs)[1])")
-  println("\tFlow velocity V:\t$(round(xopt[1],1)) (ft/s)")
-  println("\tPipe diameter D:\t$(round(xopt[2],2)) (ft)")
-  println("\tParticle diameter d:\t$(round(xopt[3],4)) (ft)")
-  println("---> Cost:\t\t\$$(round(fopt[1],0))")
-end;
+function design_space_animation(save_path::String, run_name::String,
+                                compfun, Xs, xopt, args...; verbose=true,
+                                first=1, last=-1, ext=".png",
+                                optargs...)
+
+  # Points to iterate through
+  _Xs = Xs[ first : (last==-1 ? size(Xs,1) : last) ]
+  if last==-1 && Xs[end]!=xopt
+    push!(_Xs, xopt)
+  end
+
+  # Iterates through the optimization path
+  for (i, this_x) in enumerate(_Xs)
+    if verbose; println("Plotting iteration $i..."); end;
+    this_Xs = _Xs[1:i]
+    design_space(compfun, this_Xs, this_x, args...;
+                        lbl="ite $i\n x", optargs...)
+
+    this_num = ( i<10 ? "000" : (i<100 ? "00" : (i<1000 ? "0" : "")) )*"$i"
+    savefig(joinpath(save_path, run_name)*"."*this_num*ext)
+    clf()
+  end
+
+  if verbose; println("\tDone plotting"); end;
+end
+
+
+
+
+
+
+
+
+
+#
