@@ -1,13 +1,10 @@
-#   Induced drag minimization respect to twist distribution using Bertin's wing
-# as the baseline, subject to a specific lift coefficient and local angle of
-# attacks not exceeding separation angles.
-
+# Induced drag minimization respect to chord length distribution and twist
+# distribution using Bertin's wing as the baseline, subject to a specific lift
+# coefficient.
 
 import ForwardDiff
 import Snopt
 import JLD
-
-include("functions.jl")
 
 modulepath, this_file = splitdir(@__FILE__)
 
@@ -15,13 +12,16 @@ vlm_path = joinpath(modulepath,"../../")
 include(vlm_path*"src/FLOWVLM.jl")
 vlm = FLOWVLM
 
+include("functions.jl")
+
 println("Defining parameters...")
 
-save_path = joinpath(modulepath, "../../temps/opt_bwing12/")  # Output folder
-run_name = "opt_bwing"
+save_path = joinpath(modulepath, "../../temps/opt_bwtwistchord00/")  # Output folder
+run_name = "opt_bwtwistchord"
 paraview = true                   # Calls paraview when done
+save_horseshoes = false           # If saving VTKs, whether to save horseshoes
 vis_des_space = true              # Plots design space when done (time consuming)
-anim_des_space = false             # Animates the plot instead (VERY time consuming)
+anim_des_space = false            # Animates the plot instead (VERY time consuming)
 prompt = true                     # Whether to prompt the user
 verbose = true                    # Prints verbose on function calls
 verbosetype = 2                   # 1:Short, 2:Shorter, 3:Long
@@ -53,13 +53,13 @@ dihed = 0.0*ones(nc-1)      # (deg) dihedral of each section
 trefftz = true              # Calculates induced drag at the Trefftz plane
 
 # ------------------- OPTIMIZATION PARAMETERS ----------------------------------
-fobj_nin = nc-1             # Number of input variables on objective (same than x0)
+fobj_nin = 2*nc             # Number of input variables on objective (same than x0)
 fcomp_nin = fobj_nin        # Number of input variables on computation function
 fcomp_nout = 2              # Dimension ouput of computation function to differentiate
 
-x0 = twist[2:end]                     # Initial guess
-lb = -(10.0+AOA)*ones(fobj_nin)       # Lower bounds
-ub = (15.0-AOA)*ones(fobj_nin)        # Upper bounds
+x0 = vcat(twist, clen)      # Initial guess
+lb = vcat(-(10+AOA)*ones(nc), 0.01*ones(nc))   # Lower bounds
+ub = vcat((15-AOA)*ones(nc), 2.0*ones(nc))     # Upper bounds
 
 options = Dict{String, Any}(          # SNOPT options
         "Scale option"                 => 1,
@@ -93,13 +93,14 @@ end
 
 "Computation functions: compute here objective and some constrains"
 function funs(x; output_vlm=true, output_wing=nothing, distrcoeffs=true)
-# Induced drag as a function of twist distribution on Bertin's wing
-    this_twist = vcat(twist[1], x)   # Forces the root to be fixed
+# Induced drag as a function of chord length distribution on Bertin's wing
+    this_twist = x[1:nc]
+    this_clen = x[nc+1:end]
 
     # Generates the wing
-    wing = vlm.complexWing(b, AR, n, pos, clen, this_twist, sweep, dihed)
+    wing = vlm.complexWing(b, AR, n, pos, this_clen, this_twist, sweep, dihed)
 
-    # Positions it at the angle of attack
+    # Positions the wing at the right angle of attack
     vlm.setVinf(wing, Vinf)
     M = vlm.vtk.rotation_matrix(0.0, -AOA, 0.0)
     vlm.setcoordsystem(wing, zeros(3), M)
@@ -115,7 +116,8 @@ function funs(x; output_vlm=true, output_wing=nothing, distrcoeffs=true)
 
     # Saves the wing
     if output_vlm && save_path!=nothing
-      vlm.save(wing, run_name; path=save_path, num=fcalls)
+      vlm.save(wing, run_name; path=save_path, num=fcalls,
+                                            save_horseshoes=save_horseshoes)
     end
 
     # Outputs the wing
@@ -136,7 +138,7 @@ function grads(x)
     end
 
     # Function to differentiate
-    fun(x) = funs(x; output_vlm=false) # fun[1] is CD, fun[2] is CL
+    fun(x) = funs(x; output_vlm=false, distrcoeffs=false) # fun[1] is CD, fun[2] is CL
 
     # nin = size(x,1)                       # Number of variables
     nout = fcomp_nout                       # Dimensions of function output
@@ -169,7 +171,7 @@ function SNOPTfun(x)
 
     # Constrains
     con1 = -CL + 0.232
-    ncons = 1                 # Number of constraints
+    ncons = 1                 # Number of nonlinear constraints
     c = [con1]
 
     # Constrains gradients
@@ -246,19 +248,24 @@ println("\tx0: $x0")
 println("\txopt: $xopt")
 println("\tfopt: $fopt")
 
+plot_opt(fs, gs)
+if save_path!=nothing
+  tight_layout()
+  savefig(joinpath(save_path, run_name)*"_conv.png")
+end
 
-println("Plotting twist distribution...")
-fig = figure("twistdistr")
-plot([1, nc], -[AOA, AOA], "-k", label="Neutral angle")
-plot(1:nc, vcat(twist[1], x0), "-.b", label="Baseline")
-plot(1:nc, vcat(twist[1], xopt), "--r", label="Optimized")
+
+println("Plotting chord length distribution...")
+fig = figure("chorddistr")
+plot(1:nc, clen, "-k", label="Baseline")
+plot(1:nc, xopt, "--r", label="Optimized")
 xlim([1, nc])
 ylim([minimum(lb), maximum(ub)])
 xlabel("Chord number")
-ylabel(L"Twist ($^\circ$)")
+ylabel(L"c / c_{tip baseline}")
 legend(loc="best")
 grid(true, color="0.8", linestyle="--")
-title("Semi-span twist distribution")
+title("Semi-span chord length distribution")
 if save_path!=nothing
   tight_layout()
   savefig(joinpath(save_path, run_name)*"_distr.png")

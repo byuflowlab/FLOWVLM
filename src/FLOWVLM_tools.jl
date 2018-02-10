@@ -931,9 +931,35 @@ end
 
 function check_coord_sys(M::Array{T,1} where {T<:AbstractArray}; raise_error::Bool=true)
   dims = 3
-  newM = zeros(dims,dims)
+  ad_flag = false             # Flag of automatic differentiation detected
+  ad_type = nothing           # AD dual number type
+
+  # Checks for automatic differentiation
+  for i in 1:dims
+    elem_type = eltype(M[i])
+    if !(supertype(elem_type) in [AbstractFloat, Signed])
+      # Case that AD was already detected: Checks for consistency of type
+      if ad_flag
+        if ad_type!=elem_type
+          error("Fail to recognize AD dual number type: Found more than one"*
+                  " ($ad_type, $elem_type)")
+        end
+      else
+        ad_flag = true
+        ad_type = elem_type
+      end
+    end
+  end
+
+  if ad_flag
+    newM = zeros(ad_type, dims, dims)
+  else
+    newM = zeros(FWrap, dims, dims)
+  end
+
   for i in 1:dims
     newM[i, :] = M[i]
+
   end
   return check_coord_sys(newM; raise_error=raise_error)
 end

@@ -204,7 +204,7 @@ coordinate system"
 function _interpret(O2::FArrWrap, Oaxis2::FMWrap,
                     O1::FArrWrap, invOaxis1::FMWrap)
   new_O = countertransform(O2, invOaxis1, O1)
-  new_Oaxis = zeros(3,3)
+  new_Oaxis = zeros(eltype(Oaxis2), 3,3)
   for i in 1:3
     unit = Oaxis2[i, :]
     new_unit = countertransform(unit, invOaxis1, [0.0, 0, 0])
@@ -219,7 +219,7 @@ coordinate system and counterinterprets it back to the 'inception1' system."
 function _counter_interpret(O2::FArrWrap, Oaxis2::FMWrap,
                     O1::FArrWrap, Oaxis1::FMWrap)
   new_O = transform(O2, Oaxis1, O1)
-  new_Oaxis = zeros(3,3)
+  new_Oaxis = zeros(eltype(Oaxis2), 3,3)
   for i in 1:3
     unit = Oaxis2[i, :]
     new_unit = transform(unit, Oaxis1, [0.0, 0, 0])

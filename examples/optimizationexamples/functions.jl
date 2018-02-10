@@ -7,7 +7,7 @@ using PyPlot
 optimization run, and compares this with Bertin's wing analytical (*Aerodynamics
 for Engineers* Example 7.2, pp. 343) and experimental data (Weber and Brebner,
 1958, *Low-speed tests on 45-deg swept-back wings, part I*, Tables 3 and 4)."
-function compareBertins(x0, xopt, compfuns; verbose=true)
+function compareBertins(x0, xopt, compfuns; verbose=true, bertin=true)
 
     # Generates x0 and xopt wings
     wings = Any[]
@@ -30,11 +30,11 @@ function compareBertins(x0, xopt, compfuns; verbose=true)
     web_CD = 0.005
 
     println("\nDRAG COEFFICIENT")
-    println("\tBertin's experimental CD:\t$(web_CD)")
+    if bertin; println("\tBertin's experimental CD:\t$(web_CD)"); end;
     println("\tBaseline FLOWVLM CD:\t\t$(w0_CD)")
     println("\tOptimized FLOWVLM CD:\t\t$(wopt_CD)")
     println("\nLIFT COEFFICIENT")
-    println("\tBertin's experimental CL:\t$(web_CL)")
+    if bertin; println("\tBertin's experimental CL:\t$(web_CL)"); end;
     println("\tBaseline FLOWVLM CL:\t\t$(w0_CL)")
     println("\tOptimized FLOWVLM CL:\t\t$(wopt_CL)")
 
@@ -59,7 +59,7 @@ function compareBertins(x0, xopt, compfuns; verbose=true)
 
     fig = figure("BertinWingComparison",figsize=(7*2,5*1))
     subplot(121)
-    plot(web_2yb, web_ClCL, "ok", label="Experimental")
+    if bertin; plot(web_2yb, web_ClCL, "ok", label="Experimental"); end;
     plot(y2b_0, ClCL_0, "--.b", label=L"FLOWVLM $x_0$")
     plot(y2b_opt, ClCL_opt, ".r", label=L"FLOWVLM $x_{opt}$")
     plot(ell_2yb, ell_ClCL, "--k", label="Elliptic distribution")
@@ -71,7 +71,11 @@ function compareBertins(x0, xopt, compfuns; verbose=true)
     ylabel(L"$\frac{Cl}{CL}$");
     grid(true, color="0.8", linestyle="--")
     legend(loc="best");
-    title(L"Spanwise lift distribution at $\alpha=4.2^\circ$")
+    if bertin
+      title(L"Spanwise lift distribution at $\alpha=4.2^\circ$")
+    else
+      title("Spanwise lift distribution")
+    end
 
     # --- DRAG DISTRIBUTION AT ALPHA=4.2
     CdCD_0 = wing0.sol["Cd/CD"]
@@ -83,7 +87,7 @@ function compareBertins(x0, xopt, compfuns; verbose=true)
     web_CdCD = web_Cd/web_CD
 
     subplot(122)
-    plot(web_2yb, web_CdCD, "ok", label="Experimental")
+    if bertin; plot(web_2yb, web_CdCD, "ok", label="Experimental"); end;
     plot(y2b_0, CdCD_0, "--.b", label=L"FLOWVLM $x_0$")
     plot(y2b_opt, CdCD_opt, ".-.r", label=L"FLOWVLM $x_{opt}$")
 
@@ -91,12 +95,16 @@ function compareBertins(x0, xopt, compfuns; verbose=true)
     xlabel(L"$\frac{2y}{b}$");
     # ylim([minimum([minimum(CdCD_0), minimum(CdCD_opt), minimum(web_CdCD), 0]),
     #       maximum([maximum(CdCD_0), maximum(CdCD_opt), maximum(web_CdCD)])*1.1]);
-    ylim([minimum([minimum(web_CdCD), 0]),
-          maximum([maximum(web_CdCD)])*1.1]);
+    if bertin; ylim([minimum([minimum(web_CdCD), 0]),
+          maximum([maximum(web_CdCD)])*1.1]); end;
     ylabel(L"$\frac{Cd}{CD}$");
     grid(true, color="0.8", linestyle="--")
     legend(loc="best");
-    title(L"Spanwise drag distribution at $\alpha=4.2^\circ$");
+    if bertin
+      title(L"Spanwise drag distribution at $\alpha=4.2^\circ$")
+    else
+      title("Spanwise drag distribution")
+    end
     # # =================================================
 end
 
@@ -196,32 +204,8 @@ function design_space(compfun, Xs,
                         alive=false,
                         compfun_args...)
 
-  # ---------- Chooses what variables to put in axes x and y -------------------
-  x_is = [x_i, y_i]
-  # Case of automatic choice
-  if -1 in x_is
-    n = size(xopt, 1) # Number of variables
-    needed = size([i for i in x_is if i==-1],1) # Number of variables needed
-
-    # Calculates variation range of each variable
-    variations = [
-    ( maximum([X[i] for X in Xs]) - minimum([X[i] for X in Xs]) )/(ub[i]-lb[i])
-                                          for i in 1:n ]
-
-    # Finds the two variables with max variation
-    max1_i = indmax(variations)
-    max2_i = indmax(vcat( variations[1:max1_i-1], variations[max1_i+1:end] ))
-
-    # Saves selection
-    if needed==1
-      if x_i==-1; x_is[1]=max1_i; else; x_is[2]=max1_i; end;
-    else
-      x_is[1] = max1_i
-      x_is[2] = max2_i
-    end
-  end
-
-  _x_i, _y_i = x_is
+  # Chooses what variables to put in axes x and y
+  _x_i, _y_i = most_variation(xopt, Xs, lb, ub; x_i=x_i, y_i=y_i)
 
   # Ranges for surface plotting
   xmin, ymin = lb[_x_i], lb[_y_i]
@@ -252,13 +236,42 @@ function design_space(compfun, Xs,
   plot_space(wrap_compfun, xmin, xmax, ymin, ymax, ndiscr;
                       Xs=Xs, xlbl="x$(_x_i)", ylbl="x$(_y_i)",
                       zlbl="f(x$(_x_i),y$(_y_i))",
-                      title_str="Design space at"*ttl,
+                      title_str="Design space at "*ttl,
                       x_i=_x_i, y_i=_y_i, xopt=xopt)
+end
+
+"Determines the two variables with most variation`"
+function most_variation(xopt, Xs, lb, ub; x_i=-1, y_i=-1)
+  x_is = [x_i, y_i]
+  # Case of automatic choice
+  if -1 in x_is
+    n = size(xopt, 1) # Number of variables
+    needed = size([i for i in x_is if i==-1],1) # Number of variables needed
+
+    # Calculates variation range of each variable
+    variations = [
+    ( maximum([X[i] for X in Xs]) - minimum([X[i] for X in Xs]) )/(ub[i]-lb[i])
+                                          for i in 1:n ]
+
+    # Finds the two variables with max variation
+    max1_i = indmax(variations)
+    max2_i = indmax(vcat( variations[1:max1_i-1], variations[max1_i+1:end] ))
+
+    # Saves selection
+    if needed==1
+      if x_i==-1; x_is[1]=max1_i; else; x_is[2]=max1_i; end;
+    else
+      x_is[1] = max1_i
+      x_is[2] = max2_i
+    end
+  end
+
+  return x_is[1], x_is[2]
 end
 
 function design_space_animation(save_path::String, run_name::String,
                                 compfun, Xs, xopt, args...; verbose=true,
-                                first=1, last=-1, ext=".png",
+                                first=1, last=-1, ext=".png", x_i=-1, y_i=-1,
                                 optargs...)
 
   # Points to iterate through
@@ -267,14 +280,18 @@ function design_space_animation(save_path::String, run_name::String,
     push!(_Xs, xopt)
   end
 
+  # Chooses what variables to put in axes x and y
+  _x_i, _y_i = most_variation(xopt, Xs, lb, ub; x_i=x_i, y_i=y_i)
+
   # Iterates through the optimization path
   for (i, this_x) in enumerate(_Xs)
-    if verbose; println("Plotting iteration $i..."); end;
+    if verbose; println("Plotting iteration $i of $(size(_Xs,1))..."); end;
     this_Xs = _Xs[1:i]
     design_space(compfun, this_Xs, this_x, args...;
-                        lbl="ite $i\n x", optargs...)
+                        lbl="ite $i", x_i=_x_i, y_i=_y_i, optargs...)
 
     this_num = ( i<10 ? "000" : (i<100 ? "00" : (i<1000 ? "0" : "")) )*"$i"
+    tight_layout()
     savefig(joinpath(save_path, run_name)*"."*this_num*ext)
     clf()
   end
