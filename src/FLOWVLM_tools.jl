@@ -537,7 +537,9 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
   chord_tip = b/AR            # Chord length at tip
 
   # Iterates over chords calculating coordinates
-  prev_x, prev_y, prev_z, sec_lambda, sec_gamma = zeros(6)
+  prev_x = chordalign*chord_tip*clen[1]*cos(twist[1]*pi/180)
+  prev_z = -chordalign*chord_tip*clen[1]*sin(twist[1]*pi/180)
+  prev_y, sec_lambda, sec_gamma = zeros(4)
   for i in 1:nchords
       cho_twist = twist[i]*pi/180       # Chord twist
       cho_len = chord_tip*clen[i]       # Chord length
