@@ -481,6 +481,10 @@ Returns a Wing object made of multiple sections with the specified dimensions.
 
 # Optional Arguments
   * `symmetric::Bool=true`    : If false, returns only the semi-span.
+  * `chordalign::Float64=0.0` : Indicate position along chord length to align
+                                  chords. Give it 0 for alignment about leading
+                                  edge, 0.25 for alignment about quarter chord,
+                                  and 1.0 for alignment about trailing edge.
 
 # Example
 ```julia
@@ -503,7 +507,7 @@ Returns a Wing object made of multiple sections with the specified dimensions.
 function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
                       clen::FArrWrap, twist::FArrWrap,
                       sweep::FArrWrap, dihed::FArrWrap;
-                      symmetric::Bool=true)
+                      symmetric::Bool=true, chordalign::FWrap=0)
 
   nchords = size(pos)[1]      # Number of chords
 
@@ -512,6 +516,8 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
     error("At least two chords are required.")
   elseif pos[1]!=0 || pos[end]!=1
     error("First chord must be at pos=0 and last at pos=1, got $pos.")
+  elseif 1<chordalign<0
+    error("Chord alignment must be between 0 and 1, got $chordalign.")
   end
   for (arr, lbl) in [(clen, "clen"), (twist, "twist")]
     if size(arr)[1]!=nchords
@@ -533,12 +539,21 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
   # Iterates over chords calculating coordinates
   prev_x, prev_y, prev_z, sec_lambda, sec_gamma = zeros(6)
   for i in 1:nchords
+      cho_twist = twist[i]*pi/180       # Chord twist
+      cho_len = chord_tip*clen[i]       # Chord length
+
+      # Position of reference point
       y = b/2*pos[i]
       x = prev_x + (y-prev_y)*tan(sec_lambda)
       z = prev_z + (y-prev_y)*tan(sec_gamma)
 
-      push!(xs, x); push!(ys, y); push!(zs, z);
-      push!(cs, chord_tip*clen[i])
+      # Position of leading edge
+      LE_y = y
+      LE_x = x - chordalign*cho_len*cos(cho_twist)
+      LE_z = z + chordalign*cho_len*sin(cho_twist)
+
+      push!(xs, LE_x); push!(ys, LE_y); push!(zs, LE_z);
+      push!(cs, cho_len)
       push!(twists, twist[i])
 
       if i!=1

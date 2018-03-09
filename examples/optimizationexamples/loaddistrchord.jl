@@ -277,7 +277,7 @@ if save_path!=nothing
   JLD.save(joinpath(save_path,run_name*".jld"), "Xs", Xs, "fs", fs, "gs", gs,
                                                     "xopt", xopt, "fopt", fopt)
   # NOTE: For loading the variables, do:
-  #       `Xs, fs, gs = JLD.load(save_path*run_name*".jld", "Xs", "fs", "gs");`
+  #       `Xs, fs, gs, xopt, fopt = JLD.load(save_path*run_name*".jld", "Xs", "fs", "gs", "xopt", "fopt");`
   # Saves SNOPT outputs
   for fl in ["snopt-summary.out", "snopt-print.out"]
     cp(fl, joinpath(save_path, fl))
