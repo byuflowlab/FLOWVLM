@@ -118,7 +118,7 @@ end
 
 "Initializes the geometry of the rotor, discretizing each blade into n lattices"
 function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
-                          central=false, refinement=[])
+                          central=false, refinement=[], rfl_args...)
   # Checks for arguments consistency
   _check(self)
 
@@ -133,7 +133,7 @@ function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
   self.m = get_m(blade)
 
   # Generates airfoil properties at all control points of this blade
-  if rfl_flag; _calc_airfoils(self, n, r_lat, central, refinement); end;
+  if rfl_flag; _calc_airfoils(self, n, r_lat, central, refinement; rfl_args...); end;
 
   # ------------ Generates full rotor -----------------
   # Default blade c.s. relative to rotor c.s.
@@ -219,13 +219,13 @@ function setRPM(self::Rotor, RPM)
 end
 
 "Saves the rotor in VTK legacy format"
-function save(self::Rotor, filename::String; args...)
+function save(self::Rotor, filename::String; addtiproot=false, args...)
   _ = getHorseshoe(self, 1) # Makes sure the wake is calculated right
 
   save(self._wingsystem, filename; args...)
 
   if size(self.airfoils)[1]!=0
-    save_loft(self, filename; args...)
+    save_loft(self, filename; addtiproot=addtiproot, args...)
   end
 end
 
@@ -358,7 +358,7 @@ function getHorseshoe(self::Rotor, m::IWrap; t::FWrap=0.0, extraVinf...)
 end
 
 "Saves the lofted surface of the blade"
-function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
+function save_loft(self::Rotor, filename::String; addtiproot=false, path="", num=nothing, args...)
   # ERROR CASES
   if size(self.airfoils)[1]<2
     error("Requested lofted surface, but no airfoil geometry was given.")
@@ -374,6 +374,7 @@ function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
 
   # Iterates over each airfoil creating cross sections
   for (i,polar) in enumerate(self._polars)
+
     theta = pi/180*self._theta[i]   # Angle of attack
 
     # Actual airfoil contour
@@ -399,6 +400,42 @@ function save_loft(self::Rotor, filename::String; path="", num=nothing, args...)
 
     # Adds the CP index as point data for all points in this airfoil
     push!(CP_index, [i for p in points])
+
+
+    # Case of root or tip
+    if addtiproot && (i==1 || i==size(self._polars,1))
+      root_flg = i==1
+      ind = root_flg ? 1 : size(self.r,1)
+      alt_polar = root_flg ? self._polarroot : self._polartip
+
+      theta = (-1)^(self.CW)*pi/180*self.theta[ind]   # Angle of attack
+
+      # Actual airfoil contour
+      x, y = self.chord[ind]*alt_polar.x, self.chord[ind]*alt_polar.y
+      # Reformats x,y into point
+      points = [ [x[i], y[i], 0.0] for i in 1:size(x)[1] ]
+      # Rotates the contour in the right angle of attack
+      # and orients the airfoil for CCW or CW rotation
+      Oaxis = [cos(theta) -sin(theta) 0; sin(theta) cos(theta) 0; 0 0 1]
+      Oaxis = [1 0 0; 0 (-1.0)^self.CW 0; 0 0 (-1.0)^self.CW]*Oaxis
+      points = vtk.countertransform(points, inv(Oaxis), zeros(3))
+
+      # Position of leading edge in FLOVLM blade's c.s.
+      # Airfoil's x-axis = FLOWVLM blade's x-axis
+      # Airfoil's y-axis = FLOWVLM blade's z-axis
+      O = [(-1)*self.LE_x[ind], self.r[ind], (-1)^(self.CW)*self.LE_z[ind]]
+
+      # Reformats the contour into FLOWVLM blade's c.s.
+      points = [ O+[p[1], p[3], p[2]] for p in points]
+
+      if root_flg
+        lines = vcat([points], lines)
+        CP_index = vcat([[i for p in points]], CP_index)
+      else
+        push!(lines, points)
+        push!(CP_index, [i for p in points])
+      end
+    end
   end
 
   # Generates vtk cells from cross sections
