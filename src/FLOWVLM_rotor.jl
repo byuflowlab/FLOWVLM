@@ -219,7 +219,7 @@ function setRPM(self::Rotor, RPM)
 end
 
 "Saves the rotor in VTK legacy format"
-function save(self::Rotor, filename::String; addtiproot=false, args...)
+function save(self::Rotor, filename::String; addtiproot=true, args...)
   _ = getHorseshoe(self, 1) # Makes sure the wake is calculated right
 
   save(self._wingsystem, filename; args...)

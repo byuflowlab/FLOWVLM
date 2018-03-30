@@ -654,23 +654,23 @@ function save(self::Wing, filename::String;
 
     # Calculates how long to extend the semi-infinite vortices
     # factor = (x_vor_end - Ap[1])/infDA[1]
-    factor = (x_vor_end - self._xtwingdcr[i])/dot(infDA, self.Oaxis[1,:])
+    factor = abs((x_vor_end - self._xtwingdcr[i])/dot(infDA, self.Oaxis[1,:]))
     if factor>factor_tol#1/10^1
       if raise_warning1
         warn("Infinite vortex sheet avoided in visualization")
         raise_warning1 = false
       end
-      factor = (x_vor_end - self._xtwingdcr[i]) / (x_vor_end - self._xtwingdcr[1])/100
+      factor = abs((x_vor_end - self._xtwingdcr[i]) / (x_vor_end - self._xtwingdcr[1])/100)
     end
     Apinf = Ap + factor*infDA
     # factor = (x_vor_end - Bp[1])/infDB[1]
-    factor = (x_vor_end - self._xtwingdcr[i+1])/dot(infDB, self.Oaxis[1,:])
+    factor = abs((x_vor_end - self._xtwingdcr[i+1])/dot(infDB, self.Oaxis[1,:]))
     if factor>factor_tol#1/10^1
       if raise_warning1
         warn("Infinite vortex sheet avoided in visualization")
         raise_warning1 = false
       end
-      factor = (x_vor_end - self._xtwingdcr[i]) / (x_vor_end - self._xtwingdcr[1])/100
+      factor = abs((x_vor_end - self._xtwingdcr[i]) / (x_vor_end - self._xtwingdcr[1])/100)
     end
     Bpinf = Bp + factor*infDB
 
