@@ -32,7 +32,7 @@ global HS_hash = Dict( "Ap" => 1,
 
 # ------------ PARAMETERS ------------------------------------------------------
 # Criteria of colinearity
-const col_crit = 1/10^12  # NOTE: Anything less than 1/10^15 reaches float precision.
+const col_crit = 1/10^8  # NOTE: Anything less than 1/10^15 reaches float precision.
 
 
 global n_col = 0          # Number of colinears found
