@@ -118,7 +118,7 @@ end
 
 "Initializes the geometry of the rotor, discretizing each blade into n lattices"
 function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
-                          central=false, refinement=[], rfl_args...)
+                          central=false, refinement=[], verif=false, rfl_args...)
   # Checks for arguments consistency
   _check(self)
 
@@ -131,6 +131,9 @@ function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
   self._r, self._chord, self._theta = r, chord, theta
   self._LE_x, self._LE_z = LE_x, LE_z
   self.m = get_m(blade)
+
+  # Verifies correct lattice and blade elements discretization
+  if verif; _verif_discr(self, blade, r, chord, theta, LE_x, LE_z); end;
 
   # Generates airfoil properties at all control points of this blade
   if rfl_flag; _calc_airfoils(self, n, r_lat, central, refinement; rfl_args...); end;
@@ -798,12 +801,13 @@ end
 
 "Generates the blade and discretizes it into lattices"
 function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
-                          central=false, refinement=[])
+                          central=false, refinement=[], spl_k=5)
 
   # Splines
-  spline_k = min(size(self.r)[1]-1, 3)
+  spline_k = min(size(self.r)[1]-1, spl_k)
   spline_bc = "error"
-  spline_s = 0.001
+  # spline_s = 0.001
+  spline_s = 0.01
   _spl_chord = Dierckx.Spline1D(self.r, self.chord; k=spline_k,s=spline_s)
   _spl_theta = Dierckx.Spline1D(self.r, self.theta; k=spline_k,s=spline_s)
   _spl_LE_x = Dierckx.Spline1D(self.r, self.LE_x; k=spline_k,s=spline_s)
@@ -923,6 +927,67 @@ function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
   end
 
   return blade, out_r, out_chord, out_theta, out_LE_x, out_LE_z
+end
+
+"Verifies correct splining for lattice and element discretization"
+function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
+                                      elem_LE_x, elem_LE_z)
+
+  # Original data
+  r, chord, theta = self.r, self.chord, self.theta
+  LE_x, LE_z = self.LE_x, self.LE_z
+  Rtip = self.r[end]
+
+  # Lattice discretization
+  vlm_r, vlm_chord, vlm_theta, vlm_LE_x, vlm_LE_z = [[] for i in 1:5]
+  for i in 1:get_m(blade)+1
+    lex = blade._xlwingdcr[i]
+    ley = blade._ywingdcr[i]
+    lez = blade._zlwingdcr[i]
+    tex = blade._xtwingdcr[i]
+    tey = ley
+    tez = blade._ztwingdcr[i]
+    le = [lex,ley,lez]
+    te = [tex,tey,tez]
+
+    c = norm(le-te)
+    tht = 180/pi*atan2((le-te)[3],-(le-te)[1])
+
+    push!(vlm_r, ley)
+    push!(vlm_chord, c)
+    push!(vlm_theta, tht)
+    push!(vlm_LE_x, lex)
+    push!(vlm_LE_z, lez)
+  end
+
+  # Plots
+  fig = figure("discret_verif", figsize=(7*2,5*2))
+  for (i,(lbl, cr, cchord, ctheta, cLE_x, cLE_z)) in enumerate([
+              ["Element", elem_r, elem_chord, elem_theta, elem_LE_x, elem_LE_z],
+              ["Lattice", vlm_r, vlm_chord, vlm_theta, vlm_LE_x, vlm_LE_z]])
+    subplot(220+2*(i-1)+1)
+
+    title("Discretization Verification - $lbl")
+    plot(r/Rtip, chord/Rtip, "ok", label="Chord data")
+    plot(cr/Rtip, cchord/Rtip, "--or", label="Chord Spline")
+    plot(r/Rtip, LE_x/Rtip, "^k", label="LE-x data")
+    plot(cr/Rtip, -cLE_x/Rtip, "--^g", label="LE-x Spline")
+    plot(r/Rtip, LE_z/Rtip, "*k", label="LE-z data")
+    plot(cr/Rtip, cLE_z/Rtip, "--*b", label="LE-z Spline")
+    xlabel(L"$r/R$")
+    ylabel(L"$c/R$, $x/R$, $z/R$")
+    legend(loc="best")
+    grid(true, color="0.8", linestyle="--")
+
+    subplot(220+2*(i-1)+2)
+    plot(r/Rtip, theta, "ok", label="Twist data")
+    plot(cr/Rtip, ctheta, "--^r", label="Twist Spline")
+    xlabel(L"$r/R$")
+    ylabel(L"Twist $\theta$ ($^\circ$)")
+    legend(loc="best")
+    grid(true, color="0.8", linestyle="--")
+  end
+
 end
 
 "Calculates the airfoils at each control point"
