@@ -168,15 +168,24 @@ includes the fields Ftot, L, D, and S.
 If include_comps==true it stores CCBlade-calculated normal and tangential forces
 in the Rotor."
 function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
-                            include_comps::Bool=false)
+                            include_comps::Bool=false, return_performance::Bool=false,
+                            Vref=nothing, sound_spd=nothing)
 
   setVinf(self, Vinf)
+  setRPM(self, RPM)
 
   # (Calls a HS to make sure they have been calculated)
   _ = getHorseshoe(self, 1)
 
+  if sound_spd==nothing
+    warn("No sound speed has been provided. No Mach corrections will be applied.")
+  end
+
   # Calculates distributed load from CCBlade
-  calc_distributedloads(self, Vinf, RPM, rho; t=t, include_comps=include_comps)
+  prfrmnc = calc_distributedloads(self, Vinf, RPM, rho; t=t,
+                                        include_comps=include_comps,
+                                        return_performance=return_performance,
+                                        Vref=Vref, sound_spd=sound_spd)
 
   # Decomposes load into aerodynamic forces and calculates circulation
   gamma = calc_aerodynamicforces(self, rho)
@@ -206,6 +215,8 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
   _addsolution(self._wingsystem, "L", new_L; t=t)
   _addsolution(self._wingsystem, "D", new_D; t=t)
   _addsolution(self._wingsystem, "S", new_S; t=t)
+
+  return prfrmnc
 end
 
 "Sets Vinf(X,t) as the incoming freestream of this rotor"
@@ -508,7 +519,8 @@ each airfoil throughout operation as captured in the polar used for initializing
 the FLOWVLM Rotor. The implementation of a varying Reynolds will be left for
 future development as needed.
 """
-function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::IWrap, turbine_flag::Bool)
+function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::IWrap, turbine_flag::Bool;
+                          sound_spd=nothing)
   # ERROR CASES
   if size(self.airfoils)[1]<2
     error("Airfoil data not found when generating CCBlade Rotor.")
@@ -529,14 +541,27 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::IWrap, turbine_flag::Bool)
   af = ccb.AirfoilData[]
   for (i,polar) in enumerate(self._polars)
 
-    # 3D corrections
     r_over_R = self._r[i] / Rtip
     c_over_r = self._chord[i] / self._r[i]
     #   NOTE: Here I'm taking the freestream to be the absolute value CCBlade's
     #   x-component of inflow. This may cause problems when the flow is reversed
     this_Vinf = abs(inflows[i][1])
     tsr = this_Vinf < 1e-4 ? nothing : (2*pi*RPM/60 * Rtip) / this_Vinf
-    this_polar = ap.correction3D(polar, r_over_R, c_over_r, tsr)
+
+    # Mach correction
+    if sound_spd!=nothing
+      Ma = norm(inflows[i])/sound_spd
+      alpha, cl = ap.get_cl(polar)
+      geom = ap.get_geometry(polar)
+      this_polar = ap.Polar(ap.get_Re(polar), alpha, cl/sqrt(1-Ma^2),
+                              ap.get_cd(polar)[2], ap.get_cm(polar)[2],
+                              geom[1], geom[2])
+    else
+      this_polar = polar
+    end
+
+    # 3D corrections
+    this_polar = ap.correction3D(this_polar, r_over_R, c_over_r, tsr)
 
     # 360 extrapolation
     CDmax = 1.3
@@ -548,7 +573,7 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::IWrap, turbine_flag::Bool)
     # Converts to CCBlade's AirfoilData object
     alpha, cl = ap.get_cl(this_polar)
     _, cd = ap.get_cd(this_polar)
-    ccb_polar = ccb.af_from_data(alpha, cl, cd)
+    ccb_polar = ccb.af_from_data(alpha, cl, cd; spl_k=5)
 
     push!(af, ccb_polar)
   end
@@ -615,9 +640,14 @@ end
 tangential (Tp) components relative to the plane of rotation as given by
 CCBlade, if `include_comps==true`.
 
+If `return_performance==true`, it returns propulsive efficiency `eta`,
+thrust coefficient `CT`, and torque coefficient `CQ` of each blade.
+
 NOTE: These loads are per unit length of span"
 function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
-                                    t::FWrap=0.0, include_comps=false)
+                                t::FWrap=0.0, include_comps=false,
+                                return_performance=false, Vref=nothing,
+                                sound_spd=nothing)
   data = Array{FArrWrap}[]
   if include_comps
     data_Np = FArrWrap[]
@@ -628,6 +658,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
 
   # Calculates inflows
   calc_inflow(self, Vinf, RPM; t=t)
+
+  if return_performance; coeffs = []; end;
 
   # Distributed load on each blade
   for blade_i in 1:self.B
@@ -640,8 +672,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     ccbinflow = ccb.Inflow(inflow_x, inflow_y, rho) # propeller swapping sign in CCBlade
 
     # Generates CCBlade Rotor object
-    ccbrotor = FLOWVLM2CCBlade(self, RPM, blade_i, turbine_flag)
-
+    ccbrotor = FLOWVLM2CCBlade(self, RPM, blade_i, turbine_flag;
+                                                            sound_spd=sound_spd)
     # Calls CCBlade
     # NOTE TO SELF: Forces normal and tangential to the plane of rotation
     Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, turbine_flag)
@@ -655,6 +687,17 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     if include_comps
       push!(data_Np, Np)
       push!(data_Tp, Tp)
+    end
+
+    if return_performance
+      if Vref==nothing
+        error("Performance coefficients requested, but no reference freestream"*
+              " has been provided.")
+      end
+      T, Q = ccb.thrusttorque(ccbrotor, [ccbinflow], turbine_flag)
+      eta, CT, CQ = ccb.nondim(T, Q, Vref, 2*pi*RPM/60, rho,
+                                ccbrotor.Rtip, ccbrotor.precone, turbine_flag)
+      push!(coeffs, [eta,CT,CQ])
     end
   end
 
@@ -678,6 +721,12 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                 "field_data" => data_Tp
                 )
     self.sol[field["field_name"]] = field
+  end
+
+  if return_performance
+    return coeffs
+  else
+    return nothing
   end
 end
 
