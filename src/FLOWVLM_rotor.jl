@@ -169,7 +169,7 @@ If include_comps==true it stores CCBlade-calculated normal and tangential forces
 in the Rotor."
 function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=false, return_performance::Bool=false,
-                            Vref=nothing, sound_spd=nothing)
+                            Vref=nothing, sound_spd=nothing, Uinds=nothing)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -185,7 +185,8 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
   prfrmnc = calc_distributedloads(self, Vinf, RPM, rho; t=t,
                                         include_comps=include_comps,
                                         return_performance=return_performance,
-                                        Vref=Vref, sound_spd=sound_spd)
+                                        Vref=Vref, sound_spd=sound_spd,
+                                        Uinds=Uinds)
 
   # Decomposes load into aerodynamic forces and calculates circulation
   gamma = calc_aerodynamicforces(self, rho)
@@ -647,6 +648,7 @@ NOTE: These loads are per unit length of span"
 function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 t::FWrap=0.0, include_comps=false,
                                 return_performance=false, Vref=nothing,
+                                Uinds=nothing,
                                 sound_spd=nothing)
   data = Array{FArrWrap}[]
   if include_comps
@@ -699,6 +701,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 ccbrotor.Rtip, ccbrotor.precone, turbine_flag)
       push!(coeffs, [eta,CT,CQ])
     end
+
+    if Uinds!=nothing; push!(Uinds, [uvec, vvec]); end;
   end
 
   # Adds solution fields
