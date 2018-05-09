@@ -32,7 +32,8 @@ global HS_hash = Dict( "Ap" => 1,
 
 # ------------ PARAMETERS ------------------------------------------------------
 # Criteria of colinearity
-const col_crit = 1/10^8  # NOTE: Anything less than 1/10^15 reaches float precision.
+# const col_crit = 1/10^8  # NOTE: Anything less than 1/10^15 reaches float precision.
+const col_crit = 1e-8
 
 
 global n_col = 0          # Number of colinears found
@@ -42,6 +43,12 @@ function _mute_warning(booln::Bool)
   global mute_warning = booln
 end
 
+global regularize = false
+function _regularize(booln::Bool)
+  global regularize = booln
+end
+# const core_rad = FWrap(5e-10)
+const core_rad = FWrap(1e-9)
 
 
 ################################################################################
@@ -178,7 +185,7 @@ function _V_AB(A::FArrWrap, B, C, gamma; ign_col::Bool=false)
   r1 = C-A
   r2 = C-B
   crss = cross(r1,r2)
-  magsqr = dot(crss, crss)
+  magsqr = dot(crss, crss) + (regularize ? core_rad : 0)
 
   # Checks colinearity
   if _check_collinear(magsqr/norm(r0), col_crit; ign_col=ign_col)
@@ -218,7 +225,7 @@ function _V_Ainf_out(A::FArrWrap,
 
   ApC = C - Ap
   crss = cross(infD, ApC)
-  mag = sqrt(dot(crss, crss))
+  mag = sqrt(dot(crss, crss) + (regularize ? core_rad : 0) )
 
   # Checks colinearity
   if _check_collinear(mag, col_crit; ign_col=ign_col)
