@@ -595,7 +595,8 @@ end
 
 "Saves the wing domain in VTK legacy format"
 function save(self::Wing, filename::String;
-                  save_horseshoes::Bool=true,
+                  save_horseshoes::Bool=true, only_horseshoes::Bool=false,
+                  infinite_vortex::Bool=true,
                   path::String="", comment::String="",
                   num=nothing, t::FWrap=0.0)
   aux = num!=nothing ? ".$num" : ""
@@ -617,8 +618,9 @@ function save(self::Wing, filename::String;
   write(f, header)
 
   # POINTS
-  nle = n
-  nte = n
+  nle = only_horseshoes ? 0 : n
+  nte = only_horseshoes ? 0 : n
+  nlat = only_horseshoes ? 0 : n-1
   ncp = n-1
   if save_horseshoes
     nhs = n-1
@@ -662,7 +664,7 @@ function save(self::Wing, filename::String;
       end
       factor = abs((x_vor_end - self._xtwingdcr[i]) / (x_vor_end - self._xtwingdcr[1])/100)
     end
-    Apinf = Ap + factor*infDA
+    Apinf = Ap + factor*infDA*(infinite_vortex ? 1 : 0)
     # factor = (x_vor_end - Bp[1])/infDB[1]
     factor = abs((x_vor_end - self._xtwingdcr[i+1])/dot(infDB, self.Oaxis[1,:]))
     if factor>factor_tol#1/10^1
@@ -672,7 +674,7 @@ function save(self::Wing, filename::String;
       end
       factor = abs((x_vor_end - self._xtwingdcr[i]) / (x_vor_end - self._xtwingdcr[1])/100)
     end
-    Bpinf = Bp + factor*infDB
+    Bpinf = Bp + factor*infDB*(infinite_vortex ? 1 : 0)
 
     for point in [Apinf, Ap, A, B, Bp, Bpinf]
       line = string(point[1], " ", point[2], " ", point[3])
@@ -681,10 +683,10 @@ function save(self::Wing, filename::String;
   end
 
   # CELLS
-  write(f, string("\n\n", "CELLS ", n-1+ncp+nhs,
-                  " ", (n-1)*5 + ncp*2 + nhs*7))
+  write(f, string("\n\n", "CELLS ", nlat+ncp+nhs,
+                  " ", nlat*5 + ncp*2 + nhs*7))
   ## Lattices
-  for i in 0:n-2
+  for i in 0:nlat-1
     line = string(4, " ", i, " ", i+nle, " ", i+nle+1, " ", i+1)
     write(f, string("\n", line))
   end
@@ -708,9 +710,9 @@ function save(self::Wing, filename::String;
 
 
   # CELL TYPES
-  write(f, string("\n\n", "CELL_TYPES ", n-1+ncp+nhs))
+  write(f, string("\n\n", "CELL_TYPES ", nlat+ncp+nhs))
   ## Lattices
-  for i in 0:n-2
+  for i in 0:nlat-1
     write(f, string("\n", 9))
   end
   ## Control points
@@ -731,13 +733,13 @@ function save(self::Wing, filename::String;
     end
 
     if initiated==false
-      write(f, string("\n\n", "CELL_DATA ", n-1+ncp+nhs))
+      write(f, string("\n\n", "CELL_DATA ", nlat+ncp+nhs))
       initiated = true
     end
 
     if FIELDS[field_name][2]=="vector"
       write(f, string("\n\n", "VECTORS ", field_name," float"))
-      for i in 1:n-1+ncp+nhs
+      for i in 1:nlat+ncp+nhs
             vect = self.sol[field_name][(i-1)%ncp+1]
             line = string(vect[1], " ", vect[2], " ", vect[3])
             write(f, string("\n", line))
@@ -745,7 +747,7 @@ function save(self::Wing, filename::String;
     elseif FIELDS[field_name][2]=="scalar"
       write(f, string("\n\n", "SCALARS ", field_name," float"))
       write(f, string("\n", "LOOKUP_TABLE default"))
-      for i in 1:n-1+ncp+nhs
+      for i in 1:nlat+ncp+nhs
             sclr = self.sol[field_name][(i-1)%ncp+1]
             try
               line = string(isnan(sclr) ? -1 : sclr)
@@ -764,14 +766,9 @@ function save(self::Wing, filename::String;
   close(f)
 end
 
-function save(self::WingSystem, filename::String;
-                    save_horseshoes::Bool=true,
-                    path::String="", comment::String="",
-                    num=nothing, t::FWrap=0.0)
+function save(self::WingSystem, filename::String; optargs...)
   for (i, wing) in enumerate(self.wings)
-    save(wing, "$(filename)_$(self.wing_names[i])",
-                save_horseshoes=save_horseshoes,
-                path=path, comment=comment, num=num, t=t)
+    save(wing, "$(filename)_$(self.wing_names[i])"; optargs...)
   end
 end
 

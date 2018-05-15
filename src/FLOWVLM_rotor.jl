@@ -234,13 +234,14 @@ function setRPM(self::Rotor, RPM)
 end
 
 "Saves the rotor in VTK legacy format"
-function save(self::Rotor, filename::String; addtiproot=true, args...)
+function save(self::Rotor, filename::String; addtiproot=true, airfoils=false,
+                                                                        args...)
   _ = getHorseshoe(self, 1) # Makes sure the wake is calculated right
 
   save(self._wingsystem, filename; args...)
 
   if size(self.airfoils)[1]!=0
-    save_loft(self, filename; addtiproot=addtiproot, args...)
+    save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils, args...)
   end
 end
 
@@ -373,7 +374,8 @@ function getHorseshoe(self::Rotor, m::IWrap; t::FWrap=0.0, extraVinf...)
 end
 
 "Saves the lofted surface of the blade"
-function save_loft(self::Rotor, filename::String; addtiproot=false, path="", num=nothing, args...)
+function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
+                      num=nothing, airfoils=false, args...)
   # ERROR CASES
   if size(self.airfoils)[1]<2
     error("Requested lofted surface, but no airfoil geometry was given.")
@@ -383,6 +385,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="", num
 
 
   suf = "loft"
+  rfl_suf = "rfl"
 
   CP_index = []       # Stores the CP index in order to hash the points
   lines = []          # Contour lines of cross sections
@@ -457,6 +460,9 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="", num
   sections = [ [(1.0, 1, 1.0, false)] for i in 1:size(lines)[1]-1]
   points, vtk_cells, CP_index = vtk.multilines2vtkmulticells(lines, sections;
                                                       point_datas=CP_index)
+  if airfoils
+    line_points, vtk_lines, _ = vtk.lines2vtk(lines)
+  end
 
   # Generates each blade
   for i in 1:self.B # Iterates over blades
@@ -465,6 +471,10 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="", num
     # Transforms points from FLOWVLM blade's c.s. to global c.s.
     this_points = FArrWrap[ vtk.countertransform(p, this_blade.invOaxis,
                                     this_blade.O) for p in points]
+    if airfoils
+      this_line_points = FArrWrap[ vtk.countertransform(p, this_blade.invOaxis,
+                                    this_blade.O) for p in line_points]
+    end
 
     # Formats the point data for generateVTK
     data = []
@@ -496,6 +506,12 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="", num
     this_name = filename*"_"*self._wingsystem.wing_names[i]*"_"*suf
     vtk.generateVTK(this_name, this_points; cells=vtk_cells, point_data=data,
                                 path=path, num=num)
+    if airfoils
+      this_linename = filename*"_"*self._wingsystem.wing_names[i]*"_"*rfl_suf
+      vtk.generateVTK(this_linename, this_line_points; cells=vtk_lines,
+                                path=path, num=num)
+    end
+
   end
 end
 
