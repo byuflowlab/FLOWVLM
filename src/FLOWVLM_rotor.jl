@@ -3,8 +3,9 @@
 # hardcoded:
 
 # CCBlade https://github.com/byuflowlab/ccblade
-ccblade_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/CCBlade/"
-include(ccblade_path*"src/CCBlade.jl")
+# ccblade_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/CCBlade/"
+# include(ccblade_path*"src/CCBlade.jl")
+import CCBlade
 ccb = CCBlade
 
 
