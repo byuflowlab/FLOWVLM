@@ -462,6 +462,65 @@ function simpleWing(b::FWrap, ar::FWrap, tr::FWrap,
 end
 
 """
+  Returns a wing of elliptic load distribution (no sweep, no dihedral, no
+tapper). Give it `elliptic="twist"` to get an elliptic twist distribution,
+otherwise it will build an elliptic chord distribution.
+"""
+function ellipticWing(b::FWrap, croot::FWrap, twistroot::FWrap; elliptic="chord",
+                    n::IWrap=20, r::FWrap=2.0, central=false, refinement=[])
+
+  # Span positions
+  if size(refinement,1)!=0
+    LE_ys = vtk.multidiscretize(x->x, 0, b/2, refinement)
+  else
+    LE_ys = vtk.discretize(x->x, 0, b/2, n, r; central=central)
+  end
+
+  ell = 1-(2*LE_ys/b).^2
+  for i in 1:size(ell,1)
+    if ell[i]<0
+      if abs(ell[i])<1e-10
+        ell[i] = 0
+      else
+        error("Logic error! Found negative elliptic value $ell")
+      end
+    end
+  end
+
+  # Elliptic distribution
+  if elliptic=="chord"
+      chords = croot*sqrt.(ell)
+      chords[end] = (chords[end-1]+chords[end])/2
+      twists = twistroot*ones(size(LE_ys))
+
+  elseif elliptic=="twist"
+      chords = croot*ones(size(LE_ys))
+      twists = twistroot*sqrt.(ell)
+
+  else
+    error("Invalid elliptic mode $elliptic")
+  end
+
+  LE_xs = -0.25*chords.*cos.(twists*pi/180)
+  LE_zs = -0.25*chords.*sin.(twists*pi/180)
+
+  # Builds wing
+  wing = Wing(LE_xs[end], -LE_ys[end], LE_zs[end], chords[end], chords[end])
+  for (xs, ys, zs, chs, tws) in [reverse.([LE_xs, -LE_ys, LE_zs, chords, twists]),
+                                                [LE_xs, LE_ys, LE_zs, chords, twists]]
+    for (i,y) in enumerate(ys)
+      if i==1
+        nothing
+      else
+        addchord(wing, xs[i], ys[i], zs[i], chs[i], tws[i], 1;)
+      end
+    end
+  end
+
+  return wing
+end
+
+"""
     `complexWing(b::Float64, AR::Float64, tr::Float64, n::Int64,
                         pos::Array{Float64,1}, twist::Array{Float64,1},
                         sweep::Array{Float64,1}, dihed::Array{Float64,1};

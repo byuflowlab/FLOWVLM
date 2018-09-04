@@ -25,11 +25,12 @@ include(airfoil_path*"src/airfoilprep.jl")
 ap = airfoilprep
 
 # VTKtools https://github.com/byuflowlab/VTKtools.jl
-vtktools_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/VTKtools/"
+# vtktools_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/GeometricTools/"
 # push!(LOAD_PATH, joinpath(vtktools_path,"src/"))
 # using VTKtools
-include(vtktools_path*"src/VTKtools.jl")
-vtk = VTKtools
+# include(vtktools_path*"src/GeometricTools.jl")
+import GeometricTools
+vtk = GeometricTools
 
 
 # ------------ HEADERS ---------------------------------------------------------

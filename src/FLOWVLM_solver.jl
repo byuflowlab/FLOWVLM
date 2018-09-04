@@ -20,7 +20,7 @@ include("FLOWVLM_dt.jl")
 #
 # infDA and infDB must be unitary vectors pointing from the trailing edge in
 # the direction of infinite.
-global HS_hash = Dict( "Ap" => 1,
+const HS_hash = Dict( "Ap" => 1,
                        "A"  => 2,
                        "B"  => 3,
                        "Bp" => 4,
@@ -156,7 +156,8 @@ end
 Returns the induced velocity at `C` by horseshoe `HS`.
 It returns the geometric factor if `Gamma`==nothing.
 """
-function V(HS::Array{Any,1}, C; ign_col::Bool=false, ign_infvortex::Bool=false)
+# function V(HS::Array{Any,1}, C; ign_col::Bool=false, ign_infvortex::Bool=false)
+function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false)
   Ap, A, B, Bp, CP, infDA, infDB, Gamma = HS
   VApA = _V_AB(Ap, A, C, Gamma; ign_col=ign_col)
   VAB = _V_AB(A, B, C, Gamma; ign_col=ign_col)
