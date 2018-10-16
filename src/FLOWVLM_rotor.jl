@@ -163,6 +163,33 @@ function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
   setcoordsystem(self._wingsystem, [0.0,0,0], rotor_Oaxis)
 end
 
+"""Given the velocity induced at each control point (Vind = Vliftsurface+Vwake),
+solves for the Gamma field (circulation) on each blade by looking at the airfoil
+polar at the effective angle of attack of every section. It also includes the
+fields Ftot, L, D, and S.
+
+NOTE: Vind is expected to be in the global coordinate system.
+NOTE: Vind is expected to be formated as Vind[i][j] being the velocity vector
+of the j-th control point in the i-th blade.
+"""
+function solvefromV(self::Rotor, Vind::Array{Array{T, 1}, 1}, args...;
+                                                  optargs...) where{T<:FArrWrap}
+  # ERROR CASES
+  if size(Vind, 1)!=self.B
+    error("Expected $(self.B) Vind entries; got $(size(Vind, 1)).")
+  else
+    for bi in 1:self.B
+      if size(Vind[bi],1)!=get_mBlade(self)
+        error("Expected $(get_mBlade(self)) Vind[$bi] entries;"*
+              " got $(size(Vind[i],1)).")
+      end
+    end
+  end
+
+  return solvefromCCBlade(self, args...; _lookuptable=true, _Vinds=Vind,
+                                                                    optargs...)
+end
+
 "Solves for the Gamma field (circulation) on each blade using CCBlade. It also
 includes the fields Ftot, L, D, and S.
 
@@ -170,7 +197,8 @@ If include_comps==true it stores CCBlade-calculated normal and tangential forces
 in the Rotor."
 function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=false, return_performance::Bool=false,
-                            Vref=nothing, sound_spd=nothing, Uinds=nothing)
+                            Vref=nothing, sound_spd=nothing, Uinds=nothing,
+                            _lookuptable::Bool=false, _Vinds=nothing)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -187,7 +215,8 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                                         include_comps=include_comps,
                                         return_performance=return_performance,
                                         Vref=Vref, sound_spd=sound_spd,
-                                        Uinds=Uinds)
+                                        Uinds=Uinds,
+                                        _lookuptable=_lookuptable, _Vinds=_Vinds)
 
   # Decomposes load into aerodynamic forces and calculates circulation
   gamma = calc_aerodynamicforces(self, rho)
@@ -608,7 +637,7 @@ end
 "Receives the freestream velocity function V(x,t) and the current RPM of the
 rotor, and it calculates the inflow velocity field that each control point
 sees in the global coordinate system"
-function calc_inflow(self::Rotor, Vinf, RPM; t::FWrap=0.0)
+function calc_inflow(self::Rotor, Vinf, RPM; t::FWrap=0.0, Vinds=nothing)
   omega = 2*pi*RPM/60
 
   data_Vtots = Array{FArrWrap}[]     # Inflow in the global c.s.
@@ -630,6 +659,12 @@ function calc_inflow(self::Rotor, Vinf, RPM; t::FWrap=0.0)
       this_Vrot = countertransform(this_Vrot, blade.invOaxis, zeros(3))
 
       this_Vtot = this_Vinf + this_Vrot
+
+      # Adds any extra induced velocity
+      if Vinds!=nothing
+        this_Vtot += Vinds[i][j]
+      end
+
       push!(Vtots, this_Vtot)
       push!(Vccbs, _global2ccblade(blade, this_Vtot, self.CW))
     end
@@ -666,7 +701,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 t::FWrap=0.0, include_comps=false,
                                 return_performance=false, Vref=nothing,
                                 Uinds=nothing,
-                                sound_spd=nothing)
+                                sound_spd=nothing,
+                                _lookuptable::Bool=false, _Vinds=nothing)
   data = Array{FArrWrap}[]
   if include_comps
     data_Np = FArrWrap[]
@@ -676,7 +712,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
   turbine_flag = false  # This is a flag for ccblade to swap signs
 
   # Calculates inflows
-  calc_inflow(self, Vinf, RPM; t=t)
+  calc_inflow(self, Vinf, RPM; t=t, Vinds=(_lookuptable ? _Vinds : nothing) )
 
   if return_performance; coeffs = []; end;
 
@@ -693,9 +729,15 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     # Generates CCBlade Rotor object
     ccbrotor = FLOWVLM2CCBlade(self, RPM, blade_i, turbine_flag;
                                                             sound_spd=sound_spd)
-    # Calls CCBlade
-    # NOTE TO SELF: Forces normal and tangential to the plane of rotation
-    Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, turbine_flag)
+
+    if _lookuptable
+      Np, Tp, uvec, vvec = _calc_distributedloads_lookuptable(ccbrotor, ccbinflow, turbine_flag)
+
+    else
+      # Calls CCBlade
+      # NOTE TO SELF: Forces normal and tangential to the plane of rotation
+      Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, turbine_flag)
+    end
 
     # Convert forces from CCBlade's c.s. to global c.s.
     ccb_Fs = [ [Np[i], Tp[i], 0.0] for i in 1:get_mBlade(self) ]
@@ -1226,6 +1268,52 @@ function _calc_inflow(blade::Wing, RPM, t::FWrap; target="CP")
   end
 
   return out
+end
+
+"""Calculates the load distribution by using the airfoil lookup table on the
+given inflow (this assumes that the inflow already includes all induced velocity
+and it is the effective inflow).
+"""
+function _calc_distributedloads_lookuptable(ccbrotor::ccb.Rotor,
+                                            ccbinflow::ccb.Inflow,
+                                            turbine_flag::Bool)
+
+  # check if propeller
+  # swapsign = turbine_flag ? 1 : -1
+  swapsign = 1
+
+  # initialize arrays
+  n = length(ccbrotor.r)
+  Np = zeros(n)
+  Tp = zeros(n)
+  uvec = zeros(n)
+  vvec = zeros(n)
+
+  for i in 1:n
+    twist = swapsign*ccbrotor.theta[i]
+    # Vx = swapsign*ccbinflow.Vx[i]
+    Vx = -ccbinflow.Vx[i]
+    Vy = ccbinflow.Vy[i]
+
+    aux1 = 0.5*ccbinflow.rho*(Vx*Vx+Vy*Vy)*ccbrotor.chord[i]
+
+    # Effective angle of attack (rad)
+    thetaeff = twist + swapsign*atan2(Vx, Vy)
+    # println("angles = $([twist, thetaeff]*180/pi)\tVx,Vy=$([Vx, Vy])")
+
+    # airfoil cl/cd
+    cl, cd = ccb.airfoil(ccbrotor.af[i], thetaeff)
+
+    # Normal and tangential forces per unit length
+    Np[i] = cl*aux1
+    Tp[i] = cd*aux1
+  end
+
+  # reverse sign of outputs for propellers
+  Tp *= swapsign
+  vvec *= swapsign
+
+  return Np, Tp, uvec, vvec
 end
 
 """Receives a vector in the global coordinate system and transforms it into
