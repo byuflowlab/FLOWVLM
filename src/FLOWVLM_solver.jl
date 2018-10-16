@@ -34,6 +34,7 @@ const HS_hash = Dict( "Ap" => 1,
 # Criteria of colinearity
 # const col_crit = 1/10^8  # NOTE: Anything less than 1/10^15 reaches float precision.
 const col_crit = 1e-8
+# const col_crit = 1e-6
 
 
 global n_col = 0          # Number of colinears found
@@ -49,6 +50,19 @@ function _regularize(booln::Bool)
 end
 # const core_rad = FWrap(5e-10)
 const core_rad = FWrap(1e-9)
+
+
+global blobify = false
+function _blobify(booln::Bool)
+  global blobify = booln
+end
+global smoothing_rad = FWrap(1e-9)
+function _smoothing_rad(val::Real)
+  global smoothing_rad = FWrap(val)
+end
+
+# Wincklman's regularizing function
+gw(r, sgm) = (r./sgm).^3.*((r./sgm).^2+5/2)./((r./sgm).^2+1).^(5/2)
 
 
 ################################################################################
@@ -200,6 +214,11 @@ function _V_AB(A::FArrWrap, B, C, gamma; ign_col::Bool=false)
   aux = r1/sqrt(dot(r1,r1)) - r2/sqrt(dot(r2,r2))
   F2 = dot(r0, aux)
 
+  if blobify
+    # println("Blobified! $smoothing_rad")
+    F1 *= gw(norm(r1-dot(r0/norm(r0), r1)*r0/norm(r0)), smoothing_rad)
+  end
+
   if gamma==nothing
     return F1*F2
   else
@@ -239,6 +258,10 @@ function _V_Ainf_out(A::FArrWrap,
   h = mag/sqrt(dot(infD, infD))
   n = crss/mag
   F = n/h
+
+  if blobify
+    F *= gw(h, smoothing_rad)
+  end
 
   if gamma==nothing
     return F + boundAAp
