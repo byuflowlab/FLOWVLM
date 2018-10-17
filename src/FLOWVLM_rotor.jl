@@ -163,10 +163,66 @@ function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
   setcoordsystem(self._wingsystem, [0.0,0,0], rotor_Oaxis)
 end
 
+
+"""Given the velocity induced at each control point (Vind = Vwake, no lifting
+surface), solves for the Gamma field (circulation) on each blade by looking at
+the airfoil polar at the effective angle of attack of every section. It also
+includes the fields Ftot, L, D, and S.
+
+This method solves iteratively until the circulation distribution converges.
+
+NOTE: Vind is expected to be in the global coordinate system.
+NOTE: Vind is expected to be formated as Vind[i][j] being the velocity vector
+of the j-th control point in the i-th blade.
+"""
+function solvefromVite(self::Rotor, Vind::Array{Array{T, 1}, 1}, args...;
+                          maxite::Int64=100, tol::Real=0.01, optargs...
+                          ) where{T<:FArrWrap}
+
+  out = nothing
+  prev_sol = nothing
+  ite = 0
+  err = nothing
+
+  for i in 1:maxite
+
+    if i==1
+      surfVind = Vind
+    else
+      # Adds V induced by lifting surface
+      surfVind = [[ Vind[j][k] + Vind(self, getControlPoint(get_blade(self, j), k); ign_infvortex=true)
+                            for k in 1:size(Vind[j],1)] for j in 1:size(Vind,1)]
+    end
+
+    out = solvefromV(self, surfVind, args...; optargs...)
+    this_sol = vcat([get_blade(self, j).sol["Gamma"] for j in 1:self.B]...)
+
+    if i!=1
+      # Checking convergence: Average variation
+      err = mean( abs.(prev_sol-this_sol)./abs.(prev_sol) )
+      if err < tol
+        break
+      end
+    end
+
+    prev_sol = this_sol
+    ite += 1
+  end
+
+  if ite==maxite
+    warn("Iterative Rotor solvefromV reached max iterations without converging."
+        *" maxite:$maxite\t error:$err")
+  end
+
+  return out
+end
+
 """Given the velocity induced at each control point (Vind = Vliftsurface+Vwake),
 solves for the Gamma field (circulation) on each blade by looking at the airfoil
 polar at the effective angle of attack of every section. It also includes the
 fields Ftot, L, D, and S.
+
+THIS METHOD IS UNSTABLE.
 
 NOTE: Vind is expected to be in the global coordinate system.
 NOTE: Vind is expected to be formated as Vind[i][j] being the velocity vector
@@ -598,6 +654,9 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::IWrap, turbine_flag::Bool;
     # Mach correction
     if sound_spd!=nothing
       Ma = norm(inflows[i])/sound_spd
+      if Ma>=1
+        error("Mach correction requested on Ma = $Ma >= 1.0")
+      end
       alpha, cl = ap.get_cl(polar)
       geom = ap.get_geometry(polar)
       this_polar = ap.Polar(ap.get_Re(polar), alpha, cl/sqrt(1-Ma^2),
