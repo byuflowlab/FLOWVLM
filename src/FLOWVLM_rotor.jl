@@ -252,7 +252,7 @@ includes the fields Ftot, L, D, and S.
 If include_comps==true it stores CCBlade-calculated normal and tangential forces
 in the Rotor."
 function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
-                            include_comps::Bool=false, return_performance::Bool=false,
+                            include_comps::Bool=true, return_performance::Bool=false,
                             Vref=nothing, sound_spd=nothing, Uinds=nothing,
                             _lookuptable::Bool=false, _Vinds=nothing)
 
@@ -267,7 +267,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
   end
 
   # Calculates distributed load from CCBlade
-  prfrmnc = calc_distributedloads(self, Vinf, RPM, rho; t=t,
+  prfrmnc, gammas = calc_distributedloads(self, Vinf, RPM, rho; t=t,
                                         include_comps=include_comps,
                                         return_performance=return_performance,
                                         Vref=Vref, sound_spd=sound_spd,
@@ -275,7 +275,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                                         _lookuptable=_lookuptable, _Vinds=_Vinds)
 
   # Decomposes load into aerodynamic forces and calculates circulation
-  gamma = calc_aerodynamicforces(self, rho)
+  gamma = calc_aerodynamicforces(self, rho; overwritegammas=gammas)
 
   new_gamma = FWrap[]
   new_Ftot = FArrWrap[]
@@ -757,7 +757,7 @@ thrust coefficient `CT`, and torque coefficient `CQ` of each blade.
 
 NOTE: These loads are per unit length of span"
 function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
-                                t::FWrap=0.0, include_comps=false,
+                                t::FWrap=0.0, include_comps=true,
                                 return_performance=false, Vref=nothing,
                                 Uinds=nothing,
                                 sound_spd=nothing,
@@ -767,6 +767,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     data_Np = FArrWrap[]
     data_Tp = FArrWrap[]
   end
+
+  gammas = _lookuptable ? [] : nothing
 
   turbine_flag = false  # This is a flag for ccblade to swap signs
 
@@ -790,7 +792,9 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                                             sound_spd=sound_spd)
 
     if _lookuptable
-      Np, Tp, uvec, vvec = _calc_distributedloads_lookuptable(ccbrotor, ccbinflow, turbine_flag)
+      Np, Tp, uvec, vvec, gamma = _calc_distributedloads_lookuptable(ccbrotor,
+                                                        ccbinflow, turbine_flag)
+      push!(gammas, gamma)
 
     else
       # Calls CCBlade
@@ -846,16 +850,16 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
   end
 
   if return_performance
-    return coeffs
+    return coeffs, gammas
   else
-    return nothing
+    return nothing, gammas
   end
 end
 
 "Calculates sectional aerodynamic forces in a rotor where the field
 DistributedLoad has already been solved for. It also calculates the bound
 circulation Gamma"
-function calc_aerodynamicforces(self::Rotor, rho::FWrap)
+function calc_aerodynamicforces(self::Rotor, rho::FWrap; overwritegammas=nothing)
   if !("DistributedLoad" in keys(self.sol))
     error("Field `DistributedLoad` not found."*
           " Call `calc_distributedloads()` before calling this function.")
@@ -886,7 +890,11 @@ function calc_aerodynamicforces(self::Rotor, rho::FWrap)
     R = [dot(F[i], runit[i]) for i in 1:n_elem].*runit    # Radial
 
     # Calculates circulation
-    gamma = (-1)^(self.CW) * Lmag./(rho*Vmag)
+    if overwritegammas!=nothing
+      gamma = overwritegammas[blade_i]
+    else
+      gamma = (-1)^(self.CW) * Lmag./(rho*Vmag)
+    end
 
     push!(data_L, L)
     push!(data_D, D)
@@ -921,6 +929,72 @@ function calc_aerodynamicforces(self::Rotor, rho::FWrap)
   self.sol[field["field_name"]] = field
 
   return data_gamma
+end
+
+"""
+  `calc_thrust_torque(rotor)`
+
+Integrates the load distribution along every blade to return the thrust and
+torque of the rotor.
+"""
+function calc_thrust_torque(self::Rotor;)
+  # Error cases
+  if !("Np" in keys(self.sol))
+    error("Thrust calculation requested, but Np field not found."*
+          " Call `solvefromV()` or `solvefromCCBlade` before calling this"*
+          " function")
+  elseif !("Tp" in keys(self.sol))
+    error("Torque calculation requested, but Tp field not found."*
+          " Call `solvefromV()` or `solvefromCCBlade` before calling this"*
+          " function")
+  end
+
+  thrust = 0.0
+  torque = 0.0
+
+  # Radial length of every horseshoe
+  lengths = Float64[2*(self._r[1]-self.hubR)]
+  for i in 2:get_mBlade(self)
+    push!(lengths, 2*(self._r[i]-self._r[i-1])-lengths[end] )
+  end
+
+  # Verifying the logic
+  if abs((self.hubR + sum(lengths))/self.rotorR - 1) > 1e-7
+    error("LOGIC ERROR: Sum of lengths don't add up the radius."*
+          " Resulted in $((self.hubR + sum(lengths))), expected $self.rotorR.")
+  end
+
+  # Iterates over every blade
+  for blade_i in 1:self.B
+    Np = self.sol["Np"]["field_data"][blade_i]
+    Tp = self.sol["Tp"]["field_data"][blade_i]
+
+    # Iterates over every horseshoe
+    for j in 1:get_mBlade(self)
+      # Integrates over this horseshoe
+      thrust += Np[j]*lengths[j]
+      torque += Tp[j]*lengths[j]*self._r[j]
+    end
+  end
+
+  return thrust, torque
+end
+
+
+"""
+  `calc_thrust_torque_coeffs(rotor, rho, t)`
+
+Integrates the load distribution along every blade to return the thrust and
+torque coefficients of the rotor. Thrust coefficient CT calculated as
+`CT=\frac{T}{\rho n^2 D^4}`, torque coefficient CQ calculated as
+`CQ=\frac{Q}{\rho n^2 D^5}`
+"""
+function calc_thrust_torque_coeffs(self::Rotor, rho::Real)
+  thrust, torque = calc_thrust_torque(self)
+  n = self.RPM / 60
+  D = 2*self.rotorR
+
+  return thrust/(rho*n^2*D^4), torque/(rho*n^2*D^5)
 end
 
 
@@ -1338,8 +1412,7 @@ function _calc_distributedloads_lookuptable(ccbrotor::ccb.Rotor,
                                             turbine_flag::Bool)
 
   # check if propeller
-  # swapsign = turbine_flag ? 1 : -1
-  swapsign = 1
+  swapsign = turbine_flag ? 1 : -1
 
   # initialize arrays
   n = length(ccbrotor.r)
@@ -1347,32 +1420,42 @@ function _calc_distributedloads_lookuptable(ccbrotor::ccb.Rotor,
   Tp = zeros(n)
   uvec = zeros(n)
   vvec = zeros(n)
+  gamma = zeros(n)
 
   for i in 1:n
     twist = swapsign*ccbrotor.theta[i]
-    # Vx = swapsign*ccbinflow.Vx[i]
-    Vx = -ccbinflow.Vx[i]
+    Vx = swapsign*ccbinflow.Vx[i]
     Vy = ccbinflow.Vy[i]
 
     aux1 = 0.5*ccbinflow.rho*(Vx*Vx+Vy*Vy)*ccbrotor.chord[i]
 
     # Effective angle of attack (rad)
-    thetaeff = twist + swapsign*atan2(Vx, Vy)
+    thetaV = atan2(Vx, Vy)
+    thetaeff = thetaV - twist
     # println("angles = $([twist, thetaeff]*180/pi)\tVx,Vy=$([Vx, Vy])")
 
     # airfoil cl/cd
     cl, cd = ccb.airfoil(ccbrotor.af[i], thetaeff)
 
+    # normal and tangential coefficients
+    sthtV = sin(thetaV)
+    cthtV = cos(thetaV)
+    cn = cl*cthtV + cd*sthtV
+    ct = swapsign*(cl*sthtV - cd*cthtV)
+
     # Normal and tangential forces per unit length
-    Np[i] = cl*aux1
-    Tp[i] = cd*aux1
+    Np[i] = cn*aux1
+    Tp[i] = ct*aux1
+
+    # Circulation
+    gamma[i] = cl*sqrt(Vx*Vx+Vy*Vy)*ccbrotor.chord[i]/2
   end
 
   # reverse sign of outputs for propellers
-  Tp *= swapsign
+  # Tp *= swapsign # I already reversed this
   vvec *= swapsign
 
-  return Np, Tp, uvec, vvec
+  return Np, Tp, uvec, vvec, gamma
 end
 
 """Receives a vector in the global coordinate system and transforms it into
