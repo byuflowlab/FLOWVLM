@@ -891,7 +891,7 @@ function calc_aerodynamicforces(self::Rotor, rho::FWrap; overwritegammas=nothing
 
     # Calculates circulation
     if overwritegammas!=nothing
-      gamma = overwritegammas[blade_i]
+      gamma = (-1)^(self.CW) * overwritegammas[blade_i]
     else
       gamma = (-1)^(self.CW) * Lmag./(rho*Vmag)
     end
