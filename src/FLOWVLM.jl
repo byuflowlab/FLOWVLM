@@ -18,14 +18,14 @@ using Dierckx
 # The following modules are under development, hence imports here are hardcoded
 
 # Airfoil processing https://github.com/EdoAlvarezR/airfoil
-airfoil_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/airfoil/"
+airfoil_path = "/home/edoalvar/Dropbox/FLOWResearch/FLOWCodes/airfoil/"
 # push!(LOAD_PATH, joinpath(airfoil_path,"src/"))
 # using airfoilprep
 include(airfoil_path*"src/airfoilprep.jl")
 ap = airfoilprep
 
 # VTKtools https://github.com/byuflowlab/VTKtools.jl
-# vtktools_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/GeometricTools/"
+# vtktools_path = "/home/edoalvar/Dropbox/FLOWResearch/FLOWCodes/GeometricTools/"
 # push!(LOAD_PATH, joinpath(vtktools_path,"src/"))
 # using VTKtools
 # include(vtktools_path*"src/GeometricTools.jl")

@@ -566,14 +566,15 @@ Returns a Wing object made of multiple sections with the specified dimensions.
 function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
                       clen::FArrWrap, twist::FArrWrap,
                       sweep::FArrWrap, dihed::FArrWrap;
-                      symmetric::Bool=true, chordalign::FWrap=0)
+                      symmetric::Bool=true, chordalign::FWrap=0,
+                      _ign1=false)
 
   nchords = size(pos)[1]      # Number of chords
 
   # ERROR CASES
   if nchords<2
     error("At least two chords are required.")
-  elseif pos[1]!=0 || pos[end]!=1
+  elseif (pos[1]!=0 || pos[end]!=1) && !_ign1
     error("First chord must be at pos=0 and last at pos=1, got $pos.")
   elseif 1<chordalign<0
     error("Chord alignment must be between 0 and 1, got $chordalign.")
