@@ -31,16 +31,31 @@ function submarinemaneuver(;
     Dp = 1.0                    # (m) propeller diameter
     Ls = 17*Dp                  # (m) ship length
     Ds = 1.5*Dp                 # (m) ship diameter
-    N::Int64 = 10               # Lattice refinement parameter
+    N::Int64 = 5               # Lattice refinement parameter
+    nu = 1.83e-6                # (m^2/s) kinematic viscosity
 
     tend = 7*Ls/Vs              # (s) simulation end time
     # nsteps = 500               # Number of time steps in simulation
     dt = tend/nsteps            # (s) time step size
     nsteps_save = 1             # Steps in between vtk outputs
 
-    solver = "direct"           # VPM solver method
+    solver = "ExaFMM"           # VPM solver method
+    sigmafactor = 3.0           # Oversizing factor of smoothing radii
+    cs_beta = 1.000005               # Core spreading reinitialization criteria
+    sgm0 = Vs*dt*sigmafactor    # Reinitialization core size
+    overwrite_sigma = sgm0      # Overwrite all sigmas to this value
+    rbf_tol = 1e-2
+    rbf_itmax = 15
 
     Vinf(x,t) = [1e-14, 0, 0]        # Freestream velocity
+
+    vpm.set_TIMEMETH("rk")              # Time integration scheme
+    vpm.set_STRETCHSCHEME("transpose")  # Vortex stretching scheme
+    vpm.set_RELAXETA(0.1/dt)     # Relaxation param (aprox Gamma/R^2 for a ring)
+    nsteps_relax = 1           # Steps between relaxation
+    vpm.set_P2PTYPE(Int32(5)) # Barba's Gaussian kernel
+    vpm.set_PSE(false) # Whether to add viscous diffusion through PSE
+    vpm.set_CS(true) # Whether to add viscous diffusion through CS
 
     if verbose; println("\t"^v_lvl*"Revs in simulation: $(RPM/60*tend)"); end;
 
@@ -55,7 +70,8 @@ function submarinemaneuver(;
     # Ship starts facing -x, aligned with x-axis, and sail aligned with +z
 
     nman = 5                                     # Number of maneuvers
-    Lmans = Ls*[1, 0.5, 1.5, 2, 2]               # Distance traveled in each maneuver
+    # Lmans = Ls*[1, 0.15, 1.85, 2, 2]               # Distance traveled in each maneuver
+    Lmans = Ls*[1, 0*0.15, 2, 2, 2]
     tmans = [sum(Lmans[1:i]) for i in 1:nman]/Vs # Time interval in each maneuver
 
     VI = Vs*[-1, 0, 0]                           # Nominal velocity at stage
@@ -189,11 +205,7 @@ function submarinemaneuver(;
 
     # Initiate particle field
     pfield = vpm.ParticleField(Int(1e6), Vinf, nothing, solver)
-    vpm.addparticle(pfield, [zeros(3)..., ones(3)..., 1.0, 1.0])
-
-
-
-
+    pfield.nu = nu
 
     vlm.setVinf(submarine, Vinf)
 
@@ -204,6 +216,10 @@ function submarinemaneuver(;
     function runtime_function(PFIELD, T, DT)
 
         prev_liftsurfs = deepcopy(liftsurfs)
+        for i in 1:size(liftsurfs.wings,1)
+            prev_liftsurfs.wings[i] = deepcopy(liftsurfs.wings[i])
+            prev_liftsurfs.wing_names[i] = deepcopy(liftsurfs.wing_names[i])
+        end
 
         # Deflect control surfaces
         cs_angle = control_surface_angle(T)
@@ -227,16 +243,24 @@ function submarinemaneuver(;
         vlm.setcoordsystem(submarine, O_sub, Oaxis_sub)
 
         # Recalculate horseshoes with local translational velocities
-        for i in eachindex(liftsurfs.wings)
-            cur = vlm.get_wing(liftsurfs, i)
-            prev = vlm.get_wing(prev_liftsurfs, i)
+        for wname in liftsurfs.wing_names
+            prev = vlm.get_wing(prev_liftsurfs, wname)
+            cur = vlm.get_wing(liftsurfs, wname)
             vlm._calculateHSs(cur; t=T, extraVinf=Vlocal, dt=DT,
-                                                    prev_sys=prev, cur_sys=cur)
+                                    prev_sys=prev_liftsurfs, cur_sys=liftsurfs)
         end
 
         # Solves the VLM of lifting surfaces
         vlm.solve(liftsurfs, Vinf; t=T, extraVinf=Vlocal, dt=DT,
                                     prev_sys=prev_liftsurfs, cur_sys=liftsurfs)
+
+        if PFIELD.nt>1
+            # Adds particles of every lifting surface wake
+            VLM2VPM(liftsurfs, pfield, DT, sigmafactor;
+                    t=T, tol=1e-6, tol2=1e-3, check=!true, prev_system=prev_liftsurfs,
+                    extraVinf=Vlocal, dt=DT, overwrite_sigma=overwrite_sigma,
+                    prev_sys=prev_liftsurfs, cur_sys=liftsurfs)
+        end
 
 
         # Saves VLM
@@ -252,6 +276,9 @@ function submarinemaneuver(;
     # --------------- RUN THE VPM ----------------------------------------------
     vpm.run_vpm!(pfield, dt, nsteps; save_path=save_path, run_name=run_name,
                  runtime_function=runtime_function, solver_method=solver,
+                 nsteps_relax=nsteps_relax,
+                 beta=cs_beta, sgm0=sgm0, rbf_tol=rbf_tol, rbf_itmax=rbf_itmax,
+                 rbf_ign_iterror=true, rbf_verbose_warn=true,
                  nsteps_save=nsteps_save,
                  save_code=joinpath(module_path,"submarinemaneuver.jl"),
                  prompt=prompt)
@@ -297,12 +324,212 @@ function submarinemaneuver(;
 end
 
 "Returns the local translational velocity of a control point"
-function Vlocal(i, t; prev_sys=nothing, cur_sys=nothing, dt=nothing, wing=nothing)
-    prev_X = vlm.getControlPoint(prev_sys, i)
-    cur_X = vlm.getControlPoint(cur_sys, i)
+function Vlocal(i, t; prev_sys=nothing, cur_sys=nothing, dt=nothing, wing=nothing, targetX="CP")
+    cur_wing = nothing
+    prev_wing = nothing
+    for (j,w) in enumerate(cur_sys.wings)
+        if w==wing
+            cur_wing = w
+            prev_wing = prev_sys.wings[j]
+        end
+    end
+    if cur_wing==nothing
+        error("Logic error. Wing not found")
+    end
+    if targetX=="CP"
+        prev_X = vlm.getControlPoint(prev_wing, i)
+        cur_X = vlm.getControlPoint(cur_wing, i)
+    else
+        prev_X = vlm.getHorseshoe(prev_wing, i; t=t)[vlm.VLMSolver.HS_hash[targetX]]
+        cur_X = vlm.getHorseshoe(cur_wing, i; t=t)[vlm.VLMSolver.HS_hash[targetX]]
+    end
     return -(cur_X-prev_X)/dt
 end
 
+
+
+"Receives the FLOWVLM object `system` (Wing/WingSystem/Rotor), and adds vortex
+particles to the particle field `pfield` at each trailing edge position where
+an infinite vortex starts. `dt` indicates the length of the interval of time
+that the vortex shedding represents.
+
+Give it a previous system to detect differences in circulation and add
+unsteady particles."
+function VLM2VPM(system::Union{vlm.Wing, vlm.WingSystem, vlm.Rotor},
+                  pfield::vpm.ParticleField, dt::Float64, sigmafactor;
+                  t::Float64=0.0, check=true, debug=false, tol=1e-6, tol2=1e-6,
+                  add_hub=false, prev_system=nothing, ms=nothing,
+                  overwrite_sigma=nothing,
+                  extraVinf=nothing, extraVinfArgs...)
+
+  # Velocity at horseshoe points Ap and Bp
+  Vinfs_Ap = vlm.getVinfs(system; t=t, target="Ap", extraVinf=extraVinf, targetX="Ap", extraVinfArgs...)
+  Vinfs_Bp = vlm.getVinfs(system; t=t, target="Bp", extraVinf=extraVinf, targetX="Bp", extraVinfArgs...)
+
+  m = vlm.get_m(system)   # Number of lattices
+
+  # Adds a particle at each infinite vortex
+  prev_HS = [nothing for i in 1:8]
+  for i in 1:m  # Iterates over lattices
+    HS = vlm.getHorseshoe(system, i)
+
+    Ap, A, B, Bp, CP, infDA, infDB, Gamma = HS
+    (prev_Ap, prev_A, prev_B, prev_Bp, prev_CP,
+      prev_infDA, prev_infDB, prev_Gamma) = prev_HS
+    cntgs = true          # Contiguous horseshoes flag
+
+    if true in [isnan.(elem) for elem in HS]; error("Logic error! $HS"); end;
+
+    # ----------- Case of left wing tip ---------------------------
+    if i==1
+      # Adds particle at Ap
+      X = Ap                                    # Particle position
+      gamma = Gamma                             # Infinite vortex circulation
+      V = norm(Vinfs_Ap[i])                     # Freestream at X
+      infD = -infDA                             # Direction of vorticity
+      sigma = V*dt                              # Vortex blob radius
+      vol = pi*(norm(Bp-Ap)/2)^2*V*dt           # Volume of particle
+
+      if add_hub || typeof(system)!=vlm.Rotor
+        add_particle(pfield, X, gamma, dt, V, infD, sigma, vol, sigmafactor; ms=ms)
+      end
+
+    # ----------- Case of wing tip on discontinuous wing --------
+    elseif norm(Ap - prev_Bp) / norm(Bp - Ap) > tol
+      if debug; println("Wing tip found at i=$i. $Ap!=$prev_Bp"); end;
+
+      cntgs = false
+
+      # Adds particle at previous Bp
+      X = prev_Bp                               # Particle position
+      gamma = -prev_Gamma                       # Infinite vortex circulation
+      V = norm(Vinfs_Bp[i-1])                   # Freestream at X
+      infD = -prev_infDB                        # Direction of vorticity
+      sigma = V*dt                              # Vortex blob radius
+      vol = pi*(norm(prev_Bp-prev_Ap)/2)^2*V*dt # Volume of particle
+
+      add_particle(pfield, X, gamma, dt, V, infD, sigma, vol, sigmafactor; ms=ms)
+
+      # Adds particle at Ap
+      X = Ap                                    # Particle position
+      gamma = Gamma                             # Infinite vortex circulation
+      V = norm(Vinfs_Ap[i])                     # Freestream at X
+      infD = -infDA                             # Direction of vorticity
+      sigma = V*dt                              # Vortex blob radius
+      vol = pi*(norm(Bp-Ap)/2)^2*V*dt           # Volume of particle
+
+      if add_hub || typeof(system)!=vlm.Rotor
+        add_particle(pfield, X, gamma, dt, V, infD, sigma, vol, sigmafactor; ms=ms)
+      end
+
+    # ----------- Case of contiguous horseshoes -----------------
+    else
+
+      # Verify logic
+      if check
+        crit1 = norm(Vinfs_Ap[i]-Vinfs_Bp[i-1]) / norm((Vinfs_Ap[i]+Vinfs_Bp[i-1])/2)
+        crit2 = norm(infDA-prev_infDB) / norm((infDA+prev_infDB)/2)
+        if crit1 > tol2
+          warn("Logic error! Vinfs_Ap[i]!=Vinfs_Bp[i-1] "*
+                  "( $(Vinfs_Ap[i])!=$(Vinfs_Bp[i-1]) )")
+        elseif crit2 > tol2
+          warn("Logic error! infDA!=prev_infDB "*
+                  "( $(infDA)!=$(prev_infDB) )")
+        elseif norm(infDA) - 1 > tol2
+          error("Logic error! norm(infDA)!= 1 "*
+                  "( $(norm(infDA)) )")
+        end
+      end
+
+      # Adds particle at Ap
+      X = Ap                                    # Particle position
+      gamma = Gamma - prev_Gamma                # Infinite vortex circulation
+      V = norm(Vinfs_Ap[i])                     # Freestream at X
+      infD = -infDA                             # Direction of vorticity
+      sigma = V*dt                              # Vortex blob radius
+      vol = pi*(norm(Bp-Ap)/2)^2*V*dt           # Volume of particle
+
+      add_particle(pfield, X, gamma, dt, V, infD, sigma, vol, sigmafactor; ms=ms)
+
+
+      # ----------- Case of right wing tip --------------------------
+      if i==m
+        # Adds particle at Bp
+        X = Bp                                    # Particle position
+        gamma = -Gamma                            # Infinite vortex circulation
+        V = norm(Vinfs_Bp[i])                     # Freestream at X
+        infD = -infDB                             # Direction of vorticity
+        sigma = V*dt                              # Vortex blob radius
+        vol = pi*(norm(Bp-Ap)/2)^2*V*dt           # Volume of particle
+
+        add_particle(pfield, X, gamma, dt, V, infD, sigma, vol, sigmafactor; ms=ms)
+      end
+    end
+
+    # Adds unsteady particle
+    if prev_system!=nothing
+
+      (p_Ap, p_A, p_B, p_Bp, p_CP,
+          p_infDA, p_infDB, p_Gamma) = vlm.getHorseshoe(prev_system, i)
+      X = (Ap+Bp)/2                               # LE midpoint position
+      p_X = (p_Ap+p_Bp)/2                         # Previous LE midpoint position
+      gamma = Gamma - p_Gamma                     # Bound circulation increase
+      infD = (!cntgs || i==1 ? Ap : (prev_Ap+prev_Bp)/2) - X # Direction of circulation
+      # sigma = norm(B-A)                           # Vortex blob radius
+      sigma = norm((Vinfs_Ap[i]+Vinfs_Bp[i])/2)*dt
+      vol = 4/3*pi*(sigma/2)^3                    # Volume of particle
+
+      # Adds particle only if difference is greater than 1%
+      if abs(gamma/p_Gamma) > 0.01
+        add_particle(pfield, X, gamma, 1.0, 1.0, infD, sigma, vol, sigmafactor; ms=ms)
+      end
+    end
+
+    prev_HS = HS
+  end
+end
+
+
+function VLM2VPM(arrsystem::Array{vlm.Rotor, 1}, pfield::vpm.ParticleField,
+                                                    dt::Float64, sigmafactor;
+                  prev_system=nothing, optargs...)
+
+  if prev_system!=nothing && typeof(prev_system)!=Array{vlm.Rotor, 1}
+    error("Invalid prev_system argument."
+      *"Received type $(typeof(prev_system)), expected $(Array{vlm.Rotor, 1}).")
+  end
+
+  for (k, rotor) in enumerate(arrsystem)
+    aux1 = (prev_system!=nothing ? prev_system[k] : nothing)
+    VLM2VPM(rotor, pfield, dt, sigmafactor; prev_system=aux1, optargs...)
+  end
+
+end
+
+function add_particle(pfield::vpm.ParticleField, X::Array{Float64, 1},
+                        gamma::Float64, dt::Float64,
+                        V::Float64, infD::Array{Float64, 1},
+                        sigma::Float64, vol::Float64,
+                        sigmafactor::Real;
+                        ms=nothing, overwrite_sigma=nothing)
+
+  if abs(gamma*(V*dt))>1e-12
+      Gamma = gamma*(V*dt)*infD       # Vectorial circulation
+
+      if overwrite_sigma==nothing
+        sigmap = sigmafactor*sigma
+      else
+        sigmap = sigmafactor*overwrite_sigma
+      end
+
+      if ms!=nothing && sigmap<ms; sigmap = ms; end;
+      particle = vcat(X, Gamma, sigmap, vol)
+      vpm.addparticle(pfield, particle)
+  end
+end
+
+
+"Geometry definition and VLM generation"
 function generate_submarine(Dp, Ls, Ds, N;
                             # OUTPUT OPTIONS
                             run_name="submarine",
@@ -316,7 +543,7 @@ function generate_submarine(Dp, Ls, Ds, N;
     # ---------- GEOMETRIC PARAMETERS ------------------------------------------
 
     # Hull
-    n_h = 1*N                               # Number of lattices
+    n_h = 2*N                               # Number of lattices
     b_h = Ds                                # Span (diameter)
     # ar_h = b_h/(0.9*Ls)                     # Aspect ratio (span/tip chord)
     pos_h = collect(linspace(0, 1, n_h))    # Position of chords along semi-span
@@ -333,7 +560,7 @@ function generate_submarine(Dp, Ls, Ds, N;
                             twist_h, sweep_h, dihed_h; chordalign=chordalign_h)
 
     # Sail
-    n_sl = 1*N                              # Number of lattices
+    n_sl = 2*N                              # Number of lattices
     b_sl = 2*0.6*Ds                         # Full span
     ar_sl = 1.0                             # Aspect ratio (span/tip chord)
     pos_sl = [0.0, 1.0]                     # Position of chords along semi-span
@@ -419,7 +646,7 @@ function generate_submarine(Dp, Ls, Ds, N;
     dihed_stf = dihed_rdf                   # Dihedral distribution
     chordalign_stf = chordalign_rdf         # Chord alignment
 
-    x_stf = f_rd*Ls - clen_stf[1]*b_stf/ar_stf     # x-position of nose
+    x_stf = 0.98*f_rd*Ls - clen_stf[1]*b_stf/ar_stf     # x-position of nose
     y_stf = 0.0                             # y-position of nose
     z_stf = 0.0                             # z-position of nose
 
