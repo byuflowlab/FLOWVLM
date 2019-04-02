@@ -119,7 +119,8 @@ end
 
 "Initializes the geometry of the rotor, discretizing each blade into n lattices"
 function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
-                          central=false, refinement=[], verif=false, rfl_args...)
+                          central=false, refinement=[], verif=false,
+                          genblade_args=[], rfl_args...)
   # Checks for arguments consistency
   _check(self)
 
@@ -128,7 +129,8 @@ function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
 
   # Generates blade
   blade, r, chord, theta, LE_x, LE_z = _generate_blade(self, n; r=r_lat,
-                                        central=central, refinement=refinement)
+                                        central=central, refinement=refinement,
+                                        genblade_args...)
   self._r, self._chord, self._theta = r, chord, theta
   self._LE_x, self._LE_z = LE_x, LE_z
   self.m = get_m(blade)
@@ -1046,13 +1048,13 @@ end
 
 "Generates the blade and discretizes it into lattices"
 function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
-                          central=false, refinement=[], spl_k=5)
+                          central=false, refinement=[], spl_k=5, spl_s=0.01)
 
   # Splines
   spline_k = min(size(self.r)[1]-1, spl_k)
   spline_bc = "error"
   # spline_s = 0.001
-  spline_s = 0.01
+  spline_s = spl_s
   _spl_chord = Dierckx.Spline1D(self.r, self.chord; k=spline_k,s=spline_s)
   _spl_theta = Dierckx.Spline1D(self.r, self.theta; k=spline_k,s=spline_s)
   _spl_LE_x = Dierckx.Spline1D(self.r, self.LE_x; k=spline_k,s=spline_s)
@@ -1213,23 +1215,23 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
     subplot(220+2*(i-1)+1)
 
     title("Discretization Verification - $lbl")
-    plot(r/Rtip, chord/Rtip, "ok", label="Chord data")
-    plot(cr/Rtip, cchord/Rtip, "--or", label="Chord Spline")
-    plot(r/Rtip, LE_x/Rtip, "^k", label="LE-x data")
-    plot(cr/Rtip, -cLE_x/Rtip, "--^g", label="LE-x Spline")
-    plot(r/Rtip, LE_z/Rtip, "*k", label="LE-z data")
-    plot(cr/Rtip, cLE_z/Rtip, "--*b", label="LE-z Spline")
+    plot(r/Rtip, chord/Rtip, "ok", label="Chord data", alpha=0.75)
+    plot(cr/Rtip, cchord/Rtip, "--or", label="Chord Spline", alpha=0.75)
+    plot(r/Rtip, LE_x/Rtip, "^k", label="LE-x data", alpha=0.75)
+    plot(cr/Rtip, -cLE_x/Rtip, "--^g", label="LE-x Spline", alpha=0.75)
+    plot(r/Rtip, LE_z/Rtip, "*k", label="LE-z data", alpha=0.75)
+    plot(cr/Rtip, cLE_z/Rtip, "--*b", label="LE-z Spline", alpha=0.75)
     xlabel(L"$r/R$")
     ylabel(L"$c/R$, $x/R$, $z/R$")
-    legend(loc="best")
+    legend(loc="best", frameon=false)
     grid(true, color="0.8", linestyle="--")
 
     subplot(220+2*(i-1)+2)
-    plot(r/Rtip, theta, "ok", label="Twist data")
-    plot(cr/Rtip, ctheta, "--^r", label="Twist Spline")
+    plot(r/Rtip, theta, "ok", label="Twist data", alpha=0.75)
+    plot(cr/Rtip, ctheta, "--^r", label="Twist Spline", alpha=0.75)
     xlabel(L"$r/R$")
     ylabel(L"Twist $\theta$ ($^\circ$)")
-    legend(loc="best")
+    legend(loc="best", frameon=false)
     grid(true, color="0.8", linestyle="--")
   end
 
