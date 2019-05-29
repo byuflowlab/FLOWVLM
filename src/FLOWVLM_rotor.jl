@@ -73,6 +73,7 @@ type Rotor
   B::IWrap                      # Number of blades
   # Optional inputs
   airfoils::Array{Tuple{FWrap,ap.Polar},1} # 2D airfoil properties along blade
+  turbine_flag::Bool            # Whether this is a wind turbine or a propeller
 
   # Properties
   RPM::Any                      # Current revs per minute
@@ -96,6 +97,7 @@ type Rotor
   Rotor(
           CW, r, chord, theta, LE_x, LE_z, B,
           airfoils=Tuple{FWrap, ap.Polar}[],
+          turbine_flag=false,
           RPM=nothing,
             hubR=r[1], rotorR=r[end],
             m=0, sol=Dict(),
@@ -107,6 +109,7 @@ type Rotor
         ) = new(
           CW, r, chord, theta, LE_x, LE_z, B,
           airfoils,
+          turbine_flag,
           RPM,
             hubR, rotorR,
             m, sol,
@@ -484,7 +487,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
     theta = pi/180*self._theta[i]   # Angle of attack
 
     # Actual airfoil contour
-    x, y = self._chord[i]*polar.x, self._chord[i]*polar.y
+    x, y = self._chord[i]*polar.x, self._chord[i]*polar.y*(-1)^self.turbine_flag
     # Reformats x,y into point
     points = [ [x[i], y[i], 0.0] for i in 1:size(x)[1] ]
     # Rotates the contour in the right angle of attack
@@ -772,7 +775,9 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
 
   gammas = _lookuptable ? [] : nothing
 
-  turbine_flag = false  # This is a flag for ccblade to swap signs
+  turbine_flag = self.turbine_flag
+
+  # turbine_flag = false  # This is a flag for ccblade to swap signs
 
   # Calculates inflows
   calc_inflow(self, Vinf, RPM; t=t, Vinds=(_lookuptable ? _Vinds : nothing) )
@@ -1061,6 +1066,7 @@ function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
   _spl_LE_z = Dierckx.Spline1D(self.r, self.LE_z; k=spline_k,s=spline_s)
   spl_chord(x) = Dierckx.evaluate(_spl_chord, x)
   spl_theta(x) = (-1)^(self.CW)*Dierckx.evaluate(_spl_theta, x)
+  spl_theta2(x) = (-1)^(self.turbine_flag)*spl_theta(x)
   spl_LE_x(x) =(-1)*Dierckx.evaluate(_spl_LE_x, x)
   spl_LE_z(x) = (-1)^(self.CW)*Dierckx.evaluate(_spl_LE_z, x)
 
@@ -1090,7 +1096,7 @@ function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
 
   # Initializes the blade
   blade = Wing(spl_LE_x(self.r[1]), self.r[1], spl_LE_z(self.r[1]),
-                spl_chord(self.r[1]), spl_theta(self.r[1]))
+                spl_chord(self.r[1]), spl_theta2(self.r[1]))
 
   # Discretizes the leading edge in n lattices
   l = self.rotorR - self.hubR # Lenght of the leading edge from root to tip
@@ -1155,7 +1161,7 @@ function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
 
     # Adds this lattice
     addchord(blade, spl_LE_x(this_r), this_r, spl_LE_z(this_r),
-              spl_chord(this_r), spl_theta(this_r), 1)
+              spl_chord(this_r), spl_theta2(this_r), 1)
 
     # Properties at control point
     CP_r = (this_r+prev_r)/2
