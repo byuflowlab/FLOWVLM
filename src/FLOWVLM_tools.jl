@@ -467,7 +467,8 @@ tapper). Give it `elliptic="twist"` to get an elliptic twist distribution,
 otherwise it will build an elliptic chord distribution.
 """
 function ellipticWing(b::FWrap, croot::FWrap, twistroot::FWrap; elliptic="chord",
-                    n::IWrap=20, r::FWrap=2.0, central=false, refinement=[])
+                    n::IWrap=20, r::FWrap=1/2.0, central=false, refinement=[],
+                    chordalign::FWrap=0.25)
 
   # Span positions
   if size(refinement,1)!=0
@@ -501,8 +502,8 @@ function ellipticWing(b::FWrap, croot::FWrap, twistroot::FWrap; elliptic="chord"
     error("Invalid elliptic mode $elliptic")
   end
 
-  LE_xs = -0.25*chords.*cos.(twists*pi/180)
-  LE_zs = -0.25*chords.*sin.(twists*pi/180)
+  LE_xs = -chordalign*chords.*cos.(twists*pi/180)
+  LE_zs = chordalign*chords.*sin.(twists*pi/180)
 
   # Builds wing
   wing = Wing(LE_xs[end], -LE_ys[end], LE_zs[end], chords[end], chords[end])
