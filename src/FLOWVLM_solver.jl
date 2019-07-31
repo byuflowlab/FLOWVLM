@@ -62,7 +62,7 @@ function _smoothing_rad(val::Real)
 end
 
 # Wincklman's regularizing function
-gw(r, sgm) = (r./sgm).^3.*((r./sgm).^2+5/2)./((r./sgm).^2+1).^(5/2)
+gw(r, sgm) = (r/sgm)^3 * ((r/sgm)^2 + 2.5) / ((r/sgm)^2 + 1)^2.5
 
 
 ################################################################################
@@ -216,7 +216,7 @@ function _V_AB(A::FArrWrap, B, C, gamma; ign_col::Bool=false)
 
   if blobify
     # println("Blobified! $smoothing_rad")
-    F1 *= gw(norm(r1-dot(r0/norm(r0), r1)*r0/norm(r0)), smoothing_rad)
+    F1 *= gw(norm(crss)/norm(r0), smoothing_rad)
   end
 
   if gamma==nothing
@@ -284,7 +284,7 @@ end
 
 "Checks collinearity"
 function _check_collinear(magsqr, col_crit; ign_col::Bool=false)
-  if magsqr<col_crit
+  if magsqr<col_crit || isnan(magsqr)
     if ign_col==false
       if n_col==0 && mute_warning==false
         warn("Requested induced velocity on a point colinear with vortex."*
