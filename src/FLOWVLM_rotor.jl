@@ -900,7 +900,9 @@ function calc_aerodynamicforces(self::Rotor, rho::FWrap; overwritegammas=nothing
     if overwritegammas!=nothing
       gamma = (-1)^(self.CW) * overwritegammas[blade_i]
     else
-      gamma = (-1)^(self.CW) * Lmag./(rho*Vmag)
+      bladeaxis = get_blade(self, blade_i).Oaxis[2, :]    # Blade axis
+      Lsgn = [sign(dot(ru, bladeaxis)) for ru in runit]   # Sign of lift
+      gamma = (-1)^(self.CW) * Lsgn .* Lmag./(rho*Vmag)
     end
 
     push!(data_L, L)
