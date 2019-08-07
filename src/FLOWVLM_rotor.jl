@@ -181,11 +181,17 @@ NOTE: Vind is expected to be formated as Vind[i][j] being the velocity vector
 of the j-th control point in the i-th blade.
 """
 function solvefromVite(self::Rotor, Vind::Array{Array{T, 1}, 1}, args...;
-                          maxite::Int64=100, tol::Real=0.01, optargs...
+                          maxite::Int64=100, tol::Real=0.01, rlx=0.0, optargs...
                           ) where{T<:FArrWrap}
 
+                          println(rlx)
+
   out = nothing
-  prev_sol = nothing
+  if "Gamma" in keys(get_blade(self, 1).sol)
+      prev_sol = [get_blade(self, j).sol["Gamma"] for j in 1:self.B]
+  else
+      prev_sol = nothing
+  end
   ite = 0
   err = nothing
 
@@ -200,13 +206,19 @@ function solvefromVite(self::Rotor, Vind::Array{Array{T, 1}, 1}, args...;
     end
 
     out = solvefromV(self, surfVind, args...; optargs...)
-    this_sol = vcat([get_blade(self, j).sol["Gamma"] for j in 1:self.B]...)
+    this_sol = [get_blade(self, j).sol["Gamma"] for j in 1:self.B]
 
-    if i!=1
+    if prev_sol != nothing
       # Checking convergence: Average variation
-      err = mean( abs.(prev_sol-this_sol)./abs.(prev_sol) )
+      err = mean( [mean( abs.(prev_sol[j]-this_sol[j])./abs.(prev_sol[j]) ) for j in 1:self.B] )
       if err < tol
         break
+      end
+
+      # Relaxation
+      for j in 1:rotor.B
+        blade = vlm.get_blade(rotor, j)
+        blade.sol["Gamma"][:] = rlx*prev_sol[j] .+ (1-rlx)*this_sol[j]
       end
     end
 
@@ -326,13 +338,16 @@ end
 
 "Saves the rotor in VTK legacy format"
 function save(self::Rotor, filename::String; addtiproot=true, airfoils=false,
+                                     wopwop=false, wopbin=true, wopext="wop",
                                                                         args...)
   _ = getHorseshoe(self, 1) # Makes sure the wake is calculated right
 
   save(self._wingsystem, filename; args...)
 
   if size(self.airfoils)[1]!=0
-    save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils, args...)
+    save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils,
+                                wopwop=wopwop, wopbin=wopbin, wopext=wopext,
+                                                                        args...)
   end
 end
 
@@ -466,7 +481,9 @@ end
 
 "Saves the lofted surface of the blade"
 function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
-                      num=nothing, airfoils=false, args...)
+                      num=nothing, airfoils=false,
+                      wopwop=false, wopext="wop", wopbin=true,
+                      args...)
   # ERROR CASES
   if size(self.airfoils)[1]<2
     error("Requested lofted surface, but no airfoil geometry was given.")
@@ -601,6 +618,118 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
       this_linename = filename*"_"*self._wingsystem.wing_names[i]*"_"*rfl_suf
       vtk.generateVTK(this_linename, this_line_points; cells=vtk_lines,
                                 path=path, num=num)
+    end
+
+    # Generates PLOT3D-like geometry for PSU-WOPWOP
+    if wopwop
+
+        nc = size(vtk_cells, 1)             # Number of cells
+        CPs = zeros(3, nc)                  # Control point of every cell
+        Ns = zeros(3, nc)                   # Normal of every cell
+        for k in 1:nc
+
+            p = [this_points[j+1] for j in vtk_cells[k]]    # Points of cell
+
+            # NOTE: Here we assume that cells are quadrilaterals
+            crss1 = cross(p[2]-p[1], p[3]-p[1])
+            crss2 = cross(p[1]-p[3], p[4]-p[3])
+
+            # Area
+            A1 = 0.5*norm(crss1)                            # Area of triangle 1
+            A2 = 0.5*norm(crss2)                            # Area of triangle 2
+            A = A1+A2                                       # Area quadrilateral
+
+            # # Normal
+            # N1 = crss1/(2*A1)
+            # N2 = crss2/(2*A2)
+            # N = (A1*N1 + A2*N2)/A
+
+            # Normal scaled by area
+            # NA = N*A
+            NA = crss1/2 + crss2/2
+            Ns[:, k] = NA
+
+            # Centroid (control point)
+            for pnt in p
+                CPs[:, k] .+= pnt
+            end
+            CPs[:, k] /= size(p, 1)
+        end
+
+        # Create file
+        f = open(joinpath(path,
+                    this_name*"."*(num!=nothing ? "$(num)." : "")*wopext), "w")
+
+        prnt(x) = wopbin ? write(f, x) : print(f, x)
+        prntln(x) = wopbin ? write(f, x) : print(f, x, "\n")
+        # NOTE: 4 bytes = 4*8 bites = 32 bites
+        fl(x) = Float32(x)
+        nt(x) = Int32(x)
+
+        # Patch declaration line
+        prntln("Patch"*" "^27)
+        # Number of zones: 1==loft, 2==lifting line
+        prntln(nt(2))
+
+        # ----------------- FIRST PATCH: LOFT ----------------------------------
+        # imax jmax
+        imax = self.m-1 + 2*addtiproot
+        jmax = Int(nc/imax)
+        prnt(nt(imax))
+        prntln(nt(jmax))
+
+        # imax × jmax floating point x coordinates
+        # imax × jmax floating point y coordinates
+        # imax × jmax floating point z coordinates
+        for k in 1:3
+            for j in 1:nc
+                prntln(fl(CPs[k, j]))
+            end
+        end
+
+        # imax × jmax floating point unit normal vector x coordinates
+        # imax × jmax floating point unit normal vector y coordinates
+        # imax × jmax floating point unit normal vector z coordinates
+        for k in 1:3
+            for j in 1:nc
+                prntln(fl(Ns[k, j]))
+            end
+        end
+
+        # ----------------- SECOND PATCH: LIFTING LINE -------------------------
+        nHS = get_m(this_blade)                     # Number of horseshoes
+        Cs = zeros(3, nHS)                          # Midpoints of lifting line
+        NCs = zeros(3, nHS)                         # Ficticious normals to line
+        for k in 1:nHS
+            Ap, A, B, _, _, _, _, _ = getHorseshoe(this_blade, k)
+            Cs[:, k] = (A+B)/2
+            NCs[:, k] = cross(Ap-A, B-A)
+            NCs[:, k] /= norm(NCs[:, k])
+        end
+
+        # imax jmax
+        prnt(nt(nHS))
+        prntln(nt(1))
+
+        # imax × jmax floating point x coordinates
+        # imax × jmax floating point y coordinates
+        # imax × jmax floating point z coordinates
+        for k in 1:3
+            for j in 1:nHS
+                prntln(fl(Cs[k, j]))
+            end
+        end
+
+        # imax × jmax floating point unit normal vector x coordinates
+        # imax × jmax floating point unit normal vector y coordinates
+        # imax × jmax floating point unit normal vector z coordinates
+        for k in 1:3
+            for j in 1:nHS
+                prntln(fl(NCs[k, j]))
+            end
+        end
+
+        close(f)
     end
 
   end
