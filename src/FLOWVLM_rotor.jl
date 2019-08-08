@@ -339,7 +339,7 @@ end
 "Saves the rotor in VTK legacy format"
 function save(self::Rotor, filename::String; addtiproot=true, airfoils=false,
                                      wopwop=false, wopbin=true, wopext="wop",
-                                                                        args...)
+                                     wopv=1.0, args...)
   _ = getHorseshoe(self, 1) # Makes sure the wake is calculated right
 
   save(self._wingsystem, filename; args...)
@@ -347,7 +347,7 @@ function save(self::Rotor, filename::String; addtiproot=true, airfoils=false,
   if size(self.airfoils)[1]!=0
     save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils,
                                 wopwop=wopwop, wopbin=wopbin, wopext=wopext,
-                                                                        args...)
+                                wopv=wopv, args...)
   end
 end
 
@@ -482,7 +482,7 @@ end
 "Saves the lofted surface of the blade"
 function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
                       num=nothing, airfoils=false,
-                      wopwop=false, wopext="wop", wopbin=true,
+                      wopwop=false, wopext="wop", wopbin=true, wopv=1.0,
                       args...)
   # ERROR CASES
   if size(self.airfoils)[1]<2
@@ -656,77 +656,192 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
             CPs[:, k] /= size(p, 1)
         end
 
-        # Create file
-        f = open(joinpath(path,
-                    this_name*"."*(num!=nothing ? "$(num)." : "")*wopext), "w")
-
-        prnt(x) = wopbin ? write(f, x) : print(f, x)
-        prntln(x) = wopbin ? write(f, x) : print(f, x, "\n")
-        # NOTE: 4 bytes = 4*8 bites = 32 bites
-        fl(x) = Float32(x)
-        nt(x) = Int32(x)
-
-        # Patch declaration line
-        prntln("Patch"*" "^27)
-        # Number of zones: 1==loft, 2==lifting line
-        prntln(nt(2))
-
-        # ----------------- FIRST PATCH: LOFT ----------------------------------
-        # imax jmax
-        imax = self.m-1 + 2*addtiproot
-        jmax = Int(nc/imax)
-        prnt(nt(imax))
-        prntln(nt(jmax))
-
-        # imax × jmax floating point x coordinates
-        # imax × jmax floating point y coordinates
-        # imax × jmax floating point z coordinates
-        for k in 1:3
-            for j in 1:nc
-                prntln(fl(CPs[k, j]))
-            end
-        end
-
-        # imax × jmax floating point unit normal vector x coordinates
-        # imax × jmax floating point unit normal vector y coordinates
-        # imax × jmax floating point unit normal vector z coordinates
-        for k in 1:3
-            for j in 1:nc
-                prntln(fl(Ns[k, j]))
-            end
-        end
-
-        # ----------------- SECOND PATCH: LIFTING LINE -------------------------
         nHS = get_m(this_blade)                     # Number of horseshoes
         Cs = zeros(3, nHS)                          # Midpoints of lifting line
         NCs = zeros(3, nHS)                         # Ficticious normals to line
+        lift_points = []                            # Lifting line points
+        lift_vtk_cells = []                         # VTK lifting line
         for k in 1:nHS
             Ap, A, B, _, _, _, _, _ = getHorseshoe(this_blade, k)
             Cs[:, k] = (A+B)/2
             NCs[:, k] = cross(Ap-A, B-A)
             NCs[:, k] /= norm(NCs[:, k])
+            push!(lift_vtk_cells, (size(lift_points, 1), size(lift_points, 1)+1))
+            push!(lift_points, A)
+            push!(lift_points, B)
         end
 
-        # imax jmax
-        prnt(nt(nHS))
-        prntln(nt(1))
 
-        # imax × jmax floating point x coordinates
-        # imax × jmax floating point y coordinates
-        # imax × jmax floating point z coordinates
-        for k in 1:3
-            for j in 1:nHS
-                prntln(fl(Cs[k, j]))
-            end
-        end
+        # Create file
+        f = open(joinpath(path,
+                    this_name*"."*(num!=nothing ? "$(num)." : "")*wopext), "w")
 
-        # imax × jmax floating point unit normal vector x coordinates
-        # imax × jmax floating point unit normal vector y coordinates
-        # imax × jmax floating point unit normal vector z coordinates
-        for k in 1:3
-            for j in 1:nHS
-                prntln(fl(NCs[k, j]))
+        # Binary / ASCII printing
+        prnt(x) = wopbin ? write(f, x) : print(f, x)
+        prntln(x) = wopbin ? write(f, x) : print(f, x, "\n")
+
+        # Convertion to 4-bytes numbers
+        # NOTE: 4 bytes = 4*8 bites = 32 bites
+        fl(x) = Float32(x)
+        nt(x) = Int32(x)
+        # Convertion to n-bytes string
+        st(x::String, n) = x * " "^(n-length(x))
+
+        if  wopv==0.0
+            # Patch declaration line
+            prntln("Patch"*" "^27)
+            # Number of zones: 1==loft, 2==lifting line
+            prntln(nt(2))
+
+            # ----------------- FIRST PATCH: LOFT ------------------------------
+            # imax jmax
+            imax = self.m-1 + 2*addtiproot
+            jmax = Int(nc/imax)
+            prnt(nt(imax))
+            prntln(nt(jmax))
+
+            # imax × jmax floating point x coordinates
+            # imax × jmax floating point y coordinates
+            # imax × jmax floating point z coordinates
+            for k in 1:3
+                for j in 1:nc
+                    prntln(fl(CPs[k, j]))
+                end
             end
+
+            # imax × jmax floating point unit normal vector x coordinates
+            # imax × jmax floating point unit normal vector y coordinates
+            # imax × jmax floating point unit normal vector z coordinates
+            for k in 1:3
+                for j in 1:nc
+                    prntln(fl(Ns[k, j]))
+                end
+            end
+
+            # ----------------- SECOND PATCH: LIFTING LINE ---------------------
+            # imax jmax
+            prnt(nt(nHS))
+            prntln(nt(1))
+
+            # imax × jmax floating point x coordinates
+            # imax × jmax floating point y coordinates
+            # imax × jmax floating point z coordinates
+            for k in 1:3
+                for j in 1:nHS
+                    prntln(fl(Cs[k, j]))
+                end
+            end
+
+            # imax × jmax floating point unit normal vector x coordinates
+            # imax × jmax floating point unit normal vector y coordinates
+            # imax × jmax floating point unit normal vector z coordinates
+            for k in 1:3
+                for j in 1:nHS
+                    prntln(fl(NCs[k, j]))
+                end
+            end
+
+        elseif wopv==1.0
+            # Magic number
+            prntln(nt(42))
+            # Version number
+            prnt(nt(1))
+            prntln(nt(0))
+            # Units for Tecplot
+            prntln(st("N/m^2", 32))
+            # Comments
+            prntln(st("Geometry input file for PSU-WOPWOP (Format v1.0)\n"*
+                      "------------------------------------------------\n"*
+                      "Created by FLOWVLM (written by Eduardo Alvarez)\n"*
+                      "https://github.com/byuflowlab/FLOWVLM\n"*
+                      "Creation date: $(Dates.now())\n"*
+                      "Units: SI\n"*
+                      "Format: Unstructured grid, face-centered", 1024))
+
+            # Format string
+            prntln(nt(1))               # Geometry file flag
+            prntln(nt(2))               # Number of zones, loft=1, lifting-line=2
+            prntln(nt(2))               # 1==structured, 2==unstructured
+            prntln(nt(1))               # Geometry 1==constant, 2==periodic, 3==aperiodic
+            prntln(nt(2))               # Normal vectors 1==node, 2==face
+            prntln(nt(1))               # Floating point 1==single, 2==double
+            prntln(nt(0))               # iblank values 1==included, 0==not
+            prntln(nt(0))               # WOPWOP secret conspiracy
+
+            # ----------------- FIRST PATCH: LOFT ------------------------------
+            # Name
+            prntln(st("loft", 32))
+            # nbNodes
+            prntln(nt( size(this_points, 1) ))
+            # nbFaces
+            prntln(nt( size(vtk_cells, 1) ))
+            # Connectivity
+            for cell in vtk_cells
+                prnt(nt( size(cell, 1) ))         # Number of nodes in this cell
+                for pi in reverse(cell)           # Clockwise node ordering
+                    prnt(nt( pi+1 ))              # 1-indexed node index
+                end
+                if !wopbin; prntln(""); end;
+            end
+
+            # ----------------- SECOND PATCH: LIFTING LINE ---------------------
+            # Name
+            prntln(st("liftingline", 32))
+            # nbNodes
+            prntln(nt( size(lift_points, 1) ))
+            # nbFaces
+            prntln(nt( size(lift_vtk_cells, 1) ))
+            # Connectivity
+            for cell in lift_vtk_cells
+                prnt(nt( size(cell, 1) ))         # Number of nodes in this cell
+                for pi in cell
+                    prnt(nt( pi+1 ))              # 1-indexed node index
+                end
+                if !wopbin; prntln(""); end;
+            end
+
+
+
+            # ----------------- DATA FIRST PATCH -------------------------------
+            # nbNodes floating point x coordinates
+            # nbNodes floating point y coordinates
+            # nbNodes floating point z coordinates
+            for k in 1:3
+                for p in this_points
+                    prntln(fl(p[k]))
+                end
+            end
+
+            # nbFaces floating point unit normal vector x coordinates
+            # nbFaces floating point unit normal vector y coordinates
+            # nbFaces floating point unit normal vector z coordinates
+            for k in 1:3
+                for j in 1:size(vtk_cells, 1)
+                    prntln(fl(Ns[k, j]))
+                end
+            end
+
+            # ----------------- DATA SECOND PATCH ------------------------------
+            # nbNodes floating point x coordinates
+            # nbNodes floating point y coordinates
+            # nbNodes floating point z coordinates
+            for k in 1:3
+                for p in lift_points
+                    prntln(fl(p[k]))
+                end
+            end
+
+            # nbFaces floating point unit normal vector x coordinates
+            # nbFaces floating point unit normal vector y coordinates
+            # nbFaces floating point unit normal vector z coordinates
+            for k in 1:3
+                for j in 1:size(lift_vtk_cells, 1)
+                    prntln(fl(NCs[k, j]))
+                end
+            end
+
+        else
+            error("Got invalid WOPWOP version $wopv")
         end
 
         close(f)
