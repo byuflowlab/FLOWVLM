@@ -324,9 +324,9 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
 end
 
 "Sets Vinf(X,t) as the incoming freestream of this rotor"
-function setVinf(self::Rotor, Vinf)
-  _reset(self)
-  setVinf(self._wingsystem, Vinf)
+function setVinf(self::Rotor, Vinf; keep_sol=false)
+  _reset(self; keep_sol=keep_sol)
+  setVinf(self._wingsystem, Vinf; keep_sol=keep_sol)
 end
 
 "Sets `RPM` as the revolutions per minutes of this rotor"
@@ -1287,7 +1287,8 @@ end
 
 function _reset(self::Rotor;
                 verbose=false, keep_Vinf=false, keep_RPM=true, keep_sol=true)
-  _reset(self._wingsystem; verbose=verbose, keep_Vinf=keep_Vinf)
+  _reset(self._wingsystem; verbose=verbose, keep_Vinf=keep_Vinf,
+                                                            keep_sol=keep_sol)
   _resetRotor(self; verbose=verbose, keep_RPM=keep_RPM)
 end
 
@@ -1792,6 +1793,40 @@ end
 "Extension of WingSystem's `_get_O()` function"
 function _get_Oaxis(rotor::Rotor)
   return _get_Oaxis(rotor._wingsystem)
+end
+
+
+function Base.deepcopy_internal(x::Rotor, stackdict::ObjectIdDict)
+    if haskey(stackdict, x)
+        return stackdict[x]
+    end
+
+    y = Rotor(  Base.deepcopy_internal(x.CW, stackdict),
+                Base.deepcopy_internal(x.r, stackdict),
+                Base.deepcopy_internal(x.chord, stackdict),
+                Base.deepcopy_internal(x.theta, stackdict),
+                Base.deepcopy_internal(x.LE_x, stackdict),
+                Base.deepcopy_internal(x.LE_z, stackdict),
+                Base.deepcopy_internal(x.B, stackdict),
+                Base.deepcopy_internal(x.airfoils, stackdict),
+                Base.deepcopy_internal(x.turbine_flag, stackdict),
+                Base.deepcopy_internal(x.RPM, stackdict),
+                Base.deepcopy_internal(x.hubR, stackdict),
+                Base.deepcopy_internal(x.rotorR, stackdict),
+                Base.deepcopy_internal(x.m, stackdict),
+                Base.deepcopy_internal(x.sol, stackdict),
+                Base.deepcopy_internal(x._wingsystem, stackdict),
+                Base.deepcopy_internal(x._r, stackdict),
+                Base.deepcopy_internal(x._chord, stackdict),
+                Base.deepcopy_internal(x._theta, stackdict),
+                Base.deepcopy_internal(x._LE_x, stackdict),
+                Base.deepcopy_internal(x._LE_z, stackdict),
+                Base.deepcopy_internal(x._polars, stackdict),
+                Base.deepcopy_internal(x._polarroot, stackdict),
+                Base.deepcopy_internal(x._polartip, stackdict))
+
+    stackdict[x] = y
+    return y
 end
 ##### END OF ROTOR CLASS #######################################################
 

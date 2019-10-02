@@ -125,11 +125,11 @@ function setcoordsystem(self::WingSystem, O::FArrWrap,
 end
 
 "Sets Vinf(X,t) as the freestream of all wings in the system"
-function setVinf(self::WingSystem, Vinf)
-  _reset(self)
+function setVinf(self::WingSystem, Vinf; keep_sol=false)
+  _reset(self; keep_sol=keep_sol)
   self.Vinf = Vinf
   for wing in self.wings
-    setVinf(wing, Vinf)
+    setVinf(wing, Vinf; keep_sol=keep_sol)
   end
 end
 
@@ -197,6 +197,7 @@ function get_wings(self::WingSystem)
   return out
 end
 
+
 ##### CALCULATIONS #############################################################
 "For a coordinate system 'inception2' that is incapsulated inside another
 coordinate system 'inception1', it returns its interpretation in the global
@@ -229,13 +230,14 @@ function _counter_interpret(O2::FArrWrap, Oaxis2::FMWrap,
 end
 
 ##### INTERNAL FUNCTIONS #######################################################
-function _reset(self::WingSystem; verbose=false, keep_Vinf=false)
+function _reset(self::WingSystem; verbose=false, keep_Vinf=false, keep_sol=false)
   if verbose; println("Resetting WingSystem"); end;
   self.sol = Dict()
+  if keep_sol==false; self.sol = Dict(); end;
   if keep_Vinf==false; self.Vinf = nothing; end;
 
   for wing in self.wings
-    _reset(wing; verbose=verbose, keep_Vinf=keep_Vinf)
+    _reset(wing; verbose=verbose, keep_Vinf=keep_Vinf, keep_sol=keep_sol)
   end
 end
 
@@ -280,5 +282,22 @@ function _get_O(wing)
 end
 function _get_Oaxis(wing)
   return wing.Oaxis
+end
+
+function Base.deepcopy_internal(x::WingSystem, stackdict::ObjectIdDict)
+    if haskey(stackdict, x)
+        return stackdict[x]
+    end
+
+    y = WingSystem( Base.deepcopy_internal(x.wings, stackdict),
+                    Base.deepcopy_internal(x.wing_names, stackdict),
+                    Base.deepcopy_internal(x.O, stackdict),
+                    Base.deepcopy_internal(x.Oaxis, stackdict),
+                    Base.deepcopy_internal(x.invOaxis, stackdict),
+                    x.Vinf,
+                    Base.deepcopy_internal(x.sol, stackdict))
+
+    stackdict[x] = y
+    return y
 end
 ##### END OF CLASS #############################################################

@@ -85,6 +85,9 @@ const FIELDS = Dict(
     "CM_L"  =>    [["Mtot"], "vector"],  #
     "CM_M"  =>    [["Mtot"], "vector"],  #
     "CM_N"  =>    [["Mtot"], "vector"],  #
+    ################## EXTRA FIELDS ####################
+    "Vvpm"  =>    [[], "vector"],        # Velocity induced by VPM
+    "Vkin"  =>    [[], "vector"],        # Kinematic velocity
   )
 
 
@@ -98,10 +101,11 @@ const FIELDS = Dict(
 ################################################################################
 "Solves the VLM of the Wing or WingSystem"
 function solve(wing, Vinf; t::FWrap=0.0,
-                vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
+                vortexsheet=nothing, extraVinf=nothing, keep_sol=false,
+                extraVinfArgs...)
 
   # Sets Vinf (this forces to recalculate horseshoes)
-  setVinf(wing, Vinf)
+  setVinf(wing, Vinf; keep_sol=keep_sol)
 
   # Obtain horseshoes
   HSs = getHorseshoes(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)

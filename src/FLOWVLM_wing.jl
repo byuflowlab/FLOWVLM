@@ -85,7 +85,6 @@ type Wing
 end
 
 
-
 """
   `addchord(wing, x, y, z, c, twist, n, r=1.0)`
 
@@ -286,8 +285,8 @@ function setcoordsystem(self::Wing, O::FArrWrap,
 end
 
 "Sets Vinf(X,t) as the freestream of this wing"
-function setVinf(self::Wing, Vinf)
-  _reset(self)
+function setVinf(self::Wing, Vinf; keep_sol=false)
+  _reset(self; keep_sol=keep_sol)
   self.Vinf = Vinf
 end
 
@@ -373,9 +372,9 @@ function copy(self::Wing)
 end
 
 ##### INTERNAL FUNCTIONS #######################################################
-function _reset(self::Wing; verbose=false, keep_Vinf=false)
+function _reset(self::Wing; verbose=false, keep_Vinf=false, keep_sol=false)
   if verbose; println("Resetting wing"); end;
-  self.sol = Dict()
+  if keep_sol==false; self.sol = Dict(); end;
   if keep_Vinf==false; self.Vinf = nothing; end;
   self._HSs = nothing
 end
@@ -410,8 +409,7 @@ function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArg
     infDB = self.Vinf(Bp,t)
     # Extra freestream
     if extraVinf!=nothing
-      this_extraVinf = extraVinf(i, t;
-                                  extraVinfArgs..., wing=self)
+      this_extraVinf = extraVinf(i, t; extraVinfArgs..., wing=self)
       infDA += this_extraVinf
       infDB += this_extraVinf
     end
@@ -425,5 +423,38 @@ function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArg
     push!(HSs, HS)
   end
   self._HSs = HSs
+end
+
+function Base.deepcopy_internal(x::Wing, stackdict::ObjectIdDict)
+    if haskey(stackdict, x)
+        return stackdict[x]
+    end
+
+    y = Wing(Base.deepcopy_internal(x.leftxl, stackdict),
+             Base.deepcopy_internal(x.lefty, stackdict),
+             Base.deepcopy_internal(x.leftzl, stackdict),
+             Base.deepcopy_internal(x.leftchord, stackdict),
+             Base.deepcopy_internal(x.leftchordtwist, stackdict),
+             Base.deepcopy_internal(x.m, stackdict),
+             Base.deepcopy_internal(x.O, stackdict),
+             Base.deepcopy_internal(x.Oaxis, stackdict),
+             Base.deepcopy_internal(x.invOaxis, stackdict),
+             x.Vinf,
+             Base.deepcopy_internal(x.sol, stackdict),
+             Base.deepcopy_internal(x._xlwingdcr, stackdict),
+             Base.deepcopy_internal(x._xtwingdcr, stackdict),
+             Base.deepcopy_internal(x._ywingdcr, stackdict),
+             Base.deepcopy_internal(x._zlwingdcr, stackdict),
+             Base.deepcopy_internal(x._ztwingdcr, stackdict),
+             Base.deepcopy_internal(x._xm, stackdict),
+             Base.deepcopy_internal(x._ym, stackdict),
+             Base.deepcopy_internal(x._zm, stackdict),
+             Base.deepcopy_internal(x._xn, stackdict),
+             Base.deepcopy_internal(x._yn, stackdict),
+             Base.deepcopy_internal(x._zn, stackdict),
+             Base.deepcopy_internal(x._HSs, stackdict))
+
+    stackdict[x] = y
+    return y
 end
 ##### END OF CLASS #############################################################
