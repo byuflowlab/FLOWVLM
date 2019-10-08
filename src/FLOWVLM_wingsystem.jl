@@ -233,7 +233,11 @@ end
 function _reset(self::WingSystem; verbose=false, keep_Vinf=false, keep_sol=false)
   if verbose; println("Resetting WingSystem"); end;
   self.sol = Dict()
-  if keep_sol==false; self.sol = Dict(); end;
+  if keep_sol==false
+      self.sol = Dict()
+  else
+      self.sol = Dict([entry for entry in self.sol if entry[1]!="Gamma" ])
+  end
   if keep_Vinf==false; self.Vinf = nothing; end;
 
   for wing in self.wings

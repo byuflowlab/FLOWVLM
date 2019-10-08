@@ -374,7 +374,11 @@ end
 ##### INTERNAL FUNCTIONS #######################################################
 function _reset(self::Wing; verbose=false, keep_Vinf=false, keep_sol=false)
   if verbose; println("Resetting wing"); end;
-  if keep_sol==false; self.sol = Dict(); end;
+  if keep_sol==false
+      self.sol = Dict()
+  else
+      self.sol = Dict([entry for entry in self.sol if entry[1]!="Gamma"])
+  end
   if keep_Vinf==false; self.Vinf = nothing; end;
   self._HSs = nothing
 end
