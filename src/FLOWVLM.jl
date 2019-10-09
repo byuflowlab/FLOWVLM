@@ -88,6 +88,7 @@ const FIELDS = Dict(
     ################## EXTRA FIELDS ####################
     "Vvpm"  =>    [[], "vector"],        # Velocity induced by VPM
     "Vkin"  =>    [[], "vector"],        # Kinematic velocity
+    "ftot"  =>    [[], "vector"],        # Aerodynamic force (D+L+S) per unit span
   )
 
 
