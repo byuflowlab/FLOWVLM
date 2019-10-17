@@ -825,12 +825,16 @@ function save(self::Wing, filename::String;
   end
 
   close(f)
+
+  return filename*ext*";"
 end
 
 function save(self::WingSystem, filename::String; optargs...)
+  strn = ""
   for (i, wing) in enumerate(self.wings)
-    save(wing, "$(filename)_$(self.wing_names[i])"; optargs...)
+    strn *= save(wing, "$(filename)_$(self.wing_names[i])"; optargs...)
   end
+  return strn
 end
 
 "Receives a function generate_wing(n) and plots aerodynamic characteristics

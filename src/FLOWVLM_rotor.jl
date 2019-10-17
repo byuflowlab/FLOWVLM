@@ -342,13 +342,15 @@ function save(self::Rotor, filename::String; addtiproot=true, airfoils=false,
                                      wopv=1.0, args...)
   _ = getHorseshoe(self, 1) # Makes sure the wake is calculated right
 
-  save(self._wingsystem, filename; args...)
+  strn = save(self._wingsystem, filename; args...)
 
   if size(self.airfoils)[1]!=0
-    save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils,
+    strn *= save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils,
                                 wopwop=wopwop, wopbin=wopbin, wopext=wopext,
                                 wopv=wopv, args...)
   end
+  
+  return strn
 end
 
 "Sets a coordinate system for the rotor. If the user is calling this function,
@@ -491,6 +493,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
     error("Polars not found. Run `initialize()` and try again")
   end
 
+  strn = ""
 
   suf = "loft"
   rfl_suf = "rfl"
@@ -612,11 +615,11 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
 
     # Generates the vtk file
     this_name = filename*"_"*self._wingsystem.wing_names[i]*"_"*suf
-    vtk.generateVTK(this_name, this_points; cells=vtk_cells, point_data=data,
-                                path=path, num=num)
+    strn *= vtk.generateVTK(this_name, this_points; cells=vtk_cells,
+                                            point_data=data, path=path, num=num)
     if airfoils
       this_linename = filename*"_"*self._wingsystem.wing_names[i]*"_"*rfl_suf
-      vtk.generateVTK(this_linename, this_line_points; cells=vtk_lines,
+      strn *= vtk.generateVTK(this_linename, this_line_points; cells=vtk_lines,
                                 path=path, num=num)
     end
 
@@ -848,6 +851,8 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
     end
 
   end
+
+  return strn
 end
 
 
