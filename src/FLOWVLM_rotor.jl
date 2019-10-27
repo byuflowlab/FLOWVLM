@@ -339,17 +339,20 @@ end
 "Saves the rotor in VTK legacy format"
 function save(self::Rotor, filename::String; addtiproot=true, airfoils=false,
                                      wopwop=false, wopbin=true, wopext="wop",
-                                     wopv=1.0, args...)
-  _ = getHorseshoe(self, 1) # Makes sure the wake is calculated right
+                                     wopv=1.0, save_horseshoes=true,
+                                     args...)
+  if save_horseshoes
+      _ = getHorseshoe(self, 1) # Makes sure the wake is calculated right
+  end
 
-  strn = save(self._wingsystem, filename; args...)
+  strn = save(self._wingsystem, filename; save_horseshoes=save_horseshoes, args...)
 
   if size(self.airfoils)[1]!=0
     strn *= save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils,
                                 wopwop=wopwop, wopbin=wopbin, wopext=wopext,
                                 wopv=wopv, args...)
   end
-  
+
   return strn
 end
 
@@ -1029,7 +1032,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
   # turbine_flag = false  # This is a flag for ccblade to swap signs
 
   # Calculates inflows
-  calc_inflow(self, Vinf, RPM; t=t, Vinds=(_lookuptable ? _Vinds : nothing) )
+  # calc_inflow(self, Vinf, RPM; t=t, Vinds=(_lookuptable ? _Vinds : nothing) )
+  calc_inflow(self, Vinf, RPM; t=t, Vinds=_Vinds)
 
   if return_performance; coeffs = []; end;
 
