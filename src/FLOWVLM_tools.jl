@@ -659,7 +659,8 @@ function save(self::Wing, filename::String;
                   save_horseshoes::Bool=true, only_horseshoes::Bool=false,
                   infinite_vortex::Bool=true,
                   path::String="", comment::String="",
-                  num=nothing, t::FWrap=0.0)
+                  num=nothing, t::FWrap=0.0,
+                  rnd_d=32)
   aux = num!=nothing ? ".$num" : ""
   ext = "_vlm"*aux*".vtk"
 
@@ -691,19 +692,19 @@ function save(self::Wing, filename::String;
   write(f, string("\n", "POINTS ", nle+nte+ncp+nhs*6, " float"))
   ## Leading edge
   for i in 1:nle
-    LE = getLE(self, i)
+    LE = round.(getLE(self, i), rnd_d)
     line1 = string(LE[1], " ", LE[2], " ", LE[3])
     write(f, string("\n", line1))
   end
   ## Trailing edge
   for i in 1:nte
-    TE = getTE(self, i)
+    TE = round.(getTE(self, i), rnd_d)
     line2 = string(TE[1], " ", TE[2], " ", TE[3])
     write(f, string("\n", line2))
   end
   ## Control points (m)
   for i in 1:ncp
-    CP = getControlPoint(self, i)
+    CP = round.(getControlPoint(self, i), rnd_d)
     line = string(CP[1], " ", CP[2], " ", CP[3])
     write(f, string("\n", line))
   end
@@ -738,7 +739,7 @@ function save(self::Wing, filename::String;
     Bpinf = Bp + factor*infDB*(infinite_vortex ? 1 : 0)
 
     for point in [Apinf, Ap, A, B, Bp, Bpinf]
-      line = string(point[1], " ", point[2], " ", point[3])
+      line = string(round(point[1], rnd_d), " ", round(point[2], rnd_d), " ", round(point[3], rnd_d))
       write(f, string("\n", line))
     end
   end
@@ -801,7 +802,7 @@ function save(self::Wing, filename::String;
     if FIELDS[field_name][2]=="vector"
       write(f, string("\n\n", "VECTORS ", field_name," float"))
       for i in 1:nlat+ncp+nhs
-            vect = self.sol[field_name][(i-1)%ncp+1]
+            vect = round.(self.sol[field_name][(i-1)%ncp+1], rnd_d)
             line = string(vect[1], " ", vect[2], " ", vect[3])
             write(f, string("\n", line))
       end
@@ -809,7 +810,7 @@ function save(self::Wing, filename::String;
       write(f, string("\n\n", "SCALARS ", field_name," float"))
       write(f, string("\n", "LOOKUP_TABLE default"))
       for i in 1:nlat+ncp+nhs
-            sclr = self.sol[field_name][(i-1)%ncp+1]
+            sclr = round.(self.sol[field_name][(i-1)%ncp+1], rnd_d)
             try
               line = string(isnan(sclr) ? -1 : sclr)
             catch
