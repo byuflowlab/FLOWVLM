@@ -637,13 +637,15 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
             p = [this_points[j+1] for j in vtk_cells[k]]    # Points of cell
 
             # NOTE: Here we assume that cells are quadrilaterals
-            crss1 = cross(p[2]-p[1], p[3]-p[1])
-            crss2 = cross(p[1]-p[3], p[4]-p[3])
+            # NOTE: Here the negative sign is necessary because it turns out
+            # `vtk_cells` are going clockwise
+            crss1 = -cross(p[2]-p[1], p[3]-p[1])
+            crss2 = -cross(p[4]-p[3], p[1]-p[3])
 
-            # Area
-            A1 = 0.5*norm(crss1)                            # Area of triangle 1
-            A2 = 0.5*norm(crss2)                            # Area of triangle 2
-            A = A1+A2                                       # Area quadrilateral
+            # # Area
+            # A1 = 0.5*norm(crss1)                            # Area of triangle 1
+            # A2 = 0.5*norm(crss2)                            # Area of triangle 2
+            # A = A1+A2                                       # Area quadrilateral
 
             # # Normal
             # N1 = crss1/(2*A1)
@@ -784,7 +786,8 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
             # Connectivity
             for cell in vtk_cells
                 prnt(nt( size(cell, 1) ))         # Number of nodes in this cell
-                for pi in reverse(cell)           # Clockwise node ordering
+                # for pi in reverse(cell)         # Clockwise node ordering
+                for pi in cell                    # NOTE: Turns out that `vtk_cells` are already clockwise
                     prnt(nt( pi+1 ))              # 1-indexed node index
                 end
                 if !wopbin; prntln(""); end;
