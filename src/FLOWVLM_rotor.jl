@@ -629,6 +629,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
     # Generates PLOT3D-like geometry for PSU-WOPWOP
     if wopwop
 
+        # PRECALCULATIONS
         nc = size(vtk_cells, 1)             # Number of cells
         CPs = zeros(3, nc)                  # Control point of every cell
         Ns = zeros(3, nc)                   # Normal of every cell
@@ -673,13 +674,20 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
             Ap, A, B, _, _, _, _, _ = getHorseshoe(this_blade, k)
             Cs[:, k] = (A+B)/2
             NCs[:, k] = cross(Ap-A, B-A)
-            NCs[:, k] /= norm(NCs[:, k])
+            NCs[:, k] /= norm(NCs[:, k]) # Unit vector normals
             push!(lift_vtk_cells, (size(lift_points, 1), size(lift_points, 1)+1))
             push!(lift_points, A)
-            push!(lift_points, B)
+            # NOTE: Here I'm assuming the horseshoes are contiguous
+            if k==nHS
+                push!(lift_points, B)
+            end
         end
 
 
+
+        # ------------------------------------------------------------------
+        # ----------------- LOFTED BLADE FOR THICKNESS ---------------------
+        # ------------------------------------------------------------------
         # Create file
         f = open(joinpath(path,
                     this_name*"."*(num!=nothing ? "$(num)." : "")*wopext), "w")
@@ -698,8 +706,8 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
         if  wopv==0.0
             # Patch declaration line
             prntln("Patch"*" "^27)
-            # Number of zones: 1==loft, 2==lifting line
-            prntln(nt(2))
+            # Number of zones
+            prntln(nt(1))
 
             # ----------------- FIRST PATCH: LOFT ------------------------------
             # imax jmax
@@ -726,7 +734,91 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
                 end
             end
 
-            # ----------------- SECOND PATCH: LIFTING LINE ---------------------
+        elseif wopv==1.0
+            # Magic number
+            prntln(nt(42))
+            # Version number
+            prnt(nt(1))
+            prntln(nt(0))
+            # Units for Tecplot
+            prntln(st("N/m^2", 32))
+            # Comments
+            prntln(st("Geometry input file for PSU-WOPWOP (Format v1.0)\n"*
+                      "------------------------------------------------\n"*
+                      "Created by FLOWVLM (written by Eduardo Alvarez)\n"*
+                      "https://github.com/byuflowlab/FLOWVLM\n"*
+                      "Creation date: $(Dates.now())\n"*
+                      "Units: SI\n"*
+                      "Format: Unstructured grid, face-centered", 1024))
+
+            # Format string
+            prntln(nt(1))               # Geometry file flag
+            prntln(nt(1))               # Number of zones
+            prntln(nt(2))               # 1==structured, 2==unstructured
+            prntln(nt(1))               # Geometry 1==constant, 2==periodic, 3==aperiodic
+            prntln(nt(2))               # Normal vectors 1==node, 2==face
+            prntln(nt(1))               # Floating point 1==single, 2==double
+            prntln(nt(0))               # iblank values 1==included, 0==not
+            prntln(nt(0))               # WOPWOP secret conspiracy
+
+            # ----------------- FIRST PATCH: LOFT ------------------------------
+            # Name
+            prntln(st("loft", 32))
+            # nbNodes
+            prntln(nt( size(this_points, 1) ))
+            # nbFaces
+            prntln(nt( size(vtk_cells, 1) ))
+            # Connectivity
+            for cell in vtk_cells
+                prnt(nt( size(cell, 1) ))         # Number of nodes in this cell
+                # for pi in reverse(cell)         # Clockwise node ordering
+                for pi in cell                    # NOTE: Turns out that `vtk_cells` are already clockwise
+                    prnt(nt( pi+1 ))              # 1-indexed node index
+                end
+                if !wopbin; prntln(""); end;
+            end
+
+            # ----------------- DATA FIRST PATCH -------------------------------
+            # nbNodes floating point x coordinates
+            # nbNodes floating point y coordinates
+            # nbNodes floating point z coordinates
+            for k in 1:3
+                for p in this_points
+                    prntln(fl(p[k]))
+                end
+            end
+
+            # nbFaces floating point unit normal vector x coordinates
+            # nbFaces floating point unit normal vector y coordinates
+            # nbFaces floating point unit normal vector z coordinates
+            for k in 1:3
+                for j in 1:size(vtk_cells, 1)
+                    prntln(fl(Ns[k, j]))
+                end
+            end
+
+        else
+            error("Got invalid WOPWOP version $wopv")
+        end
+
+        close(f)
+
+
+
+        # ------------------------------------------------------------------
+        # ----------------- LIFTING-LINE COMPACT PATCH FOR LOADING ---------
+        # ------------------------------------------------------------------
+        # Create file
+        f = open(joinpath(path,
+                    this_name*"_compact"*"."*(num!=nothing ? "$(num)." : "")*wopext), "w")
+
+        if  wopv==0.0
+            # Patch declaration line
+            prntln("Patch"*" "^27)
+            # Number of zones
+            prntln(nt(1))
+
+            # ----------------- FIRST PATCH: LIFTING LINE ---------------------
             # imax jmax
             prnt(nt(nHS))
             prntln(nt(1))
@@ -768,69 +860,23 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
 
             # Format string
             prntln(nt(1))               # Geometry file flag
-            prntln(nt(2))               # Number of zones, loft=1, lifting-line=2
-            prntln(nt(2))               # 1==structured, 2==unstructured
+            prntln(nt(1))               # Number of zones
+            prntln(nt(1))               # 1==structured, 2==unstructured
             prntln(nt(1))               # Geometry 1==constant, 2==periodic, 3==aperiodic
             prntln(nt(2))               # Normal vectors 1==node, 2==face
             prntln(nt(1))               # Floating point 1==single, 2==double
             prntln(nt(0))               # iblank values 1==included, 0==not
             prntln(nt(0))               # WOPWOP secret conspiracy
 
-            # ----------------- FIRST PATCH: LOFT ------------------------------
-            # Name
-            prntln(st("loft", 32))
-            # nbNodes
-            prntln(nt( size(this_points, 1) ))
-            # nbFaces
-            prntln(nt( size(vtk_cells, 1) ))
-            # Connectivity
-            for cell in vtk_cells
-                prnt(nt( size(cell, 1) ))         # Number of nodes in this cell
-                # for pi in reverse(cell)         # Clockwise node ordering
-                for pi in cell                    # NOTE: Turns out that `vtk_cells` are already clockwise
-                    prnt(nt( pi+1 ))              # 1-indexed node index
-                end
-                if !wopbin; prntln(""); end;
-            end
-
-            # ----------------- SECOND PATCH: LIFTING LINE ---------------------
+            # ----------------- FIRST PATCH: LIFTING LINE ----------------------
             # Name
             prntln(st("liftingline", 32))
-            # nbNodes
+            # iMax
             prntln(nt( size(lift_points, 1) ))
-            # nbFaces
-            prntln(nt( size(lift_vtk_cells, 1) ))
-            # Connectivity
-            for cell in lift_vtk_cells
-                prnt(nt( size(cell, 1) ))         # Number of nodes in this cell
-                for pi in cell
-                    prnt(nt( pi+1 ))              # 1-indexed node index
-                end
-                if !wopbin; prntln(""); end;
-            end
-
-
+            # jMax
+            prntln(nt( 1 ))
 
             # ----------------- DATA FIRST PATCH -------------------------------
-            # nbNodes floating point x coordinates
-            # nbNodes floating point y coordinates
-            # nbNodes floating point z coordinates
-            for k in 1:3
-                for p in this_points
-                    prntln(fl(p[k]))
-                end
-            end
-
-            # nbFaces floating point unit normal vector x coordinates
-            # nbFaces floating point unit normal vector y coordinates
-            # nbFaces floating point unit normal vector z coordinates
-            for k in 1:3
-                for j in 1:size(vtk_cells, 1)
-                    prntln(fl(Ns[k, j]))
-                end
-            end
-
-            # ----------------- DATA SECOND PATCH ------------------------------
             # nbNodes floating point x coordinates
             # nbNodes floating point y coordinates
             # nbNodes floating point z coordinates
