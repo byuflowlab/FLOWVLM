@@ -671,10 +671,21 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
         lift_points = []                            # Lifting line points
         lift_vtk_cells = []                         # VTK lifting line
         for k in 1:nHS
-            Ap, A, B, _, _, _, _, _ = getHorseshoe(this_blade, k)
+            Ap, A, B, Bp, _, _, _, _ = getHorseshoe(this_blade, k)
             Cs[:, k] = (A+B)/2
-            NCs[:, k] = cross(Ap-A, B-A)
-            NCs[:, k] /= norm(NCs[:, k]) # Unit vector normals
+
+            # Estimate the area of every triangle of the horseshoe extending the
+            # bound vortex to the leading edge
+            crss1 = cross((Ap-A)/(1-pn), B-A)
+            crss2 = cross(A-B, (Bp-B)/(1-pn))
+            NCs[:, k] = crss1/2 + crss2/2
+
+            # Unit vector normals
+            NCs[:, k] /= norm(NCs[:, k])
+
+            # Normals scaled by length
+            NCs[:, k] *= norm(B-A)
+
             push!(lift_vtk_cells, (size(lift_points, 1), size(lift_points, 1)+1))
             push!(lift_points, A)
             # NOTE: Here I'm assuming the horseshoes are contiguous
@@ -725,9 +736,9 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
                 end
             end
 
-            # imax × jmax floating point unit normal vector x coordinates
-            # imax × jmax floating point unit normal vector y coordinates
-            # imax × jmax floating point unit normal vector z coordinates
+            # imax × jmax floating point normal vector x coordinates
+            # imax × jmax floating point normal vector y coordinates
+            # imax × jmax floating point normal vector z coordinates
             for k in 1:3
                 for j in 1:nc
                     prntln(fl(Ns[k, j]))
@@ -788,9 +799,9 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
                 end
             end
 
-            # nbFaces floating point unit normal vector x coordinates
-            # nbFaces floating point unit normal vector y coordinates
-            # nbFaces floating point unit normal vector z coordinates
+            # nbFaces floating point normal vector x coordinates
+            # nbFaces floating point normal vector y coordinates
+            # nbFaces floating point normal vector z coordinates
             for k in 1:3
                 for j in 1:size(vtk_cells, 1)
                     prntln(fl(Ns[k, j]))
@@ -832,9 +843,9 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
                 end
             end
 
-            # imax × jmax floating point unit normal vector x coordinates
-            # imax × jmax floating point unit normal vector y coordinates
-            # imax × jmax floating point unit normal vector z coordinates
+            # imax × jmax floating point normal vector x coordinates
+            # imax × jmax floating point normal vector y coordinates
+            # imax × jmax floating point normal vector z coordinates
             for k in 1:3
                 for j in 1:nHS
                     prntln(fl(NCs[k, j]))
@@ -856,14 +867,14 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
                       "https://github.com/byuflowlab/FLOWVLM\n"*
                       "Creation date: $(Dates.now())\n"*
                       "Units: SI\n"*
-                      "Format: Unstructured grid, face-centered", 1024))
+                      "Format: Structured grid, node-centered", 1024))
 
             # Format string
             prntln(nt(1))               # Geometry file flag
             prntln(nt(1))               # Number of zones
             prntln(nt(1))               # 1==structured, 2==unstructured
             prntln(nt(1))               # Geometry 1==constant, 2==periodic, 3==aperiodic
-            prntln(nt(2))               # Normal vectors 1==node, 2==face
+            prntln(nt(1))               # Normal vectors 1==node, 2==face
             prntln(nt(1))               # Floating point 1==single, 2==double
             prntln(nt(0))               # iblank values 1==included, 0==not
             prntln(nt(0))               # WOPWOP secret conspiracy
@@ -872,26 +883,37 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
             # Name
             prntln(st("liftingline", 32))
             # iMax
-            prntln(nt( size(lift_points, 1) ))
-            # jMax
             prntln(nt( 1 ))
+            # jMax
+            prntln(nt( size(lift_points, 1) ))
 
             # ----------------- DATA FIRST PATCH -------------------------------
-            # nbNodes floating point x coordinates
-            # nbNodes floating point y coordinates
-            # nbNodes floating point z coordinates
+            # imax × jmax floating point x coordinates
+            # imax × jmax floating point y coordinates
+            # imax × jmax floating point z coordinates
             for k in 1:3
                 for p in lift_points
                     prntln(fl(p[k]))
                 end
             end
 
-            # nbFaces floating point unit normal vector x coordinates
-            # nbFaces floating point unit normal vector y coordinates
-            # nbFaces floating point unit normal vector z coordinates
+            # imax × jmax floating point normal vector x coordinates
+            # imax × jmax floating point normal vector y coordinates
+            # imax × jmax floating point normal vector z coordinates
             for k in 1:3
-                for j in 1:size(lift_vtk_cells, 1)
-                    prntln(fl(NCs[k, j]))
+                for j in 1:nHS
+                    # NOTE: Here I assume contiguous horseshoes
+
+                    if j == 1
+                        prntln(fl(NCs[k, j]/2))
+                    end
+
+                    if j != nHS
+                        prntln(fl(NCs[k, j]/2 + NCs[k, j+1]/2))
+                    else
+                        prntln(fl(NCs[k, j]/2))
+                    end
+
                 end
             end
 

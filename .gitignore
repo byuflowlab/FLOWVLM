@@ -5,3 +5,4 @@ temp*
 snopt-*
 .ipynb_checkpoints*
 *.gif
+*.pvsm
