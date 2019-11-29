@@ -489,6 +489,9 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
                       num=nothing, airfoils=false,
                       wopwop=false, wopext="wop", wopbin=true, wopv=1.0,
                       args...)
+
+  if wopwop; addtiproot=true; end;
+
   # ERROR CASES
   if size(self.airfoils)[1]<2
     error("Requested lofted surface, but no airfoil geometry was given.")
@@ -574,7 +577,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
   sections = [ [(1.0, 1, 1.0, false)] for i in 1:size(lines)[1]-1]
   points, vtk_cells, CP_index = vtk.multilines2vtkmulticells(lines, sections;
                                                       point_datas=CP_index)
-  if airfoils
+  if airfoils || wopwop
     line_points, vtk_lines, _ = vtk.lines2vtk(lines)
   end
 
@@ -585,7 +588,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
     # Transforms points from FLOWVLM blade's c.s. to global c.s.
     this_points = FArrWrap[ vtk.countertransform(p, this_blade.invOaxis,
                                     this_blade.O) for p in points]
-    if airfoils
+    if airfoils || wopwop
       this_line_points = FArrWrap[ vtk.countertransform(p, this_blade.invOaxis,
                                     this_blade.O) for p in line_points]
     end
@@ -694,6 +697,42 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
             end
         end
 
+        # ----- Root and tip end caps ---------
+        points_root = [this_line_points[pi+1] for pi in vtk_lines[1]]
+        points_tip = [this_line_points[pi+1] for pi in vtk_lines[end]]
+
+        # Forces end caps to be even number of points
+        if size(points_root, 1)%2 != 0
+            points_root = points_root[1:end-1]
+        end
+        if size(points_tip, 1)%2 != 0
+            points_tip = points_tip[1:end-1]
+        end
+        npr = size(points_root, 1)              # Number of points in root
+        npt = size(points_tip, 1)               # Number of points in tip
+        ncr = Int(size(points_root, 1)/2)-1     # Number of cells in root
+        nct = Int(size(points_tip, 1)/2)-1      # Number of cells in tip
+
+        # 1-indexed cells
+        cells_root = [[ci, ci+1, (npr+1)-(ci+1), (npr+1)-ci] for ci in 1:ncr]
+        cells_tip =  [[ci, ci+1, (npt+1)-(ci+1), (npt+1)-ci] for ci in 1:nct]
+
+        # Normals scaled by area
+        # NOTE: Direction of normal vs clockwise nodes?
+        Nroot = zeros(3, ncr)
+        for ci in 1:ncr
+            p1, p2, p3, p4 = (points_root[pi] for pi in cells_root[ci])
+            crss1 = cross(p2-p1, p3-p1)
+            crss2 = cross(p4-p3, p1-p3)
+            Nroot[:, ci] = crss1/2 + crss2/2
+        end
+        Ntip = zeros(3, nct)
+        for ci in 1:nct
+            p1, p2, p3, p4 = (points_tip[pi] for pi in cells_tip[ci])
+            crss1 = -cross(p2-p1, p3-p1)
+            crss2 = -cross(p4-p3, p1-p3)
+            Ntip[:, ci] = crss1/2 + crss2/2
+        end
 
 
         # ------------------------------------------------------------------
@@ -764,7 +803,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
 
             # Format string
             prntln(nt(1))               # Geometry file flag
-            prntln(nt(1))               # Number of zones
+            prntln(nt(3))               # Number of zones
             prntln(nt(2))               # 1==structured, 2==unstructured
             prntln(nt(1))               # Geometry 1==constant, 2==periodic, 3==aperiodic
             prntln(nt(2))               # Normal vectors 1==node, 2==face
@@ -789,6 +828,40 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
                 if !wopbin; prntln(""); end;
             end
 
+            # ----------------- SECOND PATCH: ROOT CAP -------------------------
+            # Name
+            prntln(st("root", 32))
+            # nbNodes
+            prntln(nt( size(points_root, 1) ))
+            # nbFaces
+            prntln(nt( size(cells_root, 1) ))
+            # Connectivity
+            for cell in cells_root
+                prnt(nt( size(cell, 1) ))         # Number of nodes in this cell
+                for pi in reverse(cell)           # NOTE: Clockwise node ordering
+                # for pi in cell
+                    prnt(nt( pi ))                # 1-indexed node index
+                end
+                if !wopbin; prntln(""); end;
+            end
+
+            # ----------------- THIRD PATCH: TIP CAP ---------------------------
+            # Name
+            prntln(st("tip", 32))
+            # nbNodes
+            prntln(nt( size(points_tip, 1) ))
+            # nbFaces
+            prntln(nt( size(cells_tip, 1) ))
+            # Connectivity
+            for cell in cells_tip
+                prnt(nt( size(cell, 1) ))         # Number of nodes in this cell
+                # for pi in reverse(cell)           # NOTE: Clockwise node ordering
+                for pi in cell
+                    prnt(nt( pi ))                # 1-indexed node index
+                end
+                if !wopbin; prntln(""); end;
+            end
+
             # ----------------- DATA FIRST PATCH -------------------------------
             # nbNodes floating point x coordinates
             # nbNodes floating point y coordinates
@@ -805,6 +878,44 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
             for k in 1:3
                 for j in 1:size(vtk_cells, 1)
                     prntln(fl(Ns[k, j]))
+                end
+            end
+
+            # ----------------- DATA SECOND PATCH -------------------------------
+            # nbNodes floating point x coordinates
+            # nbNodes floating point y coordinates
+            # nbNodes floating point z coordinates
+            for k in 1:3
+                for p in points_root
+                    prntln(fl(p[k]))
+                end
+            end
+
+            # nbFaces floating point normal vector x coordinates
+            # nbFaces floating point normal vector y coordinates
+            # nbFaces floating point normal vector z coordinates
+            for k in 1:3
+                for j in 1:size(cells_root, 1)
+                    prntln(fl(Nroot[k, j]))
+                end
+            end
+
+            # ----------------- DATA THIRD PATCH -------------------------------
+            # nbNodes floating point x coordinates
+            # nbNodes floating point y coordinates
+            # nbNodes floating point z coordinates
+            for k in 1:3
+                for p in points_tip
+                    prntln(fl(p[k]))
+                end
+            end
+
+            # nbFaces floating point normal vector x coordinates
+            # nbFaces floating point normal vector y coordinates
+            # nbFaces floating point normal vector z coordinates
+            for k in 1:3
+                for j in 1:size(cells_tip, 1)
+                    prntln(fl(Ntip[k, j]))
                 end
             end
 
