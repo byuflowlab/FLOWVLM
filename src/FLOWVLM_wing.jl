@@ -142,7 +142,7 @@ function addchord(self::Wing,
     ctot = sum([refinement[i][1] for i in 1:nsecs])
     ns = [] # Number of lattices in each section
     for i in 1:nsecs
-      if i==nsecs
+      if i==nsecs && nsecs!=1
         push!(ns, n-sum(ns))
       else
         push!(ns, floor(n*refinement[i][2]/ntot))

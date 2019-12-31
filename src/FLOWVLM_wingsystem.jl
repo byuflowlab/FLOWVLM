@@ -47,7 +47,7 @@ function addwing(self::WingSystem, wing_name::String, wing;
       deleteat!(self.wings, ind)
     else
       error("Wing '$wing_name' already exists in the system."*
-            "Use overwrite option.")
+            " Use overwrite option.")
     end
   end
 

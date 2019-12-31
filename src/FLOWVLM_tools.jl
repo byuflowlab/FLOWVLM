@@ -452,11 +452,11 @@ function simpleWing(b::FWrap, ar::FWrap, tr::FWrap,
 
   wing = Wing(x_tip, -y_tip, z_tip, c_tip, twist_t)
   addchord(wing, 0.0, 0.0, 0.0, c_root, twist, n;
-              r=r, central=central, refinement=refinement)
+              r=r, central=central, refinement=_ref)
   addchord(wing, x_tip, y_tip, z_tip, c_tip, twist_t, n;
               r=central!=false ? r : 1/r,
               central=typeof(central)!=Bool ? 1-central : central,
-              refinement=_ref)
+              refinement=refinement)
 
   return wing
 end
