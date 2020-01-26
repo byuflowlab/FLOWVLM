@@ -1,7 +1,10 @@
 # FLOWVLM
 
-Julia vortex lattice method developed by Eduardo Alvarez
+<img src="docs/img/M600_00.png" alt="Drawing" style="width: 600px;"/>
+
+Vortex lattice method developed by Eduardo Alvarez
 (Edo.AlvarezR@gmail.com) at the FLOW Lab. August 2017, Brigham Young University.
+Written in Julia 0.6.4.
 
 ## FUNCTIONALITY
 - Arbitrary 3D lifting surface geometries.
