@@ -172,7 +172,8 @@ end
 """Given the velocity induced at each control point (Vind = Vwake, no lifting
 surface), solves for the Gamma field (circulation) on each blade by looking at
 the airfoil polar at the effective angle of attack of every section. It also
-includes the fields Ftot, L, D, and S.
+includes the fields Ftot, L, D, and S. (WARNING: These Ftot, L, D, and S are
+forces per unit length!)
 
 This method solves iteratively until the circulation distribution converges.
 
@@ -237,7 +238,8 @@ end
 """Given the velocity induced at each control point (Vind = Vliftsurface+Vwake),
 solves for the Gamma field (circulation) on each blade by looking at the airfoil
 polar at the effective angle of attack of every section. It also includes the
-fields Ftot, L, D, and S.
+fields Ftot, L, D, and S. (WARNING: These Ftot, L, D, and S are
+forces per unit length!)
 
 THIS METHOD IS UNSTABLE.
 
@@ -264,7 +266,8 @@ function solvefromV(self::Rotor, Vind::Array{Array{T, 1}, 1}, args...;
 end
 
 "Solves for the Gamma field (circulation) on each blade using CCBlade. It also
-includes the fields Ftot, L, D, and S.
+includes the fields Ftot, L, D, and S. (WARNING: These Ftot, L, D, and S are
+forces per unit length!)
 
 If include_comps==true it stores CCBlade-calculated normal and tangential forces
 in the Rotor."
@@ -315,6 +318,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
 
   # Adds the fields as FLOWVLM solutions
   _addsolution(self._wingsystem, "Gamma", new_gamma; t=t)
+  # (WARNING: These Ftot, L, D, and S are forces per unit length!)
   _addsolution(self._wingsystem, "Ftot", new_Ftot; t=t)
   _addsolution(self._wingsystem, "L", new_L; t=t)
   _addsolution(self._wingsystem, "D", new_D; t=t)
