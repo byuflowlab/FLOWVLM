@@ -86,6 +86,7 @@ const FIELDS = Dict(
     "CM_M"  =>    [["Mtot"], "vector"],  #
     "CM_N"  =>    [["Mtot"], "vector"],  #
     ################## EXTRA FIELDS ####################
+    "Vind"  =>    [[], "vector"],        # Any induced velocity field
     "Vvpm"  =>    [[], "vector"],        # Velocity induced by VPM
     "Vkin"  =>    [[], "vector"],        # Kinematic velocity
     "ftot"  =>    [[], "vector"],        # Aerodynamic force (D+L+S) per unit span
@@ -131,12 +132,14 @@ function getHorseshoes(wing; t::FWrap=0.0, extraVinf...)
 end
 
 "Returns the velocity induced at point X"
-function Vind(wing, X; t::FWrap=0.0, ign_col::Bool=false, ign_infvortex::Bool=false)
+function Vind(wing, X; t::FWrap=0.0, ign_col::Bool=false,
+                        ign_infvortex::Bool=false, only_infvortex::Bool=false)
   V = zeros(3)
   # Adds the velocity induced by each horseshoe
   for i in 1:get_m(wing)
     HS = getHorseshoe(wing, i; t=t)
-    V += VLMSolver.V(HS, X; ign_col=ign_col, ign_infvortex=ign_infvortex)
+    V += VLMSolver.V(HS, X; ign_col=ign_col, ign_infvortex=ign_infvortex,
+                                                only_infvortex=only_infvortex)
   end
   return V
 end

@@ -171,17 +171,29 @@ Returns the induced velocity at `C` by horseshoe `HS`.
 It returns the geometric factor if `Gamma`==nothing.
 """
 # function V(HS::Array{Any,1}, C; ign_col::Bool=false, ign_infvortex::Bool=false)
-function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false)
+function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false, only_infvortex::Bool=false)
+
+  if ign_infvortex && only_infvortex
+      warn("Requested only infinite wake while ignoring infinite wake.")
+  end
+
   Ap, A, B, Bp, CP, infDA, infDB, Gamma = HS
-  VApA = _V_AB(Ap, A, C, Gamma; ign_col=ign_col)
-  VAB = _V_AB(A, B, C, Gamma; ign_col=ign_col)
-  VBBp = _V_AB(B, Bp, C, Gamma; ign_col=ign_col)
+
+  if only_infvortex
+      VApA, VAB, VBBp = 0, 0, zeros(3)
+  else
+      VApA = _V_AB(Ap, A, C, Gamma; ign_col=ign_col)
+      VAB = _V_AB(A, B, C, Gamma; ign_col=ign_col)
+      VBBp = _V_AB(B, Bp, C, Gamma; ign_col=ign_col)
+  end
+
   if ign_infvortex
-    VApinf, VBpinf = zeros(3), zeros(3)
+    VApinf, VBpinf = 0, 0
   else
     VApinf = _V_Ainf_in(Ap, infDA, C, Gamma; ign_col=ign_col)
     VBpinf = _V_Ainf_out(Bp, infDB, C, Gamma; ign_col=ign_col)
   end
+
   V = VApinf + VApA + VAB + VBBp + VBpinf
   return V
 end
