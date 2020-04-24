@@ -581,6 +581,12 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
   sections = [ [(1.0, 1, 1.0, false)] for i in 1:size(lines)[1]-1]
   points, vtk_cells, CP_index = vtk.multilines2vtkmulticells(lines, sections;
                                                       point_datas=CP_index)
+
+  # Flips the cells in clockwise rotor to have normals pointing out
+  if self.CW
+      vtk_cells = reverse.(vtk_cells)
+  end
+
   if airfoils || wopwop
     line_points, vtk_lines, _ = vtk.lines2vtk(lines)
   end
