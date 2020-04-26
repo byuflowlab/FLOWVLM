@@ -274,7 +274,8 @@ in the Rotor."
 function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=true, return_performance::Bool=false,
                             Vref=nothing, sound_spd=nothing, Uinds=nothing,
-                            _lookuptable::Bool=false, _Vinds=nothing)
+                            _lookuptable::Bool=false, _Vinds=nothing,
+                            tiploss_correction=false)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -292,7 +293,8 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                                         return_performance=return_performance,
                                         Vref=Vref, sound_spd=sound_spd,
                                         Uinds=Uinds,
-                                        _lookuptable=_lookuptable, _Vinds=_Vinds)
+                                        _lookuptable=_lookuptable, _Vinds=_Vinds,
+                                        tiploss_correction=tiploss_correction)
 
   # Decomposes load into aerodynamic forces and calculates circulation
   gamma = calc_aerodynamicforces(self, rho; overwritegammas=gammas)
@@ -1210,7 +1212,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 return_performance=false, Vref=nothing,
                                 Uinds=nothing,
                                 sound_spd=nothing,
-                                _lookuptable::Bool=false, _Vinds=nothing)
+                                _lookuptable::Bool=false, _Vinds=nothing,
+                                tiploss_correction::Bool=false)
   data = Array{FArrWrap}[]
   if include_comps
     data_Np = FArrWrap[]
@@ -1245,7 +1248,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
 
     if _lookuptable
       Np, Tp, uvec, vvec, gamma = _calc_distributedloads_lookuptable(ccbrotor,
-                                                        ccbinflow, turbine_flag)
+                                                        ccbinflow, turbine_flag;
+                                                        tiploss_correction=tiploss_correction)
       push!(gammas, gamma)
 
     else
@@ -1865,7 +1869,8 @@ and it is the effective inflow).
 """
 function _calc_distributedloads_lookuptable(ccbrotor::ccb.Rotor,
                                             ccbinflow::ccb.Inflow,
-                                            turbine_flag::Bool)
+                                            turbine_flag::Bool;
+                                            tiploss_correction::Bool=false)
 
   # check if propeller
   swapsign = turbine_flag ? 1 : -1
@@ -1892,6 +1897,20 @@ function _calc_distributedloads_lookuptable(ccbrotor::ccb.Rotor,
 
     # airfoil cl/cd
     cl, cd = ccb.airfoil(ccbrotor.af[i], thetaeff)
+
+    # Tip and hub correction factor
+    if tiploss_correction
+        println("Tip-loss correction!")
+        B, Rtip, Rhub, r = ccbrotor.B, ccbrotor.Rtip, ccbrotor.Rhub, ccbrotor.r[i]
+        factortip = B/2.0*(Rtip - r)/(r*abs(thetaV))
+        Ftip = 2.0/pi*acos(exp(-factortip))
+        factorhub = B/2.0*(r - Rhub)/(Rhub*abs(thetaV))
+        Fhub = 2.0/pi*acos(exp(-factorhub))
+        F = Ftip * Fhub
+
+        cl *= F
+        cd *= F
+    end
 
     # normal and tangential coefficients
     sthtV = sin(thetaV)
