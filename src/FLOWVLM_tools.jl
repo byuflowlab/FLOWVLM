@@ -379,7 +379,7 @@ function exampleWing(; n=1, solveVLM=true, aileron_angleL = 15*pi/180,
   # GENERATES VTKS
   # run(`rm *.vtk -f`)
   save(system, "test"; save_horseshoes=false, num=num)
-  PP.save(fdom, "test"; num=(num==nothing?-1:num))
+  PP.save(fdom, "test"; num=(num==nothing ? -1 : num))
 
   # OPENS PARAVIEW
   if openParaview
@@ -751,7 +751,7 @@ function save(self::Wing, filename::String;
 
   # CELLS
   write(f, string("\n\n", "CELLS ", nlat+ncp+nhs*2^only_infinite_vortex,
-                  " ", nlat*5 + ncp*2 + nhs*(only_infinite_vortex ? 2*3: 7)))
+                  " ", nlat*5 + ncp*2 + nhs*(only_infinite_vortex ? 2*3 : 7)))
   ## Lattices
   for i in 0:nlat-1
     line = string(4, " ", i, " ", i+nle, " ", i+nle+1, " ", i+1)

@@ -9,7 +9,7 @@ Initiates a system of wings. All method applicable to a Wing object are
 applicable to a WingSystem. When solved, it will calculate the interaction
 between wings.
 """
-type WingSystem
+mutable struct WingSystem
   # Properties
   wings::Array{Any,1}             # Wings in the system
   wing_names::Array{String,1}     # Names of the wings
@@ -288,7 +288,7 @@ function _get_Oaxis(wing)
   return wing.Oaxis
 end
 
-function Base.deepcopy_internal(x::WingSystem, stackdict::ObjectIdDict)
+function Base.deepcopy_internal(x::WingSystem, stackdict::IdDict)
     if haskey(stackdict, x)
         return stackdict[x]
     end

@@ -1,14 +1,3 @@
-# FLOWVLM module for the modeling of rotors/propellers/wind turbines. This
-# module is under development, hence the following dependecies are being
-# hardcoded:
-
-# CCBlade https://github.com/byuflowlab/ccblade
-# ccblade_path = "/home/user/Dropbox/FLOWResearch/FLOWCodes/CCBlade/"
-# include(ccblade_path*"src/CCBlade.jl")
-import CCBlade
-ccb = CCBlade
-
-
 ################################################################################
 # ROTOR CLASS
 ################################################################################
@@ -60,7 +49,7 @@ hence the need of explicitely declaring LE_z.
 <!-- NOTE TO SELF: r is the y-direction on a wing, hence, remember to build the
                blade from root in the direction of positive y. -->
 """
-type Rotor
+mutable struct Rotor
 
   # Initialization variables (USER INPUT)
   CW::Bool                      # True for clockwise rotation
@@ -2015,7 +2004,7 @@ function _get_Oaxis(rotor::Rotor)
 end
 
 
-function Base.deepcopy_internal(x::Rotor, stackdict::ObjectIdDict)
+function Base.deepcopy_internal(x::Rotor, stackdict::IdDict)
     if haskey(stackdict, x)
         return stackdict[x]
     end

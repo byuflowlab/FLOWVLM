@@ -1,6 +1,8 @@
 
 module VLMSolver
 
+using LinearAlgebra: norm, dot, cross
+
 # ------------ DATA STRUCTURES -------------------------------------------------
 # NUMBER DATA TYPES
 include("FLOWVLM_dt.jl")

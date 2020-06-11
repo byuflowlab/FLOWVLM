@@ -23,7 +23,7 @@ leading edge in the direction of the -xaxis and trailing in the direction of the
   # Example
   `julia julia> wing = Wing(0.0, 0.0, 0.0, 10.0, 3.0);`
 """
-type Wing
+mutable struct Wing
 
   # Initialization variables (USER INPUT)
   leftxl::FWrap                 # x-position of leading edge of the left tip
@@ -429,7 +429,7 @@ function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArg
   self._HSs = HSs
 end
 
-function Base.deepcopy_internal(x::Wing, stackdict::ObjectIdDict)
+function Base.deepcopy_internal(x::Wing, stackdict::IdDict)
     if haskey(stackdict, x)
         return stackdict[x]
     end

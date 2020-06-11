@@ -12,46 +12,43 @@ module FLOWVLM
 # ------------ GENERIC MODULES -------------------------------------------------
 using PyPlot # Comment PyPlot out if using ProfileView
 using Dierckx
+using LinearAlgebra: dot, norm, cross
 
 
 # ------------ FLOW LAB MODULES ------------------------------------------------
-# The following modules are under development, hence imports here are hardcoded
+# import AirfoilPrep
+# ap = AirfoilPrep
 
-# Airfoil processing https://github.com/EdoAlvarezR/airfoil
-airfoil_path = "/home/edoalvar/Dropbox/FLOWResearch/FLOWCodes/airfoil/"
-# push!(LOAD_PATH, joinpath(airfoil_path,"src/"))
-# using airfoilprep
-include(airfoil_path*"src/airfoilprep.jl")
-ap = airfoilprep
+# TODO: Re-integrate AirfoilPrep
+module ap
+    mutable struct Polar
+    end
+end
 
-# VTKtools https://github.com/byuflowlab/VTKtools.jl
-# vtktools_path = "/home/edoalvar/Dropbox/FLOWResearch/FLOWCodes/GeometricTools/"
-# push!(LOAD_PATH, joinpath(vtktools_path,"src/"))
-# using VTKtools
-# include(vtktools_path*"src/GeometricTools.jl")
-import GeometricTools
-vtk = GeometricTools
+# import GeometricTools
+# vtk = GeometricTools
 
+# import CCBlade
+# ccb = CCBlade
+
+# TODO: Re-integrate CCBlade
+module ccb
+    mutable struct Inflow
+    end
+    mutable struct Rotor
+    end
+end
 
 # ------------ HEADERS ---------------------------------------------------------
 for header_name in ["dt", "solver", "wing", "wingsystem",
-                                    "tools", "postprocessing"]
+                                    "tools", "postprocessing", "rotor"]
   include("FLOWVLM_"*header_name*".jl")
 end
-include("utilities.jl")
-
-# try # Rotor module is under developments
-  include("FLOWVLM_rotor.jl")
-# catch e
-#   warn("FLOWVLM_rotor.jl module failed to load: $e")
-# end
 
 
 # ------------ GLOBAL VARIABLES ------------------------------------------------
 const pm = 3/4 # Default chord-position of the control point
 const pn = 1/4 # Default chord-position of the bound vortex
-
-const def_airfoil = ap.data_path*"oval00.txt"  # Default airfoil shape
 
 # Fields that can be calculated (implementation exists)
 # FIELDS[i] = [[Dependent fields], field type (scalar/vector)]

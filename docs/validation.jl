@@ -1,6 +1,6 @@
 # Verification and validation cases for FLOWVLM
 
-include("../src/FLOWVLM.jl")
+import FLOWVLM
 vlm = FLOWVLM
 
 using PyPlot
@@ -100,13 +100,14 @@ function planarWing()
 
   # -------------------------------------------------
   # --- LIFT DISTRIBUTION AT ALPHA=4.2
-  alpha = 4.2
-  function Vinf(X,t)
-    return magVinf*[ cos(alpha*pi/180), 0.0, sin(alpha*pi/180)]
+  this_alpha = 4.2
+
+  function this_Vinf(X,t)
+    return magVinf*[ cos(this_alpha*pi/180), 0.0, sin(this_alpha*pi/180)]
   end
   wing = vlm.simpleWing(b, ar, tr, twist, lambda, gamma;
                           n=n, r=r, central=central)
-  vlm.solve(wing, Vinf)
+  vlm.solve(wing, this_Vinf)
   vlm.calculate_field(wing, "CFtot"; S=b^2/ar)
   vlm.calculate_field(wing, "Cftot/CFtot"; S=b^2/ar)
   ClCL1 = wing.sol["Cl/CL"]
@@ -255,7 +256,7 @@ particularly useful to validate the effects of twist.
 
 Give it an array of the wings to calculate.
 """
-function twist(; to_calculate = [1,2], save=false, n=30)
+function twist_sweep(; to_calculate = [1,2], save=false, n=30)
   # Sweep angles
   lambdas = [0.0, 0.0, 15.0, 30.0, 30.0, 15.0, 15.0, 15.0, 15.0]
   # Washout angles
@@ -265,11 +266,11 @@ function twist(; to_calculate = [1,2], save=false, n=30)
   # Aspect ratio (b^2/S)
   AR = 6.0
   # Aspect ratio as defined in simpleWing() (b/c_tip)
-  ars = 1./([2/3, 2/3, 2/3, 2/3, 2/3, 2/3, 2/3, 2/3, 2/5]/AR)
+  ars = 1 ./ ([2/3, 2/3, 2/3, 2/3, 2/3, 2/3, 2/3, 2/3, 2/5]/AR)
 
   # Since this wing align the quarter chords for lambda=0, a correction must be
   # made
-  lambdas_corr = lambdas + atan(  ( 1/AR )*( (1-trs)./(1+trs) )  )*180/pi
+  lambdas_corr = lambdas + atan.(  ( 1/AR )*( (1 .- trs)./(1 .+ trs) )  )*180/pi
 
   magVinf = 1.0
   b = 30.0
@@ -384,11 +385,11 @@ function planarwing_lowreynolds(; save_w=false)
   b = [7.0, 10.5, 14.0, 17.5, 6.95, 10.43, 13.91, 6.75, 10.13, 13.5,]*0.0254 #m
   AR = [2.0, 3.0, 4.0, 5.0, 2.0, 3.0, 4.0, 2.0, 3.0, 4.0]     # aspect ratios
   tr = [1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.5, 0.5, 0.5]  # taper ratios
-  lambda = atan.(   (  (1-tr)./(1+tr)  )./AR   ) * 180 / pi    # sweep
+  lambda = atan.(   (  (1 .- tr)./(1 .+ tr)  )./AR   ) * 180 / pi    # sweep
   bar_c = b./AR   # mean chord
 
   # Aspect ratio as defined in simpleWing() (b/c_tip)
-  c_tips = 2*b./AR.*(tr./(1+tr))
+  c_tips = 2*b./AR.*(tr./(1 .+ tr))
   ars = b./c_tips
 
   mu = 1.983/10^5     # Pa*s , dynamic viscosity of air
@@ -632,7 +633,7 @@ function canard_wing_interaction(; body=false, n=2,
 
   # _c_CLs = [ c_CLs[i]*(alphas[i]<0 ? -1:1) for i in 1:length(alphas)]
   _c_CLs = c_CLs
-  _m_CLs = [ m_CLs[i]*(alphas[i]<0 ? -1:1) for i in 1:length(alphas)]
+  _m_CLs = [ m_CLs[i]*(alphas[i]<0 ? -1 : 1) for i in 1:length(alphas)]
 
   # CANARD BALANCE
   subplot(121)
@@ -871,7 +872,7 @@ function wing_tail_interaction_plot(jld_file_name, dscrptn)
     plot(data_alphas, data_CLs[key], "--.", label="Experimental tail=$key")
   end
   for key in keys(CLs)
-    deg = key!="off"? round(key*180/pi,1) : key
+    deg = key!="off" ? round(key*180/pi,1) : key
     _CLs = [CLs[key][i] * (alphas[i]<0 ? -1 : 1) for i in 1:size(alphas)[1]]
     plot(alphas*180/pi, _CLs, "o", label="FLOWVLM tail=$deg")
   end
@@ -886,7 +887,7 @@ function wing_tail_interaction_plot(jld_file_name, dscrptn)
   # DRAG
   subplot(132)
   for key in keys(CLs)
-    deg = key!="off"? round(key*180/pi,1) : key
+    deg = key!="off" ? round(key*180/pi,1) : key
     # plot(data[1], data[2], "ok",
     #       label="Weber's experimental data")
     plot(CLs[key]./CDs[key], CDs[key], "o", label="FLOWVLM tail=$deg")
@@ -902,7 +903,7 @@ function wing_tail_interaction_plot(jld_file_name, dscrptn)
   # DRAG
   subplot(133)
   for key in keys(CLs)
-    deg = key!="off"? round(key*180/pi,1) : key
+    deg = key!="off" ? round(key*180/pi,1) : key
     # plot(data[1], data[2], "ok",
     #       label="Weber's experimental data")
     plot(CMs[key], CLs[key], "o", label="FLOWVLM tail=$deg")
@@ -988,7 +989,7 @@ function ver_planarWing(; save_w=false, drag_trick=false)
       sigfigs = 3
       ordr = log10(theo)
       rnd = sigfigs - ordr <= 0 ? 0 : Int(round(sigfigs-ordr))
-      println("\t>$(key)\t$(round(theo,rnd))\t\t$(round(myvlm,rnd))\t\t$(round(err*100,1))%")
+      println("\t>$(key)\t$(round(theo, digits=rnd))\t\t$(round(myvlm, digits=rnd))\t\t$(round(err*100, digits=1))%")
     end
     println("###### Done\n")
   end
