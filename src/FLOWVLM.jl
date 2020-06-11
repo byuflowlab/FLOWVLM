@@ -25,8 +25,8 @@ module ap
     end
 end
 
-# import GeometricTools
-# vtk = GeometricTools
+import GeometricTools
+gt = GeometricTools
 
 # import CCBlade
 # ccb = CCBlade

@@ -366,7 +366,7 @@ end
 
 "Rotates the rotor `degs` degrees in the direction of rotation"
 function rotate(self::Rotor, degs::FWrap)
-  rotOaxis = vtk.rotation_matrix(0.0, 0.0, (-1)^!self.CW*degs)
+  rotOaxis = gt.rotation_matrix(0.0, 0.0, (-1)^!self.CW*degs)
   newOaxis = rotOaxis*self._wingsystem.Oaxis
   # setcoordsystem(self._wingsystem, self._wingsystem.O, newOaxis)
   setcoordsystem(self, self._wingsystem.O, newOaxis)
@@ -515,7 +515,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
     # and orients the airfoil for CCW or CW rotation
     Oaxis = [cos(theta) -sin(theta) 0; sin(theta) cos(theta) 0; 0 0 1]
     Oaxis = [1 0 0; 0 (-1.0)^self.CW 0; 0 0 (-1.0)^self.CW]*Oaxis
-    points = vtk.countertransform(points, inv(Oaxis), zeros(3))
+    points = gt.countertransform(points, inv(Oaxis), zeros(3))
 
     # Position of leading edge in FLOVLM blade's c.s.
     # Airfoil's x-axis = FLOWVLM blade's x-axis
@@ -548,7 +548,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
       # and orients the airfoil for CCW or CW rotation
       Oaxis = [cos(theta) -sin(theta) 0; sin(theta) cos(theta) 0; 0 0 1]
       Oaxis = [1 0 0; 0 (-1.0)^self.CW 0; 0 0 (-1.0)^self.CW]*Oaxis
-      points = vtk.countertransform(points, inv(Oaxis), zeros(3))
+      points = gt.countertransform(points, inv(Oaxis), zeros(3))
 
       # Position of leading edge in FLOVLM blade's c.s.
       # Airfoil's x-axis = FLOWVLM blade's x-axis
@@ -570,7 +570,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
 
   # Generates vtk cells from cross sections
   sections = [ [(1.0, 1, 1.0, false)] for i in 1:size(lines)[1]-1]
-  points, vtk_cells, CP_index = vtk.multilines2vtkmulticells(lines, sections;
+  points, vtk_cells, CP_index = gt.multilines2vtkmulticells(lines, sections;
                                                       point_datas=CP_index)
 
   # Flips the cells in clockwise rotor to have normals pointing out
@@ -579,7 +579,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
   end
 
   if airfoils || wopwop
-    line_points, vtk_lines, _ = vtk.lines2vtk(lines)
+    line_points, vtk_lines, _ = gt.lines2vtk(lines)
   end
 
   # Generates each blade
@@ -587,10 +587,10 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
     this_blade = self._wingsystem.wings[i]
 
     # Transforms points from FLOWVLM blade's c.s. to global c.s.
-    this_points = FArrWrap[ vtk.countertransform(p, this_blade.invOaxis,
+    this_points = FArrWrap[ gt.countertransform(p, this_blade.invOaxis,
                                     this_blade.O) for p in points]
     if airfoils || wopwop
-      this_line_points = FArrWrap[ vtk.countertransform(p, this_blade.invOaxis,
+      this_line_points = FArrWrap[ gt.countertransform(p, this_blade.invOaxis,
                                     this_blade.O) for p in line_points]
     end
 
@@ -622,11 +622,11 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
 
     # Generates the vtk file
     this_name = filename*"_"*self._wingsystem.wing_names[i]*"_"*suf
-    strn *= vtk.generateVTK(this_name, this_points; cells=vtk_cells,
+    strn *= gt.generateVTK(this_name, this_points; cells=vtk_cells,
                                             point_data=data, path=path, num=num)
     if airfoils
       this_linename = filename*"_"*self._wingsystem.wing_names[i]*"_"*rfl_suf
-      strn *= vtk.generateVTK(this_linename, this_line_points; cells=vtk_lines,
+      strn *= gt.generateVTK(this_linename, this_line_points; cells=vtk_lines,
                                 path=path, num=num)
     end
 
@@ -1708,10 +1708,10 @@ function _calc_airfoils(self::Rotor, n::IWrap, r::FWrap,
           push!(ns, floor(n*refinement[i][2]/ntot))
         end
       end
-    points = vtk.multidiscretize(aux_f, 0, 1,
+    points = gt.multidiscretize(aux_f, 0, 1,
           [(sec[1], ns[i], sec[3], false) for (i,sec) in enumerate(refinement)])
   else
-    points = vtk.discretize(aux_f, 0, 1, n, r; central=central)
+    points = gt.discretize(aux_f, 0, 1, n, r; central=central)
   end
 
   # Normalized position of control points
@@ -1800,12 +1800,12 @@ function _rediscretize_airfoil(x, y, n_lower::IWrap, n_upper::IWrap, r::FWrap,
   upper, lower = ap.splitcontour(x, y)
 
   # Parameterize both sides independently
-  fun_upper = vtk.parameterize(upper[1], upper[2], zeros(upper[1]); inj_var=1)
-  fun_lower = vtk.parameterize(lower[1], lower[2], zeros(lower[1]); inj_var=1)
+  fun_upper = gt.parameterize(upper[1], upper[2], zeros(upper[1]); inj_var=1)
+  fun_lower = gt.parameterize(lower[1], lower[2], zeros(lower[1]); inj_var=1)
 
   # New discretization for both surfaces
-  upper_points = vtk.discretize(fun_upper, 0, 1, n_upper, r[1]; central=central)
-  lower_points = vtk.discretize(fun_lower, 0, 1, n_lower, r[1]; central=central)
+  upper_points = gt.discretize(fun_upper, 0, 1, n_upper, r[1]; central=central)
+  lower_points = gt.discretize(fun_lower, 0, 1, n_lower, r[1]; central=central)
 
   # Put both surfaces back together from TE over the top and from LE over the bottom.
   reverse!(upper_points)                        # Trailing edge over the top

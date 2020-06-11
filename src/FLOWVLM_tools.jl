@@ -472,9 +472,9 @@ function ellipticWing(b::FWrap, croot::FWrap, twistroot::FWrap; elliptic="chord"
 
   # Span positions
   if size(refinement,1)!=0
-    LE_ys = vtk.multidiscretize(x->x, 0, b/2, refinement)
+    LE_ys = gt.multidiscretize(x->x, 0, b/2, refinement)
   else
-    LE_ys = vtk.discretize(x->x, 0, b/2, n, r; central=central)
+    LE_ys = gt.discretize(x->x, 0, b/2, n, r; central=central)
   end
 
   ell = 1-(2*LE_ys/b).^2
