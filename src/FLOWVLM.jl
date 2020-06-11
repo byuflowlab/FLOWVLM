@@ -16,14 +16,8 @@ using LinearAlgebra: dot, norm, cross
 
 
 # ------------ FLOW LAB MODULES ------------------------------------------------
-# import AirfoilPrep
-# ap = AirfoilPrep
-
-# TODO: Re-integrate AirfoilPrep
-module ap
-    mutable struct Polar
-    end
-end
+import AirfoilPrep
+ap = AirfoilPrep
 
 import GeometricTools
 gt = GeometricTools
