@@ -22,20 +22,12 @@ ap = AirfoilPrep
 import GeometricTools
 gt = GeometricTools
 
-# import CCBlade
-# ccb = CCBlade
-
-# TODO: Re-integrate CCBlade
-module ccb
-    mutable struct Inflow
-    end
-    mutable struct Rotor
-    end
-end
+import CCBlade
+ccb = CCBlade
 
 # ------------ HEADERS ---------------------------------------------------------
 for header_name in ["dt", "solver", "wing", "wingsystem",
-                                    "tools", "postprocessing", "rotor"]
+                            "tools", "postprocessing", "rotor_ccb", "rotor"]
   include("FLOWVLM_"*header_name*".jl")
 end
 
@@ -125,7 +117,7 @@ end
 "Returns the velocity induced at point X"
 function Vind(wing, X; t::FWrap=0.0, ign_col::Bool=false,
                         ign_infvortex::Bool=false, only_infvortex::Bool=false)
-  V = zeros(3)
+  V = fill(0.0, 3)
   # Adds the velocity induced by each horseshoe
   for i in 1:get_m(wing)
     HS = getHorseshoe(wing, i; t=t)

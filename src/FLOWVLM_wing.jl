@@ -277,7 +277,7 @@ function setcoordsystem(self::Wing, O::FArrWrap,
                             Oaxis::Array{T,1} where {T<:AbstractArray};
                             check=true)
   dims = 3
-  M = zeros(dims, dims)
+  M = fill(0.0, dims, dims)
   for i in 1:dims
     M[i, :] = Oaxis[i]
   end

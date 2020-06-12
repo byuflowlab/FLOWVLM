@@ -33,7 +33,7 @@ WingSystem.
 """
 function get_CG(self)
   sum_A = 0.0
-  sum_rA = zeros(3)
+  sum_rA = fill(0.0, 3)
   # Iterates over each panel
   for i in 1:get_m(self)
     r = get_r(self, i)
@@ -600,7 +600,7 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
   # Iterates over chords calculating coordinates
   prev_x = chordalign*chord_tip*clen[1]*cos(twist[1]*pi/180)
   prev_z = -chordalign*chord_tip*clen[1]*sin(twist[1]*pi/180)
-  prev_y, sec_lambda, sec_gamma = zeros(4)
+  prev_y, sec_lambda, sec_gamma = fill(0.0, 4)
   for i in 1:nchords
       cho_twist = twist[i]*pi/180       # Chord twist
       cho_len = chord_tip*clen[i]       # Chord length
@@ -696,19 +696,19 @@ function save(self::Wing, filename::String;
   write(f, string("\n", "POINTS ", nle+nte+ncp+nhs*p_per_hs, " float"))
   ## Leading edge
   for i in 1:nle
-    LE = round.(getLE(self, i), rnd_d)
+    LE = round.(getLE(self, i); digits=rnd_d)
     line1 = string(LE[1], " ", LE[2], " ", LE[3])
     write(f, string("\n", line1))
   end
   ## Trailing edge
   for i in 1:nte
-    TE = round.(getTE(self, i), rnd_d)
+    TE = round.(getTE(self, i); digits=rnd_d)
     line2 = string(TE[1], " ", TE[2], " ", TE[3])
     write(f, string("\n", line2))
   end
   ## Control points (m)
   for i in 1:ncp
-    CP = round.(getControlPoint(self, i), rnd_d)
+    CP = round.(getControlPoint(self, i); digits=rnd_d)
     line = string(CP[1], " ", CP[2], " ", CP[3])
     write(f, string("\n", line))
   end
@@ -725,7 +725,7 @@ function save(self::Wing, filename::String;
     factor = abs((x_vor_end - self._xtwingdcr[i])/dot(infDA, self.Oaxis[1,:]))
     if factor>factor_tol#1/10^1
       if raise_warning1
-        warn("Infinite vortex sheet avoided in visualization")
+        @warn("Infinite vortex sheet avoided in visualization")
         raise_warning1 = false
       end
       factor = abs((x_vor_end - self._xtwingdcr[i]) / (x_vor_end - self._xtwingdcr[1])/100)
@@ -735,7 +735,7 @@ function save(self::Wing, filename::String;
     factor = abs((x_vor_end - self._xtwingdcr[i+1])/dot(infDB, self.Oaxis[1,:]))
     if factor>factor_tol#1/10^1
       if raise_warning1
-        warn("Infinite vortex sheet avoided in visualization")
+        @warn("Infinite vortex sheet avoided in visualization")
         raise_warning1 = false
       end
       factor = abs((x_vor_end - self._xtwingdcr[i]) / (x_vor_end - self._xtwingdcr[1])/100)
@@ -744,7 +744,7 @@ function save(self::Wing, filename::String;
 
     points = only_infinite_vortex ? [Apinf, Ap, Bp, Bpinf] : [Apinf, Ap, A, B, Bp, Bpinf]
     for point in points
-      line = string(round(point[1], rnd_d), " ", round(point[2], rnd_d), " ", round(point[3], rnd_d))
+      line = string(round(point[1]; digits=rnd_d), " ", round(point[2]; digits=rnd_d), " ", round(point[3]; digits=rnd_d))
       write(f, string("\n", line))
     end
   end
@@ -821,7 +821,7 @@ function save(self::Wing, filename::String;
     if FIELDS[field_name][2]=="vector"
       write(f, string("\n\n", "VECTORS ", field_name," float"))
       for i in 1:nlat+ncp+nhs
-            vect = round.(self.sol[field_name][(i-1)%nCP+1], rnd_d)
+            vect = round.(self.sol[field_name][(i-1)%nCP+1]; digits=rnd_d)
             line = string(vect[1], " ", vect[2], " ", vect[3])
             write(f, string("\n", line))
             if only_infinite_vortex; write(f, string("\n", line)); end;
@@ -830,7 +830,7 @@ function save(self::Wing, filename::String;
       write(f, string("\n\n", "SCALARS ", field_name," float"))
       write(f, string("\n", "LOOKUP_TABLE default"))
       for i in 1:nlat+ncp+nhs
-            sclr = round.(self.sol[field_name][(i-1)%nCP+1], rnd_d)
+            sclr = round.(self.sol[field_name][(i-1)%nCP+1]; digits=rnd_d)
             try
               line = string(isnan(sclr) ? -1 : sclr)
             catch
@@ -944,7 +944,7 @@ end
 #
 #   m = get_m(self)
 #
-#   V_tot = zeros(3)
+#   V_tot = fill(0.0, 3)
 #   # Iterates over every horseshoe in the wing
 #   for i in 1:m
 #     this_HS = getHorseshoe(self, i)
@@ -1053,9 +1053,9 @@ function check_coord_sys(M::Array{T,1} where {T<:AbstractArray}; raise_error::Bo
   end
 
   if ad_flag
-    newM = zeros(ad_type, dims, dims)
+    newM = fill(zero(ad_type), dims, dims)
   else
-    newM = zeros(FWrap, dims, dims)
+    newM = fill(zero(FWrap), dims, dims)
   end
 
   for i in 1:dims

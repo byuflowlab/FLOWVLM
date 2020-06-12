@@ -217,8 +217,8 @@ function solvefromVite(self::Rotor, Vind::Array{Array{T, 1}, 1}, args...;
   end
 
   if ite==maxite
-    warn("Iterative Rotor solvefromV reached max iterations without converging."
-        *" maxite:$maxite\t error:$err")
+    @warn "Iterative Rotor solvefromV reached max iterations without converging."*
+            " maxite:$maxite\t error:$err"
   end
 
   return out
@@ -273,7 +273,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
   _ = getHorseshoe(self, 1)
 
   if sound_spd==nothing
-    warn("No sound speed has been provided. No Mach corrections will be applied.")
+    @warn "No sound speed has been provided. No Mach corrections will be applied."
   end
 
   # Calculates distributed load from CCBlade
@@ -515,7 +515,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
     # and orients the airfoil for CCW or CW rotation
     Oaxis = [cos(theta) -sin(theta) 0; sin(theta) cos(theta) 0; 0 0 1]
     Oaxis = [1 0 0; 0 (-1.0)^self.CW 0; 0 0 (-1.0)^self.CW]*Oaxis
-    points = gt.countertransform(points, inv(Oaxis), zeros(3))
+    points = gt.countertransform(points, inv(Oaxis), fill(0.0, 3))
 
     # Position of leading edge in FLOVLM blade's c.s.
     # Airfoil's x-axis = FLOWVLM blade's x-axis
@@ -548,7 +548,7 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
       # and orients the airfoil for CCW or CW rotation
       Oaxis = [cos(theta) -sin(theta) 0; sin(theta) cos(theta) 0; 0 0 1]
       Oaxis = [1 0 0; 0 (-1.0)^self.CW 0; 0 0 (-1.0)^self.CW]*Oaxis
-      points = gt.countertransform(points, inv(Oaxis), zeros(3))
+      points = gt.countertransform(points, inv(Oaxis), fill(0.0, 3))
 
       # Position of leading edge in FLOVLM blade's c.s.
       # Airfoil's x-axis = FLOWVLM blade's x-axis
@@ -635,8 +635,8 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
 
         # PRECALCULATIONS
         nc = size(vtk_cells, 1)             # Number of cells
-        CPs = zeros(3, nc)                  # Control point of every cell
-        Ns = zeros(3, nc)                   # Normal of every cell
+        CPs = fill(0.0, 3, nc)                  # Control point of every cell
+        Ns = fill(0.0, 3, nc)                   # Normal of every cell
         for k in 1:nc
 
             p = [this_points[j+1] for j in vtk_cells[k]]    # Points of cell
@@ -670,8 +670,8 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
         end
 
         nHS = get_m(this_blade)                     # Number of horseshoes
-        Cs = zeros(3, nHS)                          # Midpoints of lifting line
-        NCs = zeros(3, nHS)                         # Ficticious normals to line
+        Cs = fill(0.0, 3, nHS)                          # Midpoints of lifting line
+        NCs = fill(0.0, 3, nHS)                         # Ficticious normals to line
         lift_points = []                            # Lifting line points
         lift_vtk_cells = []                         # VTK lifting line
         for k in 1:nHS
@@ -720,14 +720,14 @@ function save_loft(self::Rotor, filename::String; addtiproot=false, path="",
 
         # Normals scaled by area
         # NOTE: Direction of normal vs clockwise nodes?
-        Nroot = zeros(3, ncr)
+        Nroot = fill(0.0, 3, ncr)
         for ci in 1:ncr
             p1, p2, p3, p4 = (points_root[pi] for pi in cells_root[ci])
             crss1 = cross(p2-p1, p3-p1)
             crss2 = cross(p4-p3, p1-p3)
             Nroot[:, ci] = crss1/2 + crss2/2
         end
-        Ntip = zeros(3, nct)
+        Ntip = fill(0.0, 3, nct)
         for ci in 1:nct
             p1, p2, p3, p4 = (points_tip[pi] for pi in cells_tip[ci])
             crss1 = -cross(p2-p1, p3-p1)
@@ -1043,94 +1043,6 @@ end
 
 
 
-"""
-Returns a CCBlade's rotor object corresponding to the i-th blade. The r position
-used to generate the object are the control points, `Rhub` is the minimum radius
-given when initializing the FLOWVLM Rotor object, and `Rtip` is the maximum. The
-precone given to CCBlade is 0 since precone it is expected to be already
-accounted for in the geometry given by the user when initializing the FLOWVLM
-Rotor.
-
-It applies 3D corrections to the airfoil polars given for initializing the
-FLOWVLM Rotor, hence the RPMs for those corrections must be specified.
-
-WARNING: This function will use the Inflow field, hence make sure they are
-updated.
-
-NOTE: In the current implementation it assumes a constant Reynolds number on
-each airfoil throughout operation as captured in the polar used for initializing
-the FLOWVLM Rotor. The implementation of a varying Reynolds will be left for
-future development as needed.
-"""
-function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::IWrap, turbine_flag::Bool;
-                          sound_spd=nothing)
-  # ERROR CASES
-  if size(self.airfoils)[1]<2
-    error("Airfoil data not found when generating CCBlade Rotor.")
-  elseif size(self._polars)[1]==0
-    error("Control point polars haven't been calculated yet."*
-              " Run `_calc_airfoils()` before calling this function.")
-  elseif !("CCBInflow" in keys(self.sol))
-    error("CCBInflow field not found. "*
-              "Call `calc_inflow()` before calling this function")
-  end
-
-  Rhub = self.hubR
-  Rtip = self.rotorR
-  precone = 0.0
-  inflows = self.sol["CCBInflow"]["field_data"][blade_i]
-
-  # Prepares airfoil polars
-  af = ccb.AirfoilData[]
-  for (i,polar) in enumerate(self._polars)
-
-    r_over_R = self._r[i] / Rtip
-    c_over_r = self._chord[i] / self._r[i]
-    #   NOTE: Here I'm taking the freestream to be the absolute value CCBlade's
-    #   x-component of inflow. This may cause problems when the flow is reversed
-    this_Vinf = abs(inflows[i][1])
-    tsr = this_Vinf < 1e-4 ? nothing : (2*pi*RPM/60 * Rtip) / this_Vinf
-
-    # Mach correction
-    if sound_spd!=nothing
-      Ma = norm(inflows[i])/sound_spd
-      if Ma>=1
-        error("Mach correction requested on Ma = $Ma >= 1.0")
-      end
-      alpha, cl = ap.get_cl(polar)
-      geom = ap.get_geometry(polar)
-      this_polar = ap.Polar(ap.get_Re(polar), alpha, cl/sqrt(1-Ma^2),
-                              ap.get_cd(polar)[2], ap.get_cm(polar)[2],
-                              geom[1], geom[2])
-    else
-      this_polar = polar
-    end
-
-    # 3D corrections
-    this_polar = ap.correction3D(this_polar, r_over_R, c_over_r, tsr)
-
-    # 360 extrapolation
-    CDmax = 1.3
-    this_polar = ap.extrapolate(this_polar, CDmax)
-
-    # Makes sure the polar is injective for easing the spline
-    this_polar = ap.injective(this_polar)
-
-    # Converts to CCBlade's AirfoilData object
-    alpha, cl = ap.get_cl(this_polar)
-    _, cd = ap.get_cd(this_polar)
-    ccb_polar = ccb.af_from_data(alpha, cl, cd; spl_k=5)
-
-    push!(af, ccb_polar)
-  end
-
-  rotor = ccb.Rotor(self._r, self._chord,
-                    (-1)^(turbine_flag)*(-1)^self.CW*self._theta*pi/180, af,
-                    Rhub, Rtip, self.B, precone)
-
-  return rotor
-end
-
 
 ##### CALCULATION OF SOLUTION FIELDS ###########################################
 "Receives the freestream velocity function V(x,t) and the current RPM of the
@@ -1155,7 +1067,7 @@ function calc_inflow(self::Rotor, Vinf, RPM; t::FWrap=0.0, Vinds=nothing)
       # Velocity due to rotation in FLOWVLM blade's c.s.
       this_Vrot = [omega*self._r[j], 0.0, 0.0]
       # Velocity due to rotation in global c.s.
-      this_Vrot = countertransform(this_Vrot, blade.invOaxis, zeros(3))
+      this_Vrot = countertransform(this_Vrot, blade.invOaxis, fill(0.0, 3))
 
       this_Vtot = this_Vinf + this_Vrot
 
@@ -1229,22 +1141,29 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     inflow_x = [V[1] for V in inflow]
     inflow_y = [V[2] for V in inflow]
     inflow_x = (-1)^(!turbine_flag)*inflow_x # The negative is needed to counteract the
-    ccbinflow = ccb.Inflow(inflow_x, inflow_y, rho) # propeller swapping sign in CCBlade
+    occbinflow = OCCBInflow(inflow_x, inflow_y, rho) # propeller swapping sign in CCBlade
 
-    # Generates CCBlade Rotor object
-    ccbrotor = FLOWVLM2CCBlade(self, RPM, blade_i, turbine_flag;
+    # Generates old-CCBlade Rotor object
+    occbrotor = FLOWVLM2OCCBlade(self, RPM, blade_i, turbine_flag;
                                                             sound_spd=sound_spd)
+    # Convert old-CCBlade rotor to current CCBlade rotor type
+    ccbrotor, ccbsections, ccbops = OCCB2CCB(occbrotor, turbine_flag,
+                                                        occbinflow; pitch=0.0)
+    ccboutputs = nothing
+    Np, Tp, uvec, vvec, gamma = (nothing for i in 1:5)
 
     if _lookuptable
-      Np, Tp, uvec, vvec, gamma = _calc_distributedloads_lookuptable(ccbrotor,
-                                                        ccbinflow, turbine_flag;
+      Np, Tp, uvec, vvec, gamma = _calc_distributedloads_lookuptable(occbrotor,
+                                                        occbinflow, turbine_flag;
                                                         tiploss_correction=tiploss_correction)
       push!(gammas, gamma)
-
+      ccbouputs = ccb.Outputs(Np, Tp, 0.0, 0.0, uvec, vvec, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     else
       # Calls CCBlade
       # NOTE TO SELF: Forces normal and tangential to the plane of rotation
-      Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, turbine_flag)
+      # Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, turbine_flag)
+      ccboutputs = ccb.solve.(Ref(ccbrotor), ccbsections, ccbops)
+      Np, Tp, uvec, vvec = ccboutputs.Np, ccboutputs.Tp, ccboutputs.u, ccboutputs.v
     end
 
     # Convert forces from CCBlade's c.s. to global c.s.
@@ -1263,9 +1182,12 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
         error("Performance coefficients requested, but no reference freestream"*
               " has been provided.")
       end
-      T, Q = ccb.thrusttorque(ccbrotor, [ccbinflow], turbine_flag)
-      eta, CT, CQ = ccb.nondim(T, Q, Vref, 2*pi*RPM/60, rho,
-                                ccbrotor.Rtip, ccbrotor.precone, turbine_flag)
+      # T, Q = ccb.thrusttorque(ccbrotor, [ccbinflow], turbine_flag)
+      # eta, CT, CQ = ccb.nondim(T, Q, Vref, 2*pi*RPM/60, rho,
+      #                           ccbrotor.Rtip, ccbrotor.precone, turbine_flag)
+      #NOTE: Define ccboutputs
+      T, Q = ccb.thrusttorque(ccbrotor, ccbsections, ccboutputs)
+      eta, CT, CQ = ccb.nondim(T, Q, Vref, 2*pi*RPM/60, rho, ccbrotor)
       push!(coeffs, [eta,CT,CQ])
     end
 
@@ -1645,7 +1567,7 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
     te = [tex,tey,tez]
 
     c = norm(le-te)
-    tht = 180/pi*atan2((le-te)[3],-(le-te)[1])
+    tht = 180/pi*atan((le-te)[3],-(le-te)[1])
 
     push!(vlm_r, ley)
     push!(vlm_chord, c)
@@ -1761,7 +1683,7 @@ function _calc_airfoils(self::Rotor, n::IWrap, r::FWrap,
     # Blends Cd and Cl curves
     prev_pypolar = self.airfoils[prev_i][2].pyPolar
     next_pypolar = self.airfoils[next_i][2].pyPolar
-    blended_pypolar = prev_pypolar[:blend](next_pypolar, weight)
+    blended_pypolar = prev_pypolar.blend(next_pypolar, weight)
 
     # Blends airfoil geometry
     blended_x = weight*next_contour[1] + (1-weight)*prev_contour[1]
@@ -1800,8 +1722,8 @@ function _rediscretize_airfoil(x, y, n_lower::IWrap, n_upper::IWrap, r::FWrap,
   upper, lower = ap.splitcontour(x, y)
 
   # Parameterize both sides independently
-  fun_upper = gt.parameterize(upper[1], upper[2], zeros(upper[1]); inj_var=1)
-  fun_lower = gt.parameterize(lower[1], lower[2], zeros(lower[1]); inj_var=1)
+  fun_upper = gt.parameterize(upper[1], upper[2], fill(0.0, size(upper[1])); inj_var=1)
+  fun_lower = gt.parameterize(lower[1], lower[2], fill(0.0, size(lower[1])); inj_var=1)
 
   # New discretization for both surfaces
   upper_points = gt.discretize(fun_upper, 0, 1, n_upper, r[1]; central=central)
@@ -1856,8 +1778,8 @@ end
 given inflow (this assumes that the inflow already includes all induced velocity
 and it is the effective inflow).
 """
-function _calc_distributedloads_lookuptable(ccbrotor::ccb.Rotor,
-                                            ccbinflow::ccb.Inflow,
+function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
+                                            ccbinflow::OCCBInflow,
                                             turbine_flag::Bool;
                                             tiploss_correction::Bool=false)
 
@@ -1866,11 +1788,11 @@ function _calc_distributedloads_lookuptable(ccbrotor::ccb.Rotor,
 
   # initialize arrays
   n = length(ccbrotor.r)
-  Np = zeros(n)
-  Tp = zeros(n)
-  uvec = zeros(n)
-  vvec = zeros(n)
-  gamma = zeros(n)
+  Np = fill(0.0, n)
+  Tp = fill(0.0, n)
+  uvec = fill(0.0, n)
+  vvec = fill(0.0, n)
+  gamma = fill(0.0, n)
 
   for i in 1:n
     twist = swapsign*ccbrotor.theta[i]
@@ -1880,12 +1802,12 @@ function _calc_distributedloads_lookuptable(ccbrotor::ccb.Rotor,
     aux1 = 0.5*ccbinflow.rho*(Vx*Vx+Vy*Vy)*ccbrotor.chord[i]
 
     # Effective angle of attack (rad)
-    thetaV = atan2(Vx, Vy)
+    thetaV = atan(Vx, Vy)
     thetaeff = thetaV - twist
     # println("angles = $([twist, thetaeff]*180/pi)\tVx,Vy=$([Vx, Vy])")
 
     # airfoil cl/cd
-    cl, cd = ccb.airfoil(ccbrotor.af[i], thetaeff)
+    cl, cd = occb_airfoil(ccbrotor.af[i], thetaeff)
 
     # Tip and hub correction factor
     if tiploss_correction
@@ -1919,54 +1841,6 @@ function _calc_distributedloads_lookuptable(ccbrotor::ccb.Rotor,
   vvec *= swapsign
 
   return Np, Tp, uvec, vvec, gamma
-end
-
-"""Receives a vector in the global coordinate system and transforms it into
-CCBlade's coordinate system relative to `blade`. NOTE: This function only
-rotates `V` into the new axis without translating it unless otherwise indicated.
-(for definition of axes see notebook entry 20171202)
-"""
-function _global2ccblade(blade::Wing, V::FArrWrap, CW::Bool;
-                                                        translate::Bool=false)
-  # V in FLOWVLM Rotor's blade c.s.
-  V_vlm = transform(V, blade.Oaxis, translate ? blade.O : zeros(3))
-
-  # CCBlade c.s. transformation matrix
-  ccb_Oaxis = _ccbladeOaxis(blade, CW)
-
-  # V in CCBlade's c.s.
-  V_ccb = transform(V_vlm, ccb_Oaxis, zeros(3))
-
-  return V_ccb
-end
-
-
-"""Receives a vector in CCBlade's coordinate system relative to `blade` and
-transforms it into the global coordinate system. NOTE: This function only
-rotates `V` into the new axis without translating it unless otherwise indicated.
-"""
-function _ccblade2global(blade::Wing, V::FArrWrap, CW::Bool;
-                                                        translate::Bool=false)
-  # CCBlade c.s. transformation matrix
-  ccb_Oaxis = _ccbladeOaxis(blade, CW)
-
-  # V in FLOWVLM Rotor's blade c.s.
-  V_vlm = countertransform(V, inv(ccb_Oaxis), zeros(3))
-
-  # V in global c.s.
-  V_glob = countertransform(V_vlm, blade.invOaxis, translate ? blade.O : zeros(3))
-
-  return V_glob
-end
-
-"Returns the CCBlade's transformation matrix relative to the blade's c.s."
-function _ccbladeOaxis(blade::Wing, CW::Bool)
-  # CCBlade c.s. matrix
-  ccb_Oaxis = [ 0 0 (-1)^CW;  # CC x-dir = Blade z-dir
-                1.0 0 0;      # CC y-dir = Blade x-dir
-                0 (-1)^CW 0]  # CC z-dir = Blade y-dir
-
-  return ccb_Oaxis
 end
 
 "Extension of WingSystem's `addwing()` function"

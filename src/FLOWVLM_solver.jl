@@ -96,8 +96,8 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
 
   n = size(HSs)[1]            # Number of horseshoes
-  G = zeros(FWrap, n, n)      # Geometry matrix
-  Vn = zeros(FWrap, n)        # Normal velocity matrix
+  G = fill(zero(FWrap), n, n)      # Geometry matrix
+  Vn = fill(zero(FWrap), n)        # Normal velocity matrix
 
   ad_flag = false             # Flag of automatic differentiation detected
   ad_type = nothing           # AD dual number type
@@ -156,7 +156,7 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
 
   # ------------ SOLVES FOR GAMMA ------------
   if ad_flag
-    adG = zeros(ad_type, n, n)
+    adG = fill(zero(ad_type), n, n)
     adG[:,:] = G[:,:]
     Gamma = adG \ Vn
   else
@@ -176,13 +176,13 @@ It returns the geometric factor if `Gamma`==nothing.
 function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false, only_infvortex::Bool=false)
 
   if ign_infvortex && only_infvortex
-      warn("Requested only infinite wake while ignoring infinite wake.")
+      @warn("Requested only infinite wake while ignoring infinite wake.")
   end
 
   Ap, A, B, Bp, CP, infDA, infDB, Gamma = HS
 
   if only_infvortex
-      VApA, VAB, VBBp = 0, 0, zeros(3)
+      VApA, VAB, VBBp = 0, 0, fill(0.0, 3)
   else
       VApA = _V_AB(Ap, A, C, Gamma; ign_col=ign_col)
       VAB = _V_AB(A, B, C, Gamma; ign_col=ign_col)
@@ -301,13 +301,13 @@ function _check_collinear(magsqr, col_crit; ign_col::Bool=false)
   if magsqr<col_crit || isnan(magsqr)
     if ign_col==false
       if n_col==0 && mute_warning==false
-        warn("Requested induced velocity on a point colinear with vortex."*
+        @warn("Requested induced velocity on a point colinear with vortex."*
                 " Returning 0")
       end
       global n_col += 1
       # push!(colinears, C)
       if n_col%10==0 && mute_warning==false
-        warn("Number of colinears found: $n_col")
+        @warn("Number of colinears found: $n_col")
       end
     end
     return true

@@ -7,13 +7,13 @@ version = "2.0.0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 Dierckx = "39dd38d3-220a-591b-8e3c-4c3a8c710a94"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-CCBlade = "e1828068-15df-11e9-03e4-ef195ea46fa4"
 GeometricTools = "83792f5e-c6a1-11e8-2e0a-93511f02ae5f"
 AirfoilPrep = "008c61af-3522-4e14-81c5-9301d18a9f66"
+CCBlade = "e1828068-15df-11e9-03e4-ef195ea46fa4"
 
 
 [compat]
 julia = "1.4"
-CCBlade = "0.1.0"
 GeometricTools = "2.0.0"
 AirfoilPrep = "2.0.0"
+CCBlade = "0.1.0"
