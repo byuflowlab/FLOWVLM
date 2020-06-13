@@ -182,7 +182,7 @@ function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false,
   Ap, A, B, Bp, CP, infDA, infDB, Gamma = HS
 
   if only_infvortex
-      VApA, VAB, VBBp = 0, 0, fill(0.0, 3)
+      VApA, VAB, VBBp = zeros(3), zeros(3), zeros(3)
   else
       VApA = _V_AB(Ap, A, C, Gamma; ign_col=ign_col)
       VAB = _V_AB(A, B, C, Gamma; ign_col=ign_col)
@@ -190,7 +190,7 @@ function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false,
   end
 
   if ign_infvortex
-    VApinf, VBpinf = 0, 0
+    VApinf, VBpinf = zeros(3), zeros(3)
   else
     VApinf = _V_Ainf_in(Ap, infDA, C, Gamma; ign_col=ign_col)
     VBpinf = _V_Ainf_out(Bp, infDB, C, Gamma; ign_col=ign_col)
