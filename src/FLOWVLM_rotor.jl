@@ -1644,6 +1644,9 @@ function _calc_airfoils(self::Rotor, n::IWrap, r::FWrap,
   prev_contour, next_contour = nothing, nothing # Airfoil contours
   prev_i, next_i = nothing, 1 # Indices of airfoils previous and next to cur CP
 
+  # WARNING: The blending function only blends airfoil properties and contours,
+  #       but it ignores all other parameters (Re, Ma, etc)
+
   # Iterates over each control point
   for this_CP in norm_CPs
 
@@ -1690,7 +1693,7 @@ function _calc_airfoils(self::Rotor, n::IWrap, r::FWrap,
     blended_y = weight*next_contour[2] + (1-weight)*prev_contour[2]
 
     # Blended Polar object
-    blended_polar = ap._pyPolar2Polar(blended_pypolar, blended_x, blended_y)
+    blended_polar = ap._pyPolar2Polar(blended_pypolar; x=blended_x, y=blended_y)
 
     push!(self._polars, blended_polar) # Stores CP airfoils in self._polars
   end
@@ -1705,10 +1708,10 @@ function _calc_airfoils(self::Rotor, n::IWrap, r::FWrap,
                                             self.airfoils[end][2].y,
                                             rfl_n_lower, rfl_n_upper, rfl_r,
                                             rfl_central)
-    self._polarroot = ap._pyPolar2Polar(self.airfoils[1][2].pyPolar,
-                                            root_x, root_y)
-    self._polartip = ap._pyPolar2Polar(self.airfoils[end][2].pyPolar,
-                                            tip_x, tip_y)
+    self._polarroot = ap._pyPolar2Polar(self.airfoils[1][2].pyPolar;
+                                            x=root_x, y=root_y)
+    self._polartip = ap._pyPolar2Polar(self.airfoils[end][2].pyPolar;
+                                            x=tip_x, y=tip_y)
   else
     self._polarroot = self.airfoils[1][2]
     self._polartip = self.airfoils[end][2]

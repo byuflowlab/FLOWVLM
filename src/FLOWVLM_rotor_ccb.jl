@@ -131,10 +131,9 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
         error("Mach correction requested on Ma = $Ma >= 1.0")
       end
       alpha, cl = ap.get_cl(polar)
-      geom = ap.get_geometry(polar)
       this_polar = ap.Polar(ap.get_Re(polar), alpha, cl/sqrt(1-Ma^2),
-                              ap.get_cd(polar)[2], ap.get_cm(polar)[2],
-                              geom[1], geom[2])
+                              ap.get_cd(polar)[2], ap.get_cm(polar)[2];
+                                            ap._get_nonpypolar_args(polar)...)
     else
       this_polar = polar
     end
