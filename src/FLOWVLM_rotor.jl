@@ -112,7 +112,7 @@ end
 "Initializes the geometry of the rotor, discretizing each blade into n lattices"
 function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
                           central=false, refinement=[], verif=false,
-                          genblade_args=[], rfl_args...)
+                          figsize_factor=2/3, genblade_args=[], rfl_args...)
   # Checks for arguments consistency
   _check(self)
 
@@ -128,7 +128,7 @@ function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
   self.m = get_m(blade)
 
   # Verifies correct lattice and blade elements discretization
-  if verif; _verif_discr(self, blade, r, chord, theta, LE_x, LE_z); end;
+  if verif; _verif_discr(self, blade, r, chord, theta, LE_x, LE_z; figsize_factor=figsize_factor); end;
 
   # Generates airfoil properties at all control points of this blade
   if rfl_flag; _calc_airfoils(self, n, r_lat, central, refinement; rfl_args...); end;
@@ -1547,7 +1547,7 @@ end
 
 "Verifies correct splining for lattice and element discretization"
 function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
-                                      elem_LE_x, elem_LE_z)
+                                      elem_LE_x, elem_LE_z; figsize_factor=2/3)
 
   # Original data
   r, chord, theta = self.r, self.chord, self.theta
@@ -1577,7 +1577,7 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
   end
 
   # Plots
-  fig = figure("discret_verif", figsize=(7*2,5*2))
+  fig = figure("discret_verif", figsize=[7*2,5*2]*figsize_factor)
   for (i,(lbl, cr, cchord, ctheta, cLE_x, cLE_z)) in enumerate([
               ["Element", elem_r, elem_chord, elem_theta, elem_LE_x, elem_LE_z],
               ["Lattice", vlm_r, vlm_chord, vlm_theta, vlm_LE_x, vlm_LE_z]])
