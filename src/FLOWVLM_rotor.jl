@@ -41,7 +41,7 @@ WingSystem can be applied to a Rotor object.
                                   so all positions in between can be
                                   extrapolated. This properties are only used
                                   when calling CCBlade and for generating good
-                                  loking visuals; ignore if only solving the VLM.
+                                  looking visuals; ignore if only solving the VLM.
 
 NOTE: r here is the radial position after precone is included in the geometry,
 hence the need of explicitely declaring LE_z.
@@ -273,9 +273,9 @@ If include_comps==true it stores CCBlade-calculated normal and tangential forces
 in the Rotor."
 function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=true, return_performance::Bool=false,
-                            Vref=nothing, sound_spd=nothing, Uinds=nothing,
+                            Vref=nothing, s=nothing, Uinds=nothing,
                             _lookuptable::Bool=false, _Vinds=nothing,
-                            tiploss_correction=false)
+                            tiploss_correction=false, sound_spd=nothing) # TODO: is there a reason `sound_spd` argument wasn't here?
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -288,13 +288,15 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
   end
 
   # Calculates distributed load from CCBlade
+
   prfrmnc, gammas = calc_distributedloads(self, Vinf, RPM, rho; t=t,
                                         include_comps=include_comps,
                                         return_performance=return_performance,
                                         Vref=Vref, sound_spd=sound_spd,
                                         Uinds=Uinds,
                                         _lookuptable=_lookuptable, _Vinds=_Vinds,
-                                        tiploss_correction=tiploss_correction)
+                                        tiploss_correction=tiploss_correction
+                                        )
 
   # Decomposes load into aerodynamic forces and calculates circulation
   gamma = calc_aerodynamicforces(self, rho; overwritegammas=gammas)
@@ -395,10 +397,10 @@ function getVinfs(self::Rotor; t::FWrap=0.0, target="CP",
 
   Vinfs = FArrWrap[]
   for i in 1:self.B
-    blade_Vinfs = _calc_inflow(get_blade(self, i), get_RPM(self), t;
+    blade_Vinfs = _calc_inflow(get_blade(self, i), get_RPM(self), t; # returns an array of 3-element arrays representing the velocity at each lattice of the blade
                                                                 target=target)
     for V in blade_Vinfs
-      push!(Vinfs, V)
+      push!(Vinfs, V) # assembles an array of 3-element arrays representing the velocity at each lattice of each blade, one blade at a time
     end
   end
 
@@ -406,8 +408,11 @@ function getVinfs(self::Rotor; t::FWrap=0.0, target="CP",
   if extraVinf!=nothing
     for i in 1:self.B
       blade = get_blade(self, i)
+      println("")
       for j in 1:get_m(blade)
-        Vinfs[i][j] += extraVinf(j, t; extraVinfArgs..., wing=blade)
+        # Vinfs[i][j] += extraVinf(j, t; extraVinfArgs..., wing=blade) # I don't think this is right; indexing problem RMA
+        thisi = get_m(blade)*(i-1) + j
+        Vinfs[thisi] .+= extraVinf(j, t; extraVinfArgs..., wing=blade)
       end
     end
   end
@@ -1106,6 +1111,13 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::IWrap, turbine_flag::Bool;
     if sound_spd!=nothing
       Ma = norm(inflows[i])/sound_spd
       if Ma>=1
+        println("Sherlock! PRE-ERROR")
+        println("")
+        println("\ttsr = ",tsr)
+        println("")
+        println("\tinflows = ", inflows)
+        println("")
+        println("\tinflows[i] = ",inflows[i])
         error("Mach correction requested on Ma = $Ma >= 1.0")
       end
       alpha, cl = ap.get_cl(polar)
@@ -1114,7 +1126,7 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::IWrap, turbine_flag::Bool;
                               ap.get_cd(polar)[2], ap.get_cm(polar)[2],
                               geom[1], geom[2])
     else
-      this_polar = polar
+      this_polar = deepcopy(polar)
     end
 
     # 3D corrections
@@ -1122,7 +1134,11 @@ function FLOWVLM2CCBlade(self::Rotor, RPM, blade_i::IWrap, turbine_flag::Bool;
 
     # 360 extrapolation
     CDmax = 1.3
-    this_polar = ap.extrapolate(this_polar, CDmax)
+    if maximum(this_polar.pyPolar[:alpha]) < 90.0
+        this_polar = ap.extrapolate(this_polar, CDmax)
+    else
+        # warn("Original polar defined beyond 90 deg: omitting 360 deg extrapolation.")
+    end
 
     # Makes sure the polar is injective for easing the spline
     this_polar = ap.injective(this_polar)
@@ -1175,6 +1191,11 @@ function calc_inflow(self::Rotor, Vinf, RPM; t::FWrap=0.0, Vinds=nothing)
         this_Vtot += Vinds[i][j]
       end
 
+    #   println("Sherlock! FLOWVLM_rotor.jl : 1192")
+    #   println("\tthis_Vinf = ",this_Vinf)
+    #   println("\tthis_Vrot = ",this_Vrot)
+    #   println("\tVinds[i][j] = ",Vinds[i][j])
+    #   println("")
       push!(Vtots, this_Vtot)
       push!(Vccbs, _global2ccblade(blade, this_Vtot, self.CW))
     end
@@ -1213,7 +1234,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 Uinds=nothing,
                                 sound_spd=nothing,
                                 _lookuptable::Bool=false, _Vinds=nothing,
-                                tiploss_correction::Bool=false)
+                                tiploss_correction::Bool=false,
+                                reveal_alpha_eff=false)
   data = Array{FArrWrap}[]
   if include_comps
     data_Np = FArrWrap[]
@@ -1505,7 +1527,8 @@ end
 
 "Generates the blade and discretizes it into lattices"
 function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
-                          central=false, refinement=[], spl_k=5, spl_s=0.01)
+                          central=false, refinement=[], spl_k=5, spl_s=0.01,
+                          r_lat_custom=[])
 
   # Splines
   spline_k = min(size(self.r)[1]-1, spl_k)
@@ -1557,7 +1580,12 @@ function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
   for i in 1:n
 
     # Wing discretization
-    if size(refinement)[1]!=0 # Complex refinement
+    if length(r_lat_custom) > 0
+      if length(r_lat_custom) != n + 1
+        error("length of custom lattice and desired number of control points are inconsistent")
+      end
+      len = (r_lat_custom[i + 1] - r_lat_custom[i]) * l
+    elseif size(refinement)[1]!=0 # Complex refinement
       sec_i = 1 # Current section
       for j in 1:nsecs
         if i>sum([ns[k] for k in 1:j])

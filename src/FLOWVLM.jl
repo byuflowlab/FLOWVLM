@@ -18,7 +18,8 @@ using Dierckx
 # The following modules are under development, hence imports here are hardcoded
 
 # Airfoil processing https://github.com/EdoAlvarezR/airfoil
-airfoil_path = "/home/edoalvar/Dropbox/FLOWResearch/FLOWCodes/airfoil/"
+# airfoil_path = "/home/edoalvar/Dropbox/FLOWResearch/FLOWCodes/airfoil/"
+airfoil_path = "/Users/randerson/code/notJL/airfoil/"
 # push!(LOAD_PATH, joinpath(airfoil_path,"src/"))
 # using airfoilprep
 include(airfoil_path*"src/airfoilprep.jl")

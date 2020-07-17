@@ -90,7 +90,7 @@ function setcoordsystem(self::WingSystem, O::FArrWrap,
   end
 
   # ----- Case of the entire system
-  invOaxis = inv(Oaxis)
+  invOaxis = inv(Oaxis) # could just transpose this RMA
 
   # Transforms the local coordinate system of each wing
   for wing in self.wings

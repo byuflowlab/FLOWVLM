@@ -1014,7 +1014,7 @@ function check_coord_sys(M::FMWrap; raise_error::Bool=true)
     end
   end
 
-  # Checks ortogonality
+  # Checks orthogonality
   for i in size(M)[1]
     xi = M[i, :]
     xip1 = M[(i%size(M)[1])+1, :]
