@@ -646,6 +646,7 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
   end
 
   # ------------------- BUILD WING ---------------------------------------------
+  println("Sherlock! FLOWVLM_tools.jl : 649 : \n\tcs = $cs\n\tns = $ns\n")
   wing = Wing(xs[1], ys[1], zs[1], cs[1], twists[1])
   for i in 2:(symmetric ? 2*nchords-1 : nchords)
     addchord(wing, xs[i], ys[i], zs[i], cs[i], twists[i], ns[i-1] )
