@@ -38,7 +38,7 @@ Adds a wing to the system with the position and orientation of local reference
 being interpreted in relation to the local reference frame of the system.
 """
 function addwing(self::WingSystem, wing_name::String, wing;
-                  overwrite=false)
+                  overwrite=false, reset=true)
   # Error case
   if wing_name in self.wing_names
     if overwrite
@@ -59,7 +59,9 @@ function addwing(self::WingSystem, wing_name::String, wing;
   new_O, new_Oaxis = _interpret(_get_O(wing), _get_Oaxis(wing), self.O, self.invOaxis)
   setcoordsystem(wing, new_O, new_Oaxis)
 
-  _reset(self)
+  if reset
+      _reset(self)
+  end
 end
 
 """

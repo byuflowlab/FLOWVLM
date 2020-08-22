@@ -1157,7 +1157,10 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                                         occbinflow, turbine_flag;
                                                         tiploss_correction=tiploss_correction)
       push!(gammas, gamma)
-      ccbouputs = ccb.Outputs(Np, Tp, 0.0, 0.0, uvec, vvec, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+      zeroarr = zeros(size(Np))
+      ccbouputs = ccb.Outputs(Np, Tp, zeroarr, zeroarr, uvec, vvec,
+                                zeroarr, zeroarr, zeroarr, zeroarr,
+                                zeroarr, zeroarr, zeroarr, zeroarr, zeroarr)
     else
       # Calls CCBlade
       # NOTE TO SELF: Forces normal and tangential to the plane of rotation
