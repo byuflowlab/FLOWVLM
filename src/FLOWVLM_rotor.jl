@@ -1130,8 +1130,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     data_cd     = FArrWrap[]
     data_cn     = FArrWrap[]
     data_ct     = FArrWrap[]
-    data_F      = FArrWrap[]
-    data_G      = FArrWrap[]
+    data_loss   = FArrWrap[]
+    data_effloss= FArrWrap[]
   end
 
   gammas = _lookuptable ? [] : nothing
@@ -1179,7 +1179,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
       # NOTE TO SELF: Forces normal and tangential to the plane of rotation
       # Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, turbine_flag)
       ccboutputs = ccb.solve.(Ref(ccbrotor), ccbsections, ccbops)
-      Np, Tp, a, ap, uvec, vvec, phi, alpha, W, cl, cd, cn, ct, F, G = ccboutputs.Np, ccboutputs.Tp, ccboutputs.a, ccboutputs.ap, ccboutputs.u, ccboutputs.v, ccboutputs.phi, ccboutputs.alpha, ccboutputs.W, ccboutputs.cl, ccboutputs.cd, ccboutputs.cn, ccboutputs.ct, ccboutputs.F, ccboutputs.G
+      Np, Tp, a, ap, uvec, vvec, phi, alpha, W, cl, cd, cn, ct, loss, effloss = ccboutputs.Np, ccboutputs.Tp, ccboutputs.a, ccboutputs.ap, ccboutputs.u, ccboutputs.v, ccboutputs.phi, ccboutputs.alpha, ccboutputs.W, ccboutputs.cl, ccboutputs.cd, ccboutputs.cn, ccboutputs.ct, ccboutputs.F, ccboutputs.G
     end
 
     # Convert forces from CCBlade's c.s. to global c.s.
@@ -1202,8 +1202,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
       push!(data_cd     , cd)
       push!(data_cn     , cn)
       push!(data_ct     , ct)
-      push!(data_F      , F)
-      push!(data_G      , G)
+      push!(data_F      , loss)
+      push!(data_G      , effloss)
     end
 
     if return_performance
