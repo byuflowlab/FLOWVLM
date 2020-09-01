@@ -1189,8 +1189,23 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     # Stores the field
     push!(data, Fs)
     if include_comps
-      push!(data_Np, Np)
-      push!(data_Tp, Tp)
+      push!(data_Np     , Np)
+      push!(data_Tp     , Tp)
+      push!(data_Np     , Np)
+      push!(data_Tp     , Tp)
+      push!(data_u      , a)
+      push!(data_v      , ap)
+      push!(data_a      , uvec)
+      push!(data_ap     , vvec)
+      push!(data_phi    , phi)
+      push!(data_alpha  , alpha)
+      push!(data_W      , W)
+      push!(data_cl     , cl)
+      push!(data_cd     , cd)
+      push!(data_cn     , cn)
+      push!(data_ct     , ct)
+      push!(data_F      , F)
+      push!(data_G      , G)
     end
 
     if return_performance
