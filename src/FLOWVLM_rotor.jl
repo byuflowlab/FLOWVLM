@@ -1243,6 +1243,84 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                 "field_data" => data_Tp
                 )
     self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "uvec",
+                "field_type" => "vector",
+                "field_data" => data_uvec
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "vvec",
+                "field_type" => "vector",
+                "field_data" => data_vvec
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "a",
+                "field_type" => "scalar",
+                "field_data" => data_a
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "ap",
+                "field_type" => "scalar",
+                "field_data" => data_ap
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "phi",
+                "field_type" => "scalar",
+                "field_data" => data_phi
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "alpha",
+                "field_type" => "scalar",
+                "field_data" => data_alpha
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "W",
+                "field_type" => "scalar",
+                "field_data" => data_W
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "cl",
+                "field_type" => "scalar",
+                "field_data" => data_cl
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "cd",
+                "field_type" => "scalar",
+                "field_data" => data_cd
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "cn",
+                "field_type" => "scalar",
+                "field_data" => data_cn
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+        "field_name" => "cd",
+        "field_type" => "scalar",
+        "field_data" => data_cd
+        )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+        "field_name" => "F",
+        "field_type" => "scalar",
+        "field_data" => data_loss
+        )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+        "field_name" => "G",
+        "field_type" => "scalar",
+        "field_data" => data_effloss
+        )
+    self.sol[field["field_name"]] = field
   end
 
   if return_performance
