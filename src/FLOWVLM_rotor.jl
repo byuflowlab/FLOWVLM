@@ -1179,7 +1179,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
       # NOTE TO SELF: Forces normal and tangential to the plane of rotation
       # Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, turbine_flag)
       ccboutputs = ccb.solve.(Ref(ccbrotor), ccbsections, ccbops)
-      Np, Tp, uvec, vvec = ccboutputs.Np, ccboutputs.Tp, ccboutputs.u, ccboutputs.v
+      Np, Tp, a, ap, uvec, vvec, phi, alpha, W, cl, cd, cn, ct, F, G = ccboutputs.Np, ccboutputs.Tp, ccboutputs.a, ccboutputs.ap, ccboutputs.u, ccboutputs.v, ccboutputs.phi, ccboutputs.alpha, ccboutputs.W, ccboutputs.cl, ccboutputs.cd, ccboutputs.cn, ccboutputs.ct, ccboutputs.F, ccboutputs.G
     end
 
     # Convert forces from CCBlade's c.s. to global c.s.
