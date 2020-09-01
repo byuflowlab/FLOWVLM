@@ -1117,8 +1117,21 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 tiploss_correction::Bool=false)
   data = Array{FArrWrap}[]
   if include_comps
-    data_Np = FArrWrap[]
-    data_Tp = FArrWrap[]
+    data_Np     = FArrWrap[]
+    data_Tp     = FArrWrap[]
+    data_u      = FArrWrap[]
+    data_v      = FArrWrap[]
+    data_a      = FArrWrap[]
+    data_ap     = FArrWrap[]
+    data_phi    = FArrWrap[]
+    data_alpha  = FArrWrap[]
+    data_W      = FArrWrap[]
+    data_cl     = FArrWrap[]
+    data_cd     = FArrWrap[]
+    data_cn     = FArrWrap[]
+    data_ct     = FArrWrap[]
+    data_F      = FArrWrap[]
+    data_G      = FArrWrap[]
   end
 
   gammas = _lookuptable ? [] : nothing
