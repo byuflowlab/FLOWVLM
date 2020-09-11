@@ -51,7 +51,7 @@ for gradient-based optimization.
 """
 function occb_af_from_data(alpha, cl, cd; spl_k=3)
 
-    k = min(length(alpha)-1, spl_k)  # can't use cubic spline is number of entries in alpha is small
+    k = min(length(alpha)-1, spl_k)  # can't use cubic spline if number of entries in alpha is small
 
     # 1D interpolations for now.  ignoring Re dependence (which is very minor)
     afcl = Dierckx.Spline1D(alpha*pi/180.0, cl; k=k, s=0.1)
@@ -97,6 +97,8 @@ future development as needed.
 function FLOWVLM2OCCBlade(self,#::Rotor,
                           RPM, blade_i::IWrap, turbine_flag::Bool;
                           sound_spd=nothing)
+
+
   # ERROR CASES
   if size(self.airfoils)[1]<2
     error("Airfoil data not found when generating CCBlade Rotor.")
@@ -116,7 +118,6 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
   # Prepares airfoil polars
   af = OCCBAirfoilData[]
   for (i,polar) in enumerate(self._polars)
-
     r_over_R = self._r[i] / Rtip
     c_over_r = self._chord[i] / self._r[i]
     #   NOTE: Here I'm taking the freestream to be the absolute value CCBlade's

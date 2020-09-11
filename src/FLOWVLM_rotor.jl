@@ -1117,8 +1117,23 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 tiploss_correction::Bool=false)
   data = Array{FArrWrap}[]
   if include_comps
-    data_Np = FArrWrap[]
-    data_Tp = FArrWrap[]
+    data_Np     = FArrWrap[]
+    data_Tp     = FArrWrap[]
+    data_u      = FArrWrap[]
+    data_v      = FArrWrap[]
+    if !_lookuptable
+        data_a      = FArrWrap[]
+        data_ap     = FArrWrap[]
+        data_phi    = FArrWrap[]
+        data_alpha  = FArrWrap[]
+        data_W      = FArrWrap[]
+        data_cl     = FArrWrap[]
+        data_cd     = FArrWrap[]
+        data_cn     = FArrWrap[]
+        data_ct     = FArrWrap[]
+        data_F      = FArrWrap[]
+        data_G      = FArrWrap[]
+    end
   end
 
   gammas = _lookuptable ? [] : nothing
@@ -1166,7 +1181,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
       # NOTE TO SELF: Forces normal and tangential to the plane of rotation
       # Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, turbine_flag)
       ccboutputs = ccb.solve.(Ref(ccbrotor), ccbsections, ccbops)
-      Np, Tp, uvec, vvec = ccboutputs.Np, ccboutputs.Tp, ccboutputs.u, ccboutputs.v
+      Np, Tp, a, ap, uvec, vvec, phi, alpha, W, clift, cdrag, cnorm, ctang, loss, effloss = ccboutputs.Np, ccboutputs.Tp, ccboutputs.a, ccboutputs.ap, ccboutputs.u, ccboutputs.v, ccboutputs.phi, ccboutputs.alpha, ccboutputs.W, ccboutputs.cl, ccboutputs.cd, ccboutputs.cn, ccboutputs.ct, ccboutputs.F, ccboutputs.G
     end
 
     # Convert forces from CCBlade's c.s. to global c.s.
@@ -1176,8 +1191,23 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     # Stores the field
     push!(data, Fs)
     if include_comps
-      push!(data_Np, Np)
-      push!(data_Tp, Tp)
+      push!(data_Np     , Np)
+      push!(data_Tp     , Tp)
+      push!(data_u      , uvec)
+      push!(data_v      , vvec)
+        if !_lookuptable
+            push!(data_a      , a)
+            push!(data_ap     , ap)
+            push!(data_phi    , phi)
+            push!(data_alpha  , alpha)
+            push!(data_W      , W)
+            push!(data_cl     , clift)
+            push!(data_cd     , cdrag)
+            push!(data_cn     , cnorm)
+            push!(data_ct     , ctang)
+            push!(data_F      , loss)
+            push!(data_G      , effloss)
+        end
     end
 
     if return_performance
@@ -1217,6 +1247,86 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                 "field_data" => data_Tp
                 )
     self.sol[field["field_name"]] = field
+    if !_lookuptable
+        field = Dict(
+                "field_name" => "u",
+                "field_type" => "scalar",
+                "field_data" => data_u
+                )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "v",
+                    "field_type" => "scalar",
+                    "field_data" => data_v
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "a",
+                    "field_type" => "scalar",
+                    "field_data" => data_a
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "ap",
+                    "field_type" => "scalar",
+                    "field_data" => data_ap
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "phi",
+                    "field_type" => "scalar",
+                    "field_data" => data_phi
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "alpha",
+                    "field_type" => "scalar",
+                    "field_data" => data_alpha
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "W",
+                    "field_type" => "scalar",
+                    "field_data" => data_W
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "cl",
+                    "field_type" => "scalar",
+                    "field_data" => data_cl
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "cd",
+                    "field_type" => "scalar",
+                    "field_data" => data_cd
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "cn",
+                    "field_type" => "scalar",
+                    "field_data" => data_cn
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "ct",
+                    "field_type" => "scalar",
+                    "field_data" => data_ct
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "F",
+                    "field_type" => "scalar",
+                    "field_data" => data_F
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "G",
+                    "field_type" => "scalar",
+                    "field_data" => data_G
+                    )
+        self.sol[field["field_name"]] = field
+    end
   end
 
   if return_performance
@@ -1362,11 +1472,24 @@ torque coefficients of the rotor. Thrust coefficient CT calculated as
 `CQ=\frac{Q}{\rho n^2 D^5}`
 """
 function calc_thrust_torque_coeffs(self::Rotor, rho::Real)
+    thrust, torque = calc_thrust_torque(self)
+    n = self.RPM / 60
+    D = 2*self.rotorR
+
+    return thrust/(rho*n^2*D^4), torque/(rho*n^2*D^5)
+end
+
+function calc_thrust_torque_coeffs(self::Rotor, rho::Real, Vinf::Real, turbine_flag::Bool)
   thrust, torque = calc_thrust_torque(self)
   n = self.RPM / 60
   D = 2*self.rotorR
-
-  return thrust/(rho*n^2*D^4), torque/(rho*n^2*D^5)
+  if turbine_flag == false
+    return thrust/(rho*n^2*D^4), torque/(rho*n^2*D^5)
+  else
+    q = 0.5*rho*Vinf^2
+    A = pi*self.rotorR^2
+    return thrust/(q*A), torque/(q*self.rotorR*A)
+  end
 end
 
 
