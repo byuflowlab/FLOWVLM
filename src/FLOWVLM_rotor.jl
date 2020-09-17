@@ -1138,9 +1138,9 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
 
   gammas = _lookuptable ? [] : nothing
 
-#   turbine_flag = self.turbine_flag
+  turbine_flag = self.turbine_flag
 
-  turbine_flag = true  # This is a flag for ccblade to swap signs
+#   turbine_flag = true  # This is a flag for ccblade to swap signs
 
   # Calculates inflows
   # calc_inflow(self, Vinf, RPM; t=t, Vinds=(_lookuptable ? _Vinds : nothing) )
