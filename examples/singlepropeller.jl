@@ -2,11 +2,11 @@ include("../src/FLOWVLM.jl")
 vlm = FLOWVLM
 
 using PyPlot
-
+using LinearAlgebra
 prompt = true
 run_name = "propeller"
 save_horseshoes = true
-plot_rel_vel = false
+plot_rel_vel = true
 
 function def_Vinf(X,t)
   return [1.0, 0, 0]         # Incoming free stream
@@ -38,8 +38,8 @@ function singlepropeller(; save_path="temp_singlepropeller/")
                      15.9417, 15.4179, 14.9266, 14.4650, 14.0306, 13.6210,
                      13.2343,
                      12.8685, 12.5233, 12.2138]
-  LE_x = zeros(r)                   # x-position of leading edge at radial pos
-  LE_z = zeros(r)                   # z-position of leading edge at radial pos
+  LE_x = zeros(length(r))                   # x-position of leading edge at radial pos
+  LE_z = zeros(length(r))                   # z-position of leading edge at radial pos
   B = 3                             # Number of blades
 
   # ---------------- VLM PARAMETERS -------------------------------
@@ -81,9 +81,10 @@ function singlepropeller(; save_path="temp_singlepropeller/")
   end
 
   # ---------------- RUN -----------------------------------------
-  prev_rotation = init_angle
+  global prev_rotation = init_angle
   for i in 0:nsteps
     t = dt*i
+    global prev_rotation
     rotation = prev_rotation + omega_fun(t)*dt
     Oaxis = [1 0 0;
               0 cos(rotation) sin(rotation);
@@ -150,7 +151,7 @@ function plot_relative_vel(; save_path=nothing, ylims=nothing)
   for t in sort(collect(keys(plots)))
     wings = plots[t]
     fig = figure("local_flapping_vel", figsize=(7*3, 5*2))
-    suptitle("Time = $(round(t,3)) (s)")
+    suptitle("Time = $(round(t,digits=3)) (s)")
     fig_labels = ["x", "y", "z"]
 
     for i in 1:3
