@@ -1069,7 +1069,7 @@ function calc_inflow(self::Rotor, Vinf, RPM; t::FWrap=0.0, Vinds=nothing)
       # Velocity due to rotation in global c.s.
       this_Vrot = countertransform(this_Vrot, blade.invOaxis, fill(0.0, 3))
 
-      this_Vtot = this_Vinf + this_Vrot
+      this_Vtot = this_Vinf .+ this_Vrot
 
       # Adds any extra induced velocity
       if Vinds!=nothing
@@ -1895,7 +1895,7 @@ function _calc_inflow(blade::Wing, RPM, t::FWrap; target="CP")
     rotT = omega*Tr*tunit          # Rotational velocity
 
     # Total velocity
-    VT = blade.Vinf(T, t) + rotT
+    VT = blade.Vinf(T, t) .+ rotT
 
     push!(out, VT)
   end
