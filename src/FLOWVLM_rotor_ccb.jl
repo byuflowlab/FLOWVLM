@@ -129,7 +129,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     if sound_spd!=nothing
       Ma = norm(inflows[i])/sound_spd
       if Ma>=1
-        error("Mach correction requested on Ma = $Ma >= 1.0")
+        @warn("Mach correction requested on Ma = $Ma >= 1.0: results will not be accurate.") #Error changed to warning for use in optimization
       end
       alpha, cl = ap.get_cl(polar)
       this_polar = ap.Polar(ap.get_Re(polar), alpha, cl/sqrt(1-Ma^2),
