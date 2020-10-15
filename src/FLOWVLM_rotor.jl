@@ -264,7 +264,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=true, return_performance::Bool=false,
                             Vref=nothing, sound_spd=nothing, Uinds=nothing,
                             _lookuptable::Bool=false, _Vinds=nothing,
-                            tiploss_correction=false)
+                            tiploss_correction=false, AR_to_360extrap=false)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -283,7 +283,8 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                                         Vref=Vref, sound_spd=sound_spd,
                                         Uinds=Uinds,
                                         _lookuptable=_lookuptable, _Vinds=_Vinds,
-                                        tiploss_correction=tiploss_correction)
+                                        tiploss_correction=tiploss_correction,
+                                        AR_to_360extrap=AR_to_360extrap)
 
   # Decomposes load into aerodynamic forces and calculates circulation
   gamma = calc_aerodynamicforces(self, rho; overwritegammas=gammas)
@@ -1114,7 +1115,8 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 Uinds=nothing,
                                 sound_spd=nothing,
                                 _lookuptable::Bool=false, _Vinds=nothing,
-                                tiploss_correction::Bool=false)
+                                tiploss_correction::Bool=false,
+                                AR_to_360extrap = false)
   data = Array{FArrWrap}[]
   if include_comps
     data_Np     = FArrWrap[]
@@ -1160,7 +1162,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
 
     # Generates old-CCBlade Rotor object
     occbrotor = FLOWVLM2OCCBlade(self, RPM, blade_i, turbine_flag;
-                                                            sound_spd=sound_spd)
+                                                            sound_spd=sound_spd, AR_to_360extrap=AR_to_360extrap)
     # Convert old-CCBlade rotor to current CCBlade rotor type
     ccbrotor, ccbsections, ccbops = OCCB2CCB(occbrotor, turbine_flag,
                                                         occbinflow; pitch=0.0)

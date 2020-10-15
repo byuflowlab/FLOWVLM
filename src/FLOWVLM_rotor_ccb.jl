@@ -96,7 +96,7 @@ future development as needed.
 """
 function FLOWVLM2OCCBlade(self,#::Rotor,
                           RPM, blade_i::IWrap, turbine_flag::Bool;
-                          sound_spd=nothing)
+                          sound_spd=nothing, AR_to_360extrap=false)
 
 
   # ERROR CASES
@@ -144,7 +144,14 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
 
     # 360 extrapolation
     CDmax = 1.3
-    this_polar = ap.extrapolate(this_polar, CDmax)
+    if AR_to_360extrap
+        c_spline1D = Spline1D(self._r / self.rotorR, self._chord)
+        c_75 = c_spline1D(0.75)
+        AR = c_75 / self.rotorR
+        this_polar = ap.extrapolate(this_polar, CDmax, AR=AR)
+    else
+        this_polar = ap.extrapolate(this_polar, CDmax)
+    end
 
     # Makes sure the polar is injective for easing the spline
     this_polar = ap.injective(this_polar)
