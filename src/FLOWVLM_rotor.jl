@@ -396,7 +396,7 @@ function getVinfs(self::Rotor; t::FWrap=0.0, target="CP",
     for i in 1:self.B
       blade = get_blade(self, i)
       for j in 1:get_m(blade)
-        Vinfs[i][j] += extraVinf(j, t; extraVinfArgs..., wing=blade)
+        Vinfs[i][:] .+= extraVinf(j, t; extraVinfArgs..., wing=blade)# was: Vinfs[i][j] += extraVinf(j, t; extraVinfArgs..., wing=blade)
       end
     end
   end
