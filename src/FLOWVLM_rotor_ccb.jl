@@ -96,7 +96,7 @@ future development as needed.
 """
 function FLOWVLM2OCCBlade(self,#::Rotor,
                           RPM, blade_i::IWrap, turbine_flag::Bool;
-                          sound_spd=nothing, AR_to_360extrap=false)
+                          sound_spd=nothing, AR_to_360extrap=false, CDmax = 1.3)
 
 
   # ERROR CASES
@@ -143,9 +143,9 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     this_polar = ap.correction3D(this_polar, r_over_R, c_over_r, tsr)
 
     # 360 extrapolation
-    CDmax = 1.3
     if AR_to_360extrap
-        c_spline1D = Spline1D(self._r / self.rotorR, self._chord)
+        # use a linear interpolation instead of Splines; then don't expose this flag in FLOWUnsteady
+        c_spline1D = Spline1D(self._r / self.rotorR, self._chord; k=1)
         c_75 = c_spline1D(0.75)
         AR = c_75 / self.rotorR
         this_polar = ap.extrapolate(this_polar, CDmax, AR=AR)
