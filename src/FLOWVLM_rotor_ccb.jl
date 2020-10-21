@@ -96,7 +96,7 @@ future development as needed.
 """
 function FLOWVLM2OCCBlade(self,#::Rotor,
                           RPM, blade_i::IWrap, turbine_flag::Bool;
-                          sound_spd=nothing, AR_to_360extrap=false, CDmax = 1.3)
+                          sound_spd=nothing, AR_to_360extrap=true, CDmax = 1.3)
 
 
   # ERROR CASES

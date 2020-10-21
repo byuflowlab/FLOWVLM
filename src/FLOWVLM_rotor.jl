@@ -264,7 +264,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=true, return_performance::Bool=false,
                             Vref=nothing, sound_spd=nothing, Uinds=nothing,
                             _lookuptable::Bool=false, _Vinds=nothing,
-                            tiploss_correction=false, AR_to_360extrap=false)
+                            tiploss_correction=false, AR_to_360extrap=true)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -1116,7 +1116,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 sound_spd=nothing,
                                 _lookuptable::Bool=false, _Vinds=nothing,
                                 tiploss_correction::Bool=false,
-                                AR_to_360extrap = false)
+                                AR_to_360extrap = true)
   data = Array{FArrWrap}[]
   if include_comps
     data_Np     = FArrWrap[]
