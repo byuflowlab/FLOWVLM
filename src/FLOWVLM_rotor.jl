@@ -264,7 +264,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=true, return_performance::Bool=false,
                             Vref=nothing, sound_spd=nothing, Uinds=nothing,
                             _lookuptable::Bool=false, _Vinds=nothing,
-                            tiploss_correction=false)
+                            tiploss_correction=false, AR_to_360extrap=true)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -283,7 +283,8 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                                         Vref=Vref, sound_spd=sound_spd,
                                         Uinds=Uinds,
                                         _lookuptable=_lookuptable, _Vinds=_Vinds,
-                                        tiploss_correction=tiploss_correction)
+                                        tiploss_correction=tiploss_correction,
+                                        AR_to_360extrap=AR_to_360extrap)
 
   # Decomposes load into aerodynamic forces and calculates circulation
   gamma = calc_aerodynamicforces(self, rho; overwritegammas=gammas)
@@ -1116,18 +1117,34 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 Uinds=nothing,
                                 sound_spd=nothing,
                                 _lookuptable::Bool=false, _Vinds=nothing,
-                                tiploss_correction::Bool=false)
+                                tiploss_correction::Bool=false,
+                                AR_to_360extrap = true)
   data = Array{FArrWrap}[]
   if include_comps
-    data_Np = FArrWrap[]
-    data_Tp = FArrWrap[]
+    data_Np     = FArrWrap[]
+    data_Tp     = FArrWrap[]
+    data_u      = FArrWrap[]
+    data_v      = FArrWrap[]
+    data_cl     = FArrWrap[]
+    data_cd     = FArrWrap[]
+    data_cn     = FArrWrap[]
+    data_ct     = FArrWrap[]
+    if !_lookuptable
+        data_a      = FArrWrap[]
+        data_ap     = FArrWrap[]
+        data_phi    = FArrWrap[]
+        data_alpha  = FArrWrap[]
+        data_W      = FArrWrap[]
+        data_F      = FArrWrap[]
+        data_G      = FArrWrap[]
+    end
   end
 
   gammas = _lookuptable ? [] : nothing
 
   turbine_flag = self.turbine_flag
 
-  # turbine_flag = false  # This is a flag for ccblade to swap signs
+#   turbine_flag = true  # This is a flag for ccblade to swap signs
 
   # Calculates inflows
   # calc_inflow(self, Vinf, RPM; t=t, Vinds=(_lookuptable ? _Vinds : nothing) )
@@ -1147,7 +1164,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
 
     # Generates old-CCBlade Rotor object
     occbrotor = FLOWVLM2OCCBlade(self, RPM, blade_i, turbine_flag;
-                                                            sound_spd=sound_spd)
+                                                            sound_spd=sound_spd, AR_to_360extrap=AR_to_360extrap)
     # Convert old-CCBlade rotor to current CCBlade rotor type
     ccbrotor, ccbsections, ccbops = OCCB2CCB(occbrotor, turbine_flag,
                                                         occbinflow; pitch=0.0)
@@ -1155,20 +1172,20 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     Np, Tp, uvec, vvec, gamma = (nothing for i in 1:5)
 
     if _lookuptable
-      Np, Tp, uvec, vvec, gamma = _calc_distributedloads_lookuptable(occbrotor,
+      Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd = _calc_distributedloads_lookuptable(occbrotor,
                                                         occbinflow, turbine_flag;
                                                         tiploss_correction=tiploss_correction)
       push!(gammas, gamma)
       zeroarr = zeros(size(Np))
       ccbouputs = ccb.Outputs(Np, Tp, zeroarr, zeroarr, uvec, vvec,
-                                zeroarr, zeroarr, zeroarr, zeroarr,
-                                zeroarr, zeroarr, zeroarr, zeroarr, zeroarr)
+                                zeroarr, zeroarr, zeroarr, cl,
+                                cd, cn, ct, zeroarr, zeroarr)
     else
       # Calls CCBlade
       # NOTE TO SELF: Forces normal and tangential to the plane of rotation
       # Np, Tp, uvec, vvec = ccb.distributedloads(ccbrotor, ccbinflow, turbine_flag)
       ccboutputs = ccb.solve.(Ref(ccbrotor), ccbsections, ccbops)
-      Np, Tp, uvec, vvec = ccboutputs.Np, ccboutputs.Tp, ccboutputs.u, ccboutputs.v
+      Np, Tp, a, ap, uvec, vvec, phi, alpha, W, cl, cd, cn, ct, loss, effloss = ccboutputs.Np, ccboutputs.Tp, ccboutputs.a, ccboutputs.ap, ccboutputs.u, ccboutputs.v, ccboutputs.phi, ccboutputs.alpha, ccboutputs.W, ccboutputs.cl, ccboutputs.cd, ccboutputs.cn, ccboutputs.ct, ccboutputs.F, ccboutputs.G
     end
 
     # Convert forces from CCBlade's c.s. to global c.s.
@@ -1178,8 +1195,23 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     # Stores the field
     push!(data, Fs)
     if include_comps
-      push!(data_Np, Np)
-      push!(data_Tp, Tp)
+      push!(data_Np     , Np)
+      push!(data_Tp     , Tp)
+      push!(data_u      , uvec)
+      push!(data_v      , vvec)
+      push!(data_cl     , cl)
+      push!(data_cd     , cd)
+      push!(data_cn     , cn)
+      push!(data_ct     , ct)
+        if !_lookuptable
+            push!(data_a      , a)
+            push!(data_ap     , ap)
+            push!(data_phi    , phi)
+            push!(data_alpha  , alpha)
+            push!(data_W      , W)
+            push!(data_F      , loss)
+            push!(data_G      , effloss)
+        end
     end
 
     if return_performance
@@ -1219,25 +1251,105 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                 "field_data" => data_Tp
                 )
     self.sol[field["field_name"]] = field
+    field = Dict(
+        "field_name" => "cl",
+        "field_type" => "scalar",
+        "field_data" => data_cl
+        )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+            "field_name" => "cd",
+            "field_type" => "scalar",
+            "field_data" => data_cd
+            )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+            "field_name" => "cn",
+            "field_type" => "scalar",
+            "field_data" => data_cn
+            )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+            "field_name" => "ct",
+            "field_type" => "scalar",
+            "field_data" => data_ct
+            )
+    self.sol[field["field_name"]] = field
+    if !_lookuptable
+        field = Dict(
+                "field_name" => "u",
+                "field_type" => "scalar",
+                "field_data" => data_u
+                )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "v",
+                    "field_type" => "scalar",
+                    "field_data" => data_v
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "a",
+                    "field_type" => "scalar",
+                    "field_data" => data_a
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "ap",
+                    "field_type" => "scalar",
+                    "field_data" => data_ap
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "phi",
+                    "field_type" => "scalar",
+                    "field_data" => data_phi
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "alpha",
+                    "field_type" => "scalar",
+                    "field_data" => data_alpha
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "W",
+                    "field_type" => "scalar",
+                    "field_data" => data_W
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "F",
+                    "field_type" => "scalar",
+                    "field_data" => data_F
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "G",
+                    "field_type" => "scalar",
+                    "field_data" => data_G
+                    )
+        self.sol[field["field_name"]] = field
+    end
+    field = Dict(
+                "field_name" => "ccbrotor",
+                "field_type" => "not-vtk",
+                "field_data" => ccbrotor
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "ccbsections",
+                "field_type" => "not-vtk",
+                "field_data" => ccbsections
+                )
+    self.sol[field["field_name"]] = field
+    field = Dict(
+                "field_name" => "ccbops",
+                "field_type" => "not-vtk",
+                "field_data" => ccbops
+                )
+    self.sol[field["field_name"]] = field
   end
-  field = Dict(
-              "field_name" => "ccbrotor",
-              "field_type" => "not-vtk",
-              "field_data" => ccbrotor
-              )
-  self.sol[field["field_name"]] = field
-  field = Dict(
-              "field_name" => "ccbsections",
-              "field_type" => "not-vtk",
-              "field_data" => ccbsections
-              )
-  self.sol[field["field_name"]] = field
-  field = Dict(
-              "field_name" => "ccbops",
-              "field_type" => "not-vtk",
-              "field_data" => ccbops
-              )
-  self.sol[field["field_name"]] = field
 
   if return_performance
     return coeffs, gammas
@@ -1382,11 +1494,24 @@ torque coefficients of the rotor. Thrust coefficient CT calculated as
 `CQ=\frac{Q}{\rho n^2 D^5}`
 """
 function calc_thrust_torque_coeffs(self::Rotor, rho::Real)
+    thrust, torque = calc_thrust_torque(self)
+    n = self.RPM / 60
+    D = 2*self.rotorR
+
+    return thrust/(rho*n^2*D^4), torque/(rho*n^2*D^5)
+end
+
+function calc_thrust_torque_coeffs(self::Rotor, rho::Real, Vinf::Real, turbine_flag::Bool)
   thrust, torque = calc_thrust_torque(self)
   n = self.RPM / 60
   D = 2*self.rotorR
-
-  return thrust/(rho*n^2*D^4), torque/(rho*n^2*D^5)
+  if turbine_flag == false
+    return thrust/(rho*n^2*D^4), torque/(rho*n^2*D^5)
+  else
+    q = 0.5*rho*Vinf^2
+    A = pi*self.rotorR^2
+    return thrust/(q*A), torque/(q*self.rotorR*A)
+  end
 end
 
 
@@ -1816,6 +1941,10 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
   n = length(ccbrotor.r)
   Np = fill(0.0, n)
   Tp = fill(0.0, n)
+  cn = fill(0.0, n)
+  ct = fill(0.0, n)
+  cl = fill(0.0, n)
+  cd = fill(0.0, n)
   uvec = fill(0.0, n)
   vvec = fill(0.0, n)
   gamma = fill(0.0, n)
@@ -1833,7 +1962,7 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
     # println("angles = $([twist, thetaeff]*180/pi)\tVx,Vy=$([Vx, Vy])")
 
     # airfoil cl/cd
-    cl, cd = occb_airfoil(ccbrotor.af[i], thetaeff)
+    cl[i], cd[i] = occb_airfoil(ccbrotor.af[i], thetaeff)
 
     # Tip and hub correction factor
     if tiploss_correction
@@ -1844,29 +1973,29 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
         Fhub = 2.0/pi*acos(exp(-factorhub))
         F = Ftip * Fhub
 
-        cl *= F
-        cd *= F
+        cl[i] *= F
+        cd[i] *= F
     end
 
     # normal and tangential coefficients
     sthtV = sin(thetaV)
     cthtV = cos(thetaV)
-    cn = cl*cthtV + cd*sthtV
-    ct = swapsign*(cl*sthtV - cd*cthtV)
+    cn[i] = cl[i]*cthtV + cd[i]*sthtV
+    ct[i] = swapsign*(cl[i]*sthtV - cd[i]*cthtV)
 
     # Normal and tangential forces per unit length
-    Np[i] = cn*aux1
-    Tp[i] = ct*aux1
+    Np[i] = cn[i]*aux1
+    Tp[i] = ct[i]*aux1
 
     # Circulation
-    gamma[i] = cl*sqrt(Vx*Vx+Vy*Vy)*ccbrotor.chord[i]/2
+    gamma[i] = cl[i]*sqrt(Vx*Vx+Vy*Vy)*ccbrotor.chord[i]/2
   end
 
   # reverse sign of outputs for propellers
   # Tp *= swapsign # I already reversed this
   vvec *= swapsign
 
-  return Np, Tp, uvec, vvec, gamma
+  return Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd
 end
 
 "Extension of WingSystem's `addwing()` function"
