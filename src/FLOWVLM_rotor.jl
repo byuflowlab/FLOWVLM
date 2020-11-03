@@ -1139,6 +1139,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
         data_G      = FArrWrap[]
     end
   end
+  ccbrotors, ccbsectionss, ccbopss = [], [], []
 
   gammas = _lookuptable ? [] : nothing
 
@@ -1212,6 +1213,9 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
             push!(data_F      , loss)
             push!(data_G      , effloss)
         end
+      push!(ccbrotors, ccbrotor)
+      push!(ccbsectionss, ccbsections)
+      push!(ccbopss, ccbops)
     end
 
     if return_performance
@@ -1334,19 +1338,19 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     field = Dict(
                 "field_name" => "ccbrotor",
                 "field_type" => "not-vtk",
-                "field_data" => ccbrotor
+                "field_data" => ccbrotors
                 )
     self.sol[field["field_name"]] = field
     field = Dict(
                 "field_name" => "ccbsections",
                 "field_type" => "not-vtk",
-                "field_data" => ccbsections
+                "field_data" => ccbsectionss
                 )
     self.sol[field["field_name"]] = field
     field = Dict(
                 "field_name" => "ccbops",
                 "field_type" => "not-vtk",
-                "field_data" => ccbops
+                "field_data" => ccbopss
                 )
     self.sol[field["field_name"]] = field
   end
