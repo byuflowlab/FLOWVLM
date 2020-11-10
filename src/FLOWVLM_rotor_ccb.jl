@@ -450,7 +450,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     c_75 = c_spline1D(0.75)
     #run extrapolation
     #note: convert alpha to radians on input, output in radians
-    if !isapprox(alpha[1],180.0)
+    if !isapprox(alpha[1],-180.0)
         alpha, cl, cd = extrapolate(alpha*pi/180, cl, cd, c_75)
         #run 3D corrections
         #note: alpha still in radians
