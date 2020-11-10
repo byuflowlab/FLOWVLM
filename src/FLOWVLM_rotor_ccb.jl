@@ -214,6 +214,10 @@ Apply rotational corrections (3D stall delay) to airfoil data using DUSelig (lif
 """
 function correction3D(cl, cd, cr, rR, tsr, alpha, phi=alpha, alpha_max_corr=30*pi/180)
 
+    if foldl(==,cd)
+        return cl, cd
+    end
+
     m, alpha0 ,_ ,_ = fitliftslope(alpha,cl)
 
     for i=1:length(alpha)
