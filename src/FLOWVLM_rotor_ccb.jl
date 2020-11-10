@@ -452,13 +452,14 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     #note: convert alpha to radians on input, output in radians
     if !isapprox(alpha[1],-180.0)
         alpha, cl, cd = extrapolate(alpha*pi/180, cl, cd, c_75)
+        alpha *= 180/pi
         #run 3D corrections
         #note: alpha still in radians
         cl, cd = correction3D(cl, cd, c_over_r, r_over_R, tsr, alpha)
     end
     #reconstruct polar for injective function
     #note: convert alpha back to degrees
-    this_polar = ap.Polar(ap.get_Re(this_polar), alpha*180/pi, cl, cd, zeros(length(alpha)); ap._get_nonpypolar_args(this_polar)...)
+    this_polar = ap.Polar(ap.get_Re(this_polar), alpha, cl, cd, zeros(length(alpha)); ap._get_nonpypolar_args(this_polar)...)
     # Makes sure the polar is injective for easing the spline
     this_polar = ap.injective(this_polar)
 
