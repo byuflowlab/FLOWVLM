@@ -214,9 +214,9 @@ Apply rotational corrections (3D stall delay) to airfoil data using DUSelig (lif
 """
 function correction3D(cl, cd, cr, rR, tsr, alpha, phi=alpha, alpha_max_corr=30*pi/180)
 
-    if cd[1] == cd[2] == cd[3]
-        return cl, cd
-    end
+    # if cd[1] == cd[2] == cd[3]
+    #     return cl, cd
+    # end
 
     m, alpha0 ,_ ,_ = fitliftslope(alpha,cl)
 
@@ -272,9 +272,9 @@ Viterna extrapolation.  Follows Viterna paper and somewhat follows NREL version 
 """
 function extrapolate(alpha, cl, cd, cr75, nalpha=60)
 
-    if isapprox(alpha[1],-180.0) || isapprox(alpha[1],-pi)
-        return alpha, cl, cd
-    end
+    # if isapprox(alpha[1],-180.0) || isapprox(alpha[1],-pi)
+    #     return alpha, cl, cd
+    # end
 
     # estimate cdmax
     AR = 1.0 / cr75
@@ -450,11 +450,12 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     c_75 = c_spline1D(0.75)
     #run extrapolation
     #note: convert alpha to radians on input, output in radians
-    alpha, cl, cd = extrapolate(alpha*pi/180, cl, cd, c_75)
-    #run 3D corrections
-    #note: alpha still in radians
-    cl, cd = correction3D(cl, cd, c_over_r, r_over_R, tsr, alpha)
-
+    if !isapprox(alpha[1],180.0)
+        alpha, cl, cd = extrapolate(alpha*pi/180, cl, cd, c_75)
+        #run 3D corrections
+        #note: alpha still in radians
+        cl, cd = correction3D(cl, cd, c_over_r, r_over_R, tsr, alpha)
+    end
     #reconstruct polar for injective function
     #note: convert alpha back to degrees
     this_polar = ap.Polar(ap.get_Re(this_polar), alpha*180/pi, cl, cd, zeros(length(alpha)); ap._get_nonpypolar_args(this_polar)...)
