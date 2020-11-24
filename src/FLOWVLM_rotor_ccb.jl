@@ -407,7 +407,6 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     #   x-component of inflow. This may cause problems when the flow is reversed
     this_Vinf = abs(inflows[i][1])
     tsr = this_Vinf < 1e-4 ? nothing : (2*pi*RPM/60 * Rtip) / this_Vinf
-
     # Mach correction
     if sound_spd!=nothing
       Ma = norm(inflows[i])/sound_spd
@@ -455,7 +454,9 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
         alpha *= 180/pi
         #run 3D corrections
         #note: alpha still in radians
-        cl, cd = correction3D(cl, cd, c_over_r, r_over_R, tsr, alpha)
+        if tsr != nothing
+            cl, cd = correction3D(cl, cd, c_over_r, r_over_R, tsr, alpha)
+        end
     end
     #reconstruct polar for injective function
     #note: convert alpha back to degrees
