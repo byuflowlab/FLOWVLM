@@ -381,7 +381,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
                           RPM, blade_i::IWrap, turbine_flag::Bool;
                           sound_spd=nothing, AR_to_360extrap=true, CDmax = 1.3)
 
-
+    println("In FLOWVLM2OCCBlade")
   # ERROR CASES
   if size(self.airfoils)[1]<2
     error("Airfoil data not found when generating CCBlade Rotor.")
@@ -420,7 +420,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     else
       this_polar = polar
     end
-
+    println("Done with mach correction")
     # 3D corrections
 
     #OLD
