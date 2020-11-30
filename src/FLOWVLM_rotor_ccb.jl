@@ -381,7 +381,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
                           RPM, blade_i::IWrap, turbine_flag::Bool;
                           sound_spd=nothing, AR_to_360extrap=true, CDmax = 1.3)
 
-    println("In FLOWVLM2OCCBlade")
+
   # ERROR CASES
   if size(self.airfoils)[1]<2
     error("Airfoil data not found when generating CCBlade Rotor.")
@@ -420,7 +420,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     else
       this_polar = polar
     end
-    println("Done with mach correction")
+
     # 3D corrections
 
     #OLD
@@ -450,9 +450,8 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     c_75 = c_spline1D(0.75)
     #run extrapolation
     #note: convert alpha to radians on input, output in radians
-    println("alpha[1]: ", alpha[1])
-    if !isapprox(alpha[1],-180.0) || !isapprox(alpha[1],-pi)
-        println("I'm extrapolating")
+    if !isapprox(alpha[1],-180.0)
+
         alpha, cl, cd = extrapolate(alpha*pi/180, cl, cd, c_75)
         alpha *= 180/pi
         #run 3D corrections
