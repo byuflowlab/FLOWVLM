@@ -408,7 +408,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     this_Vinf = abs(inflows[i][1])
     tsr = this_Vinf < 1e-4 ? nothing : (2*pi*RPM/60 * Rtip) / this_Vinf
     # Mach correction
-    if sound_spd!=nothing
+    if sound_spd!==nothing
       Ma = norm(inflows[i])/sound_spd
       if Ma>=1
         error("Mach correction requested on Ma = $Ma >= 1.0")
@@ -443,18 +443,20 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     #360 extrapolation
     #get coeffs, note: alpha comes out in degrees
     alpha, cl = ap.get_cl(this_polar)
+
     cd = ap.get_cd(this_polar)[2]
 
     c_spline1D = Spline1D(self._r / self.rotorR, self._chord; k=1)
     c_75 = c_spline1D(0.75)
     #run extrapolation
     #note: convert alpha to radians on input, output in radians
-    if !isapprox(alpha[1],-180.0)
+    if !isapprox(alpha[1],-180.0) || !isapprox(alpha[1],-pi)
+
         alpha, cl, cd = extrapolate(alpha*pi/180, cl, cd, c_75)
         alpha *= 180/pi
         #run 3D corrections
         #note: alpha still in radians
-        if tsr != nothing
+        if tsr !== nothing
             cl, cd = correction3D(cl, cd, c_over_r, r_over_R, tsr, alpha)
         end
     end
