@@ -1977,8 +1977,8 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
         Fhub = 2.0/pi*acos(exp(-factorhub))
         F = Ftip * Fhub
 
-        cl[i] *= Ftip
-        cd[i] *= Ftip
+        cl[i] *= F
+        cd[i] *= F
     end
 
     # normal and tangential coefficients
