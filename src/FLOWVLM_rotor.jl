@@ -1929,77 +1929,109 @@ function _calc_inflow(blade::Wing, RPM, t::FWrap; target="CP")
   return out
 end
 
+
+"""
+tiplossadjustment(J,F;Jr=0.1,k=5.0)
+
+Calculate an adjusted tip loss factor to multiply by cl and cd.
+
+**Inputs:**
+J::Float64 : input J
+F::Float64 : pradtl tip loss factor
+Jr::Float64 : range of J from which we go from 1. to F #TODO: need to figure out what the range is
+k::Float64 : steepness factor #TODO: need to figure out what k give the best match
+
+**Output:**
+w::Float64 : adjusted tip loss factor
+"""
+function tiplossadjustment(J, F;Jr=2,k=3.0)
+
+    lambda = Jr / 2.0
+
+    if J >= 0
+        return (1 - F) * exp(-((J) / lambda)^k) + F
+    else
+        @error("You cannot have a negative advance ratio. (see tiplossadjustment() function inputs")
+    end
+
+end
+
+
 """Calculates the load distribution by using the airfoil lookup table on the
 given inflow (this assumes that the inflow already includes all induced velocity
 and it is the effective inflow).
 """
 function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
                                             ccbinflow::OCCBInflow,
-                                            turbine_flag::Bool;
+                                            turbine_flag::Bool,
+                                            advance_ratio::Float64;
                                             tiploss_correction::Bool=false)
 
-  # check if propeller
-  swapsign = turbine_flag ? 1 : -1
+    # check if propeller
+    swapsign = turbine_flag ? 1 : -1
 
-  # initialize arrays
-  n = length(ccbrotor.r)
-  Np = fill(0.0, n)
-  Tp = fill(0.0, n)
-  cn = fill(0.0, n)
-  ct = fill(0.0, n)
-  cl = fill(0.0, n)
-  cd = fill(0.0, n)
-  uvec = fill(0.0, n)
-  vvec = fill(0.0, n)
-  gamma = fill(0.0, n)
+    # initialize arrays
+    n = length(ccbrotor.r)
+    Np = fill(0.0, n)
+    Tp = fill(0.0, n)
+    cn = fill(0.0, n)
+    ct = fill(0.0, n)
+    cl = fill(0.0, n)
+    cd = fill(0.0, n)
+    uvec = fill(0.0, n)
+    vvec = fill(0.0, n)
+    gamma = fill(0.0, n)
 
-  for i in 1:n
-    twist = swapsign*ccbrotor.theta[i]
-    Vx = swapsign*ccbinflow.Vx[i]
-    Vy = ccbinflow.Vy[i]
+    for i in 1:n
+        twist = swapsign * ccbrotor.theta[i]
+        Vx = swapsign * ccbinflow.Vx[i]
+        Vy = ccbinflow.Vy[i]
 
-    aux1 = 0.5*ccbinflow.rho*(Vx*Vx+Vy*Vy)*ccbrotor.chord[i]
+        aux1 = 0.5 * ccbinflow.rho * (Vx * Vx + Vy * Vy) * ccbrotor.chord[i]
 
-    # Effective angle of attack (rad)
-    thetaV = atan(Vx, Vy)
-    thetaeff = thetaV - twist
-    # println("angles = $([twist, thetaeff]*180/pi)\tVx,Vy=$([Vx, Vy])")
+        # Effective angle of attack (rad)
+        thetaV = atan(Vx, Vy)
+        thetaeff = thetaV - twist
+        # println("angles = $([twist, thetaeff]*180/pi)\tVx,Vy=$([Vx, Vy])")
 
-    # airfoil cl/cd
-    cl[i], cd[i] = occb_airfoil(ccbrotor.af[i], thetaeff)
+        # airfoil cl/cd
+        cl[i], cd[i] = occb_airfoil(ccbrotor.af[i], thetaeff)
 
-    # Tip and hub correction factor
-    if tiploss_correction
-        B, Rtip, Rhub, r = ccbrotor.B, ccbrotor.Rtip, ccbrotor.Rhub, ccbrotor.r[i]
-        factortip = B/2.0*(Rtip - r)/(r*abs(thetaV))
-        Ftip = 2.0/pi*acos(exp(-factortip))
-        factorhub = B/2.0*(r - Rhub)/(Rhub*abs(thetaV))
-        Fhub = 2.0/pi*acos(exp(-factorhub))
-        F = Ftip * Fhub
+        # Tip and hub correction factor
+        if tiploss_correction
+            B, Rtip, Rhub, r = ccbrotor.B, ccbrotor.Rtip, ccbrotor.Rhub, ccbrotor.r[i]
+            factortip = B / 2.0 * (Rtip - r) / (r * abs(thetaV))
+            Ftip = 2.0 / pi * acos(exp(-factortip))
+            factorhub = B / 2.0 * (r - Rhub) / (Rhub * abs(thetaV))
+            Fhub = 2.0 / pi * acos(exp(-factorhub))
+            F = Ftip * Fhub
 
-        cl[i] *= F
-        cd[i] *= F
+            # adjust application based on advance ratio using weibull curve
+            a = tiplossadjustment(advance_ratio, F, Jr=2.0, k=3.0)
+
+            cl[i] *= F / a
+            cd[i] *= F / a
+        end
+
+        # normal and tangential coefficients
+        sthtV = sin(thetaV)
+        cthtV = cos(thetaV)
+        cn[i] = cl[i] * cthtV + cd[i] * sthtV
+        ct[i] = swapsign * (cl[i] * sthtV - cd[i] * cthtV)
+
+        # Normal and tangential forces per unit length
+        Np[i] = cn[i] * aux1
+        Tp[i] = ct[i] * aux1
+
+        # Circulation
+        gamma[i] = cl[i] * sqrt(Vx * Vx + Vy * Vy) * ccbrotor.chord[i] / 2
     end
 
-    # normal and tangential coefficients
-    sthtV = sin(thetaV)
-    cthtV = cos(thetaV)
-    cn[i] = cl[i]*cthtV + cd[i]*sthtV
-    ct[i] = swapsign*(cl[i]*sthtV - cd[i]*cthtV)
+    # reverse sign of outputs for propellers
+    # Tp *= swapsign # I already reversed this
+    vvec *= swapsign
 
-    # Normal and tangential forces per unit length
-    Np[i] = cn[i]*aux1
-    Tp[i] = ct[i]*aux1
-
-    # Circulation
-    gamma[i] = cl[i]*sqrt(Vx*Vx+Vy*Vy)*ccbrotor.chord[i]/2
-  end
-
-  # reverse sign of outputs for propellers
-  # Tp *= swapsign # I already reversed this
-  vvec *= swapsign
-
-  return Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd
+    return Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd
 end
 
 "Extension of WingSystem's `addwing()` function"
