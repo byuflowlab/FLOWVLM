@@ -1176,7 +1176,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
 
       #assume vinf(0,0) is freestream
       vfs = Vinf(0.0,0.0)
-      advance_ratio = sqrt(vfs[1]^2 + vfs[2]^2 + vfs[3]^2) / ((RPM/60)*(2*self.R))
+      advance_ratio = sqrt(vfs[1]^2 + vfs[2]^2 + vfs[3]^2) / ((RPM/60)*(2*self.rotorR))
 
       Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd = _calc_distributedloads_lookuptable(occbrotor,
                                                         occbinflow, turbine_flag, advance_ratio;
