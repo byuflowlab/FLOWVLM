@@ -1173,8 +1173,13 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     Np, Tp, uvec, vvec, gamma = (nothing for i in 1:5)
 
     if _lookuptable
+
+      #assume vinf(0,0) is freestream
+      vfs = Vinf(0.0,0.0)
+      advance_ratio = sqrt(vfs[1]^2 + vfs[2]^2 + vfs[3]^2) / ((RPM/60)*(2*blade_i.R))
+
       Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd = _calc_distributedloads_lookuptable(occbrotor,
-                                                        occbinflow, turbine_flag;
+                                                        occbinflow, turbine_flag, advance_ratio;
                                                         tiploss_correction=tiploss_correction)
       push!(gammas, gamma)
       zeroarr = zeros(size(Np))
