@@ -1949,7 +1949,7 @@ k::Float64 : steepness factor #TODO: need to figure out what k give the best mat
 **Output:**
 w::Float64 : adjusted tip loss factor
 """
-function tiplossadjustment(J, F;Jr=2,k=3.0)
+function tiplossadjustment(J, F; Jr=2, k=3.0)
 
     lambda = Jr / 2.0
 
@@ -2012,7 +2012,7 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
             F = Ftip * Fhub
 
             # adjust application based on advance ratio using weibull curve
-            a = tiplossadjustment(advance_ratio, F, Jr=2.0, k=3.0)
+            a = tiplossadjustment(advance_ratio-0.75, F+0.01, Jr=1.0, k=3.5)
 
             cl[i] *= F / a
             cd[i] *= F / a
