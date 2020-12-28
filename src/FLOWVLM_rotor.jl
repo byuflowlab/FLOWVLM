@@ -2014,8 +2014,8 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
             # adjust application based on advance ratio using weibull curve
             # a = tiplossadjustment(advance_ratio,1.2*F,Jr=0.5,k=2)
 
-            cl[i] *= F #/ a
-            cd[i] *= F #/ a
+            cl[i] *= F/2.0 #/ a
+            cd[i] *= F/2.0 #/ a
         end
 
         # normal and tangential coefficients
