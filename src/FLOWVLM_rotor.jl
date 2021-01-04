@@ -264,7 +264,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=true, return_performance::Bool=false,
                             Vref=nothing, sound_spd=nothing, Uinds=nothing,
                             _lookuptable::Bool=false, _Vinds=nothing,
-                            tiploss_correction=false, AR_to_360extrap=true)
+                            tiploss_correction=true, AR_to_360extrap=true)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -1117,7 +1117,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 Uinds=nothing,
                                 sound_spd=nothing,
                                 _lookuptable::Bool=false, _Vinds=nothing,
-                                tiploss_correction::Bool=false,
+                                tiploss_correction::Bool=true,
                                 AR_to_360extrap = true)
   data = Array{FArrWrap}[]
   if include_comps
@@ -1970,7 +1970,7 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
                                             ccbinflow::OCCBInflow,
                                             turbine_flag::Bool,
                                             advance_ratio::Float64;
-                                            tiploss_correction::Bool=false)
+                                            tiploss_correction::Bool=true)
 
     # check if propeller
     swapsign = turbine_flag ? 1 : -1
