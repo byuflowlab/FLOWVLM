@@ -1995,9 +1995,9 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
 
         f = open("debug.csv","a+")
         if i==1
-            write(f, "Rtip,Rhub,r,twist,thetaV,Ftip,Fhub,clraw,cldraw\n")
+            write(f, "Rtip,Rhub,r,twist,thetaV,Ftip,Fhub,clraw,cdraw,Vx,Vy\n")
         end
-        write(f, "$(Rtip),$(Rhub),$(r),$(twist),$(thetaV),$(Ftip),$(Fhub),$(cl[i]),$(cd[i])\n")
+        write(f, "$(Rtip),$(Rhub),$(r),$(twist),$(thetaV),$(Ftip),$(Fhub),$(cl[i]),$(cd[i]),$(Vx),$(Vy)\n")
         close(f)
 
         cl[i] *= F
