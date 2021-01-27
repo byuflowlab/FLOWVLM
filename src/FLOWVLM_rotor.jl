@@ -1970,18 +1970,32 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
 
     # Tip and hub correction factor
     if tiploss_correction
-        B, Rtip, Rhub, r = ccbrotor.B, ccbrotor.Rtip, ccbrotor.Rhub, ccbrotor.r[i]
-        # if r/Rtip > 0.9
-            asthetaV = abs(sin(thetaV))
-            factortip = B/2.0*(Rtip/r - 1.0)/asthetaV
-            Ftip = 2.0/pi*acos(exp(-factortip))
-            factorhub = B/2.0*(r/Rhub - 1.0)/asthetaV
-            Fhub = 2.0/pi*acos(exp(-factorhub))
-            F = Ftip * Fhub
 
-            cl[i] *= F
-            cd[i] *= F
-        # end
+        B, Rtip, Rhub, r = ccbrotor.B, ccbrotor.Rtip, ccbrotor.Rhub, ccbrotor.r[i]
+
+        asthetaV = abs(sin(thetaV))
+
+        factortip = B/2.0*(Rtip/r - 1.0)/asthetaV
+        Ftip = 2.0/pi*acos(exp(-factortip))
+
+        factorhub = B/2.0*(r/Rhub - 1.0)/asthetaV
+        Fhub = 2.0/pi*acos(exp(-factorhub))
+
+        F = Ftip * Fhub
+
+        println("Rtip = ", Rtip)
+        println("Rhub = ", Rhub)
+        println("r = ", r)
+        println("thetaV = ", thetaV)
+        println("asthetaV = ", asthetaV)
+        println("factortip = ", factortip)
+        println("factorhub = ", factorhub)
+        println("Ftip = ", Ftip)
+        println("Fhub = ", Fhub)
+
+        cl[i] *= F
+        cd[i] *= F
+
     end
 
     # normal and tangential coefficients
