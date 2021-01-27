@@ -1983,22 +1983,25 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
 
         F = Ftip * Fhub
 
-        println("Rtip = ", Rtip)
-        println("Rhub = ", Rhub)
-        println("r = ", r)
-        println("thetaV (deg) = ", 180/pi*thetaV)
-        println("asthetaV = ", asthetaV)
-        println("factortip = ", factortip)
-        println("factorhub = ", factorhub)
-        println("Ftip = ", Ftip)
-        println("Fhub = ", Fhub)
+        # println("Rtip = ", Rtip)
+        # println("Rhub = ", Rhub)
+        # println("r = ", r)
+        # println("thetaV (deg) = ", 180/pi*thetaV)
+        # println("asthetaV = ", asthetaV)
+        # println("factortip = ", factortip)
+        # println("factorhub = ", factorhub)
+        # println("Ftip = ", Ftip)
+        # println("Fhub = ", Fhub)
 
+
+        println("saving")
         f = open("debug.csv","a+")
         if i==1
             write(f, "Rtip,Rhub,r,twist,thetaV,Ftip,Fhub,clraw,cdraw,Vx,Vy\n")
         end
         write(f, "$(Rtip),$(Rhub),$(r),$(twist),$(thetaV),$(Ftip),$(Fhub),$(cl[i]),$(cd[i]),$(Vx),$(Vy)\n")
         close(f)
+        println("saved\n")
 
         cl[i] *= F
         cd[i] *= F
