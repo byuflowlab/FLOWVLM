@@ -1993,7 +1993,7 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
         println("Ftip = ", Ftip)
         println("Fhub = ", Fhub)
 
-        f = open("debug.csv","w+")
+        f = open("debug.csv","a+")
         if i==1
             write(f, "Rtip,Rhub,r,thetaV,Ftip,Fhub,clraw,cldraw\n")
         end
