@@ -1986,7 +1986,7 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
         println("Rtip = ", Rtip)
         println("Rhub = ", Rhub)
         println("r = ", r)
-        println("thetaV = ", thetaV)
+        println("thetaV (deg) = ", 180/pi*thetaV)
         println("asthetaV = ", asthetaV)
         println("factortip = ", factortip)
         println("factorhub = ", factorhub)
