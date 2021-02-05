@@ -75,288 +75,288 @@ function occb_airfoil(af::OCCBAirfoilData, alpha::Real)
 end
 
 # ------------- More robust rotation correction and extrapolation functions ----
-"""
-    fitliftslope(aoa,cl,tol::Real=0.05,allnegfit::Bool=false)
-Returns the lift slope and zero lift angle of attack as well as the data used
-to compute these parameters.  The tolerance `tol` (in terms of cl) for the fit
-and whether to include all data points below zero angle of attack `allnegfit`
-may be specified. Returns liftslope,zeroliftangle,aoafit,clfit
-"""
-function fitliftslope(aoa,cl,tol::Real=0.05,allnegfit::Bool=false,center=0.0)
+# """
+#     fitliftslope(aoa,cl,tol::Real=0.05,allnegfit::Bool=false)
+# Returns the lift slope and zero lift angle of attack as well as the data used
+# to compute these parameters.  The tolerance `tol` (in terms of cl) for the fit
+# and whether to include all data points below zero angle of attack `allnegfit`
+# may be specified. Returns liftslope,zeroliftangle,aoafit,clfit
+# """
+# function fitliftslope(aoa,cl,tol::Real=0.05,allnegfit::Bool=false,center=0.0)
 
-  if length(aoa) != length(cl)
-    error("aoa and cl must have the same length")
-  end
+#   if length(aoa) != length(cl)
+#     error("aoa and cl must have the same length")
+#   end
 
-  # split into positive and negative angles of attack
-  idxcenter = argmin(abs.(aoa .- center))
-  idxneg = findall(aoa .< aoa[idxcenter])
-  sort!(idxneg,rev = true)
-  idxpos = findall(aoa .> aoa[idxcenter])
-  sort!(idxpos)
+#   # split into positive and negative angles of attack
+#   idxcenter = argmin(abs.(aoa .- center))
+#   idxneg = findall(aoa .< aoa[idxcenter])
+#   sort!(idxneg,rev = true)
+#   idxpos = findall(aoa .> aoa[idxcenter])
+#   sort!(idxpos)
 
-  # initialize arrays of data to fit
-  aoafit = [aoa[idxcenter]]
-  clfit = [cl[idxcenter]]
-  # create indexes for increasing and decreasing aoa
-  ipos = 1
-  ineg = 1
-  # initialize flag to stop adding data > 0
-  upperflag = false
-  if ipos > length(idxpos)
-    upperflag = true
-  end
-  # initialize flag to stop adding data < 0
-  lowerflag = false
-  if ineg > length(idxneg)
-    lowerflag = true
-  end
-  # compute lift slope and zero lift angle of attack
-  success = false
-  liftslope = 2*pi
-  zeroliftangle = 0.0
-  for i = 1:(length(idxpos)+length(idxneg))
-    # add positive angle of attack point to fit if closest to zero aoa
-    if upperflag == false
-      if lowerflag == true || abs(aoa[idxpos[ipos]]) <= abs(aoa[idxneg[ineg]])
-        # add point
-        push!(aoafit,aoa[idxpos[ipos]])
-        push!(clfit,cl[idxpos[ipos]])
-        # order points
-        order = sortperm(aoafit)
-        aoafit = aoafit[order]
-        clfit = clfit[order]
-        # create least squares fit
-        lsqsol = hcat(aoafit, -ones(length(aoafit)))\clfit
-        # if liftslope not defined from previous iteration, assign it here
-        if ipos == 1
-            liftslope = lsqsol[1]
-        end
-        # get slope and error of added point
-        yerror = lsqsol[1]*(aoa[idxpos[ipos:end]].-lsqsol[2]/lsqsol[1]).-cl[idxpos[ipos:end]]
-        # slope = (clfit[end] - clfit[end-1])/(aoafit[end] - aoafit[end-1])
-        # check if on linear portion of lift curve
-        if any(yerror .< tol) #slope > 0.5*liftslope ||
-          liftslope = lsqsol[1]
-          zeroliftangle = lsqsol[2]/lsqsol[1]
-          success = true
-        else # if not on linear portion remove from fit
-          aoafit = aoafit[1:(end-1)]
-          clfit = clfit[1:(end-1)]
-          upperflag = true
-        end
-        #  increment counter and check for more points greater than aoa=0
-        ipos = ipos+1
-        if ipos > length(idxpos)
-          upperflag = true
-        end
-      end
-    end
-    # add negative angle of attack point to fit if closest to zero
-    if lowerflag == false
-      if upperflag == true || abs(aoa[idxneg[ineg]]) <= abs(aoa[idxpos[ipos]])
-        # add point
-        pushfirst!(aoafit,aoa[idxneg[ineg]])
-        pushfirst!(clfit,cl[idxneg[ineg]])
-        # create least squares fit
-        lsqsol = hcat(aoafit, -ones(length(aoafit)))\clfit
-        # get error of added point
-        yerror = lsqsol[1]*(aoa[idxneg[ineg:end]].-lsqsol[2]/lsqsol[1]).-cl[idxneg[ineg:end]]
-        # check if on linear portion of lift curve
-        if any(abs.(yerror) .< tol) || allnegfit
-          liftslope = lsqsol[1]
-          zeroliftangle = lsqsol[2]/lsqsol[1]
-          success = true
-        else # if not on linear portion remove from fit
-          aoafit = aoafit[2:end]
-          clfit = clfit[2:end]
-          lowerflag = true
-        end
-        #  increment counter and check for more points less than aoa=0
-        ineg = ineg+1
-        if ineg > length(idxneg)
-          lowerflag = true
-        end
-      end
-    end
-    # break if no more points to add
-    if upperflag && lowerflag
-      break
-    end
-  end
-  if success == false
-    liftslope,zeroliftangle,aoafit,clfit = fitliftslope(aoa,cl,tol,allnegfit,aoa[idxcenter]+1.0*pi/180)
-  end
+#   # initialize arrays of data to fit
+#   aoafit = [aoa[idxcenter]]
+#   clfit = [cl[idxcenter]]
+#   # create indexes for increasing and decreasing aoa
+#   ipos = 1
+#   ineg = 1
+#   # initialize flag to stop adding data > 0
+#   upperflag = false
+#   if ipos > length(idxpos)
+#     upperflag = true
+#   end
+#   # initialize flag to stop adding data < 0
+#   lowerflag = false
+#   if ineg > length(idxneg)
+#     lowerflag = true
+#   end
+#   # compute lift slope and zero lift angle of attack
+#   success = false
+#   liftslope = 2*pi
+#   zeroliftangle = 0.0
+#   for i = 1:(length(idxpos)+length(idxneg))
+#     # add positive angle of attack point to fit if closest to zero aoa
+#     if upperflag == false
+#       if lowerflag == true || abs(aoa[idxpos[ipos]]) <= abs(aoa[idxneg[ineg]])
+#         # add point
+#         push!(aoafit,aoa[idxpos[ipos]])
+#         push!(clfit,cl[idxpos[ipos]])
+#         # order points
+#         order = sortperm(aoafit)
+#         aoafit = aoafit[order]
+#         clfit = clfit[order]
+#         # create least squares fit
+#         lsqsol = hcat(aoafit, -ones(length(aoafit)))\clfit
+#         # if liftslope not defined from previous iteration, assign it here
+#         if ipos == 1
+#             liftslope = lsqsol[1]
+#         end
+#         # get slope and error of added point
+#         yerror = lsqsol[1]*(aoa[idxpos[ipos:end]].-lsqsol[2]/lsqsol[1]).-cl[idxpos[ipos:end]]
+#         # slope = (clfit[end] - clfit[end-1])/(aoafit[end] - aoafit[end-1])
+#         # check if on linear portion of lift curve
+#         if any(yerror .< tol) #slope > 0.5*liftslope ||
+#           liftslope = lsqsol[1]
+#           zeroliftangle = lsqsol[2]/lsqsol[1]
+#           success = true
+#         else # if not on linear portion remove from fit
+#           aoafit = aoafit[1:(end-1)]
+#           clfit = clfit[1:(end-1)]
+#           upperflag = true
+#         end
+#         #  increment counter and check for more points greater than aoa=0
+#         ipos = ipos+1
+#         if ipos > length(idxpos)
+#           upperflag = true
+#         end
+#       end
+#     end
+#     # add negative angle of attack point to fit if closest to zero
+#     if lowerflag == false
+#       if upperflag == true || abs(aoa[idxneg[ineg]]) <= abs(aoa[idxpos[ipos]])
+#         # add point
+#         pushfirst!(aoafit,aoa[idxneg[ineg]])
+#         pushfirst!(clfit,cl[idxneg[ineg]])
+#         # create least squares fit
+#         lsqsol = hcat(aoafit, -ones(length(aoafit)))\clfit
+#         # get error of added point
+#         yerror = lsqsol[1]*(aoa[idxneg[ineg:end]].-lsqsol[2]/lsqsol[1]).-cl[idxneg[ineg:end]]
+#         # check if on linear portion of lift curve
+#         if any(abs.(yerror) .< tol) || allnegfit
+#           liftslope = lsqsol[1]
+#           zeroliftangle = lsqsol[2]/lsqsol[1]
+#           success = true
+#         else # if not on linear portion remove from fit
+#           aoafit = aoafit[2:end]
+#           clfit = clfit[2:end]
+#           lowerflag = true
+#         end
+#         #  increment counter and check for more points less than aoa=0
+#         ineg = ineg+1
+#         if ineg > length(idxneg)
+#           lowerflag = true
+#         end
+#       end
+#     end
+#     # break if no more points to add
+#     if upperflag && lowerflag
+#       break
+#     end
+#   end
+#   if success == false
+#     liftslope,zeroliftangle,aoafit,clfit = fitliftslope(aoa,cl,tol,allnegfit,aoa[idxcenter]+1.0*pi/180)
+#   end
 
-  return liftslope,zeroliftangle,aoafit,clfit
-end
-
-
-"""
-    correction3D(cl, cd, cr, rR, tsr, alpha, phi=alpha, alpha0, alpha_max_corr=30*pi/180)
-
-Apply rotational corrections (3D stall delay) to airfoil data using DUSelig (lift) and Eggers (drag) models.
-
-**Arguments**
-- `cl::Array{Float64}`: lift coefficient before correction
-- `cd::Array{Float64}`: drag coefficient before correction
-- `cr::Float64`: local chord / local radius
-- `rR::Float64`: local radius / tip radius
-- `tsr::Float64`: local tip speed ratio (Omega r / Vinf)
-- `alpha::Array{Float64}`: local angle of attack (radians)
-- `phi::Float64`: local inflow angles (defaults to angle of attack is precomputing since it is only known for on-the-fly computations)
-- `alpha0::Float64`: zero-lift angle of attack (radians)
-- `alpha_max_corr::Float64`: angle of attack for maximum correction (tapers off to zero by 90 degrees) (radians)
-
-**Returns**
-- `cl::Float64`: lift coefficient after correction
-- `cd::Float64`: drag coefficient after correction
-"""
-function correction3D(cl, cd, cr, rR, tsr, alpha, phi=alpha, alpha_max_corr=30*pi/180)
-
-    # if cd[1] == cd[2] == cd[3]
-    #     return cl, cd
-    # end
-
-    m, alpha0 ,_ ,_ = fitliftslope(alpha,cl)
-
-    for i=1:length(alpha)
-        # Du-Selig correction for lift
-        Lambda = tsr / sqrt(1 + tsr^2)
-        expon = 1.0 / (Lambda * rR)
-        fcl = 1.0/m*(1.6*cr/0.1267*(1.0-cr^expon)/(1.0+cr^expon)-1)
-
-        # linear lift line
-        cl_linear = m*(alpha[i] - alpha0)
-
-        # adjustment for max correction
-        amax = atan(1/0.12) - 5*pi/180  # account for singularity in Eggers (not pi/2)
-        if abs(alpha[i]) >= amax
-            adj = 0.0
-        elseif abs(alpha[i]) > alpha_max_corr
-            adj = ((amax-abs(alpha[i]))/(amax-alpha_max_corr))^2
-        else
-            adj = 1.0
-        end
-
-        # increment in cl
-        deltacl = adj*fcl*(cl_linear - cl[i])
-        cl[i] += deltacl
-
-        # Eggers correction for drag
-        deltacd = deltacl * (sin(phi[i]) - 0.12*cos(phi[i]))/(cos(phi[i]) + 0.12*sin(phi[i]))  # note that we can actually use phi instead of alpha as is done in airfoilprep.py b/c this is done at each iteration
-        cd[i] += deltacd
-    end
-
-        return cl, cd
-
-end
+#   return liftslope,zeroliftangle,aoafit,clfit
+# end
 
 
-"""
-    extrapolate(alpha, cl, cd, cr75, nalpha=50)
+# """
+#     correction3D(cl, cd, cr, rR, tsr, alpha, phi=alpha, alpha0, alpha_max_corr=30*pi/180)
 
-Viterna extrapolation.  Follows Viterna paper and somewhat follows NREL version of AirfoilPrep, but with some modifications for better robustness and smoothness.
+# Apply rotational corrections (3D stall delay) to airfoil data using DUSelig (lift) and Eggers (drag) models.
 
-**Arguments**
-- `alpha::Vector{Float64}`: angles of attack (radians)
-- `cl::Vector{Float64}`: correspnding lift coefficients
-- `cd::Vector{Float64}`: correspnding drag coefficients
-- `cr75::Float64`: chord/Rtip at 75% Rtip
-- `nalpha::Int64`: number of discrete points (angles of attack) to include in extrapolation
+# **Arguments**
+# - `cl::Array{Float64}`: lift coefficient before correction
+# - `cd::Array{Float64}`: drag coefficient before correction
+# - `cr::Float64`: local chord / local radius
+# - `rR::Float64`: local radius / tip radius
+# - `tsr::Float64`: local tip speed ratio (Omega r / Vinf)
+# - `alpha::Array{Float64}`: local angle of attack (radians)
+# - `phi::Float64`: local inflow angles (defaults to angle of attack is precomputing since it is only known for on-the-fly computations)
+# - `alpha0::Float64`: zero-lift angle of attack (radians)
+# - `alpha_max_corr::Float64`: angle of attack for maximum correction (tapers off to zero by 90 degrees) (radians)
 
-**Returns**
-- `alpha::Vector{Float64}`: angle of attack from -pi to pi (radians)
-- `cl::Vector{Float64}`: correspnding extrapolated lift coefficients
-- `cd::Vector{Float64}`: correspnding extrapolated drag coefficients
-"""
-function extrapolate(alpha, cl, cd, cr75, nalpha=60)
+# **Returns**
+# - `cl::Float64`: lift coefficient after correction
+# - `cd::Float64`: drag coefficient after correction
+# """
+# function correction3D(cl, cd, cr, rR, tsr, alpha, phi=alpha, alpha_max_corr=30*pi/180)
 
-    # if isapprox(alpha[1],-180.0) || isapprox(alpha[1],-pi)
-    #     return alpha, cl, cd
-    # end
+#     # if cd[1] == cd[2] == cd[3]
+#     #     return cl, cd
+#     # end
 
-    # estimate cdmax
-    AR = 1.0 / cr75
-    cdmaxAR = 1.11 + 0.018*AR
-    cdmax = max(maximum(cd), cdmaxAR)
+#     m, alpha0 ,_ ,_ = fitliftslope(alpha,cl)
 
-    # find clmax
-    i_ps = argmax(cl)  # positive stall
-    cl_ps = cl[i_ps]
-    cd_ps = cd[i_ps]
-    a_ps = alpha[i_ps]
+#     for i=1:length(alpha)
+#         # Du-Selig correction for lift
+#         Lambda = tsr / sqrt(1 + tsr^2)
+#         expon = 1.0 / (Lambda * rR)
+#         fcl = 1.0/m*(1.6*cr/0.1267*(1.0-cr^expon)/(1.0+cr^expon)-1)
 
-    # and clmin
-    i_bs = alpha .< a_ps  # before stall
-    i_ns = argmin(cl[i_bs])  # negative stall
-    cl_ns = cl[i_bs][i_ns]
-    cd_ns = cd[i_bs][i_ns]
-    a_ns = alpha[i_bs][i_ns]
+#         # linear lift line
+#         cl_linear = m*(alpha[i] - alpha0)
 
-    # coefficients in method
-    B1pos = cdmax
-    A1pos = B1pos/2.0 * ones(nalpha)
-    sa = sin(a_ps)
-    ca = cos(a_ps)
-    A2pos = (cl_ps - cdmax*sa*ca)*sa/ca^2
-    B2pos = (cd_ps - cdmax*sa^2)/ca * ones(nalpha)
+#         # adjustment for max correction
+#         amax = atan(1/0.12) - 5*pi/180  # account for singularity in Eggers (not pi/2)
+#         if abs(alpha[i]) >= amax
+#             adj = 0.0
+#         elseif abs(alpha[i]) > alpha_max_corr
+#             adj = ((amax-abs(alpha[i]))/(amax-alpha_max_corr))^2
+#         else
+#             adj = 1.0
+#         end
 
-    B1neg = cdmax
-    A1neg = B1neg/2.0
-    sa = sin(a_ns)
-    ca = cos(a_ns)
-    A2neg = (cl_ns - cdmax*sa*ca)*sa/ca^2 * ones(nalpha)
-    B2neg = (cd_ns - cdmax*sa^2)/ca * ones(nalpha)
+#         # increment in cl
+#         deltacl = adj*fcl*(cl_linear - cl[i])
+#         cl[i] += deltacl
 
-    # angles of attack to extrapolate to
-    apos = range(alpha[end], pi, length=nalpha+1)
-    apos = apos[2:end]  # don't duplicate point
-    aneg = range(-pi, alpha[1], length=nalpha+1)
-    aneg = aneg[1:end-1]  # don't duplicate point
+#         # Eggers correction for drag
+#         deltacd = deltacl * (sin(phi[i]) - 0.12*cos(phi[i]))/(cos(phi[i]) + 0.12*sin(phi[i]))  # note that we can actually use phi instead of alpha as is done in airfoilprep.py b/c this is done at each iteration
+#         cd[i] += deltacd
+#     end
 
-    # high aoa adjustments
-    adjpos = ones(nalpha)
-    idx = findall(apos .>= pi/2)
-    adjpos[idx] .= -0.7
-    A1pos[idx] .*= -1
-    B2pos[idx] .*= -1
+#         return cl, cd
 
-    # idx = findall(aneg .<= -alpha[end])
-
-    adjneg = ones(nalpha)
-    idx = findall(aneg .<= -pi/2)
-    adjneg[idx] .= 0.7
-    A2neg[idx] .*= -1
-    B2neg[idx] .*= -1
-
-    # extrapolate
-    clpos = @. adjpos * (A1pos*sin(2*apos) + A2pos*cos(apos)^2/sin(apos))
-    cdpos = @. B1pos*sin(apos)^2 + B2pos*cos(apos)
-    clneg = @. adjneg * (A1neg*sin(2*aneg) + A2neg*cos(aneg)^2/sin(aneg))
-    cdneg = @. B1neg*sin(aneg)^2 + B2neg*cos(aneg)
-
-    # # override region between -alpha_high and alpha_low (if it exists)
-    # idx = findall(-alpha[end] .<= aneg .<= alpha[1])
-    # @. clneg[idx] = -cl[end]*0.7 + (aneg[idx]+alpha[end])/(alpha[1]+alpha[end])*(cl[1]+cl[end]*0.7)
-    # @. cdneg[idx] = cd[1] + (aneg[idx]-alpha[1])/(-alpha[end]-alpha[1])*(cd[end]-cd[1])
+# end
 
 
-    # override with linear variation at ends
-    idx = findall(apos .>= pi-a_ps)
-    @. clpos[idx] = (apos[idx] - pi)/a_ps*cl_ps*0.7
-    idx = findall(aneg .<= -pi-a_ns)
-    @. clneg[idx] = (aneg[idx] + pi)/a_ns*cl_ns*0.7
+# """
+#     extrapolate(alpha, cl, cd, cr75, nalpha=50)
 
-    # concatenate
-    alphafull = [aneg; alpha; apos]
-    clfull = [clneg; cl; clpos]
-    cdfull = [cdneg; cd; cdpos]
+# Viterna extrapolation.  Follows Viterna paper and somewhat follows NREL version of AirfoilPrep, but with some modifications for better robustness and smoothness.
 
-    # don't allow negative drag
-    cdfull = max.(cdfull, 0.0001)
-    return alphafull, clfull, cdfull
-end
+# **Arguments**
+# - `alpha::Vector{Float64}`: angles of attack (radians)
+# - `cl::Vector{Float64}`: correspnding lift coefficients
+# - `cd::Vector{Float64}`: correspnding drag coefficients
+# - `cr75::Float64`: chord/Rtip at 75% Rtip
+# - `nalpha::Int64`: number of discrete points (angles of attack) to include in extrapolation
+
+# **Returns**
+# - `alpha::Vector{Float64}`: angle of attack from -pi to pi (radians)
+# - `cl::Vector{Float64}`: correspnding extrapolated lift coefficients
+# - `cd::Vector{Float64}`: correspnding extrapolated drag coefficients
+# """
+# function extrapolate(alpha, cl, cd, cr75, nalpha=60)
+
+#     # if isapprox(alpha[1],-180.0) || isapprox(alpha[1],-pi)
+#     #     return alpha, cl, cd
+#     # end
+
+#     # estimate cdmax
+#     AR = 1.0 / cr75
+#     cdmaxAR = 1.11 + 0.018*AR
+#     cdmax = max(maximum(cd), cdmaxAR)
+
+#     # find clmax
+#     i_ps = argmax(cl)  # positive stall
+#     cl_ps = cl[i_ps]
+#     cd_ps = cd[i_ps]
+#     a_ps = alpha[i_ps]
+
+#     # and clmin
+#     i_bs = alpha .< a_ps  # before stall
+#     i_ns = argmin(cl[i_bs])  # negative stall
+#     cl_ns = cl[i_bs][i_ns]
+#     cd_ns = cd[i_bs][i_ns]
+#     a_ns = alpha[i_bs][i_ns]
+
+#     # coefficients in method
+#     B1pos = cdmax
+#     A1pos = B1pos/2.0 * ones(nalpha)
+#     sa = sin(a_ps)
+#     ca = cos(a_ps)
+#     A2pos = (cl_ps - cdmax*sa*ca)*sa/ca^2
+#     B2pos = (cd_ps - cdmax*sa^2)/ca * ones(nalpha)
+
+#     B1neg = cdmax
+#     A1neg = B1neg/2.0
+#     sa = sin(a_ns)
+#     ca = cos(a_ns)
+#     A2neg = (cl_ns - cdmax*sa*ca)*sa/ca^2 * ones(nalpha)
+#     B2neg = (cd_ns - cdmax*sa^2)/ca * ones(nalpha)
+
+#     # angles of attack to extrapolate to
+#     apos = range(alpha[end], pi, length=nalpha+1)
+#     apos = apos[2:end]  # don't duplicate point
+#     aneg = range(-pi, alpha[1], length=nalpha+1)
+#     aneg = aneg[1:end-1]  # don't duplicate point
+
+#     # high aoa adjustments
+#     adjpos = ones(nalpha)
+#     idx = findall(apos .>= pi/2)
+#     adjpos[idx] .= -0.7
+#     A1pos[idx] .*= -1
+#     B2pos[idx] .*= -1
+
+#     # idx = findall(aneg .<= -alpha[end])
+
+#     adjneg = ones(nalpha)
+#     idx = findall(aneg .<= -pi/2)
+#     adjneg[idx] .= 0.7
+#     A2neg[idx] .*= -1
+#     B2neg[idx] .*= -1
+
+#     # extrapolate
+#     clpos = @. adjpos * (A1pos*sin(2*apos) + A2pos*cos(apos)^2/sin(apos))
+#     cdpos = @. B1pos*sin(apos)^2 + B2pos*cos(apos)
+#     clneg = @. adjneg * (A1neg*sin(2*aneg) + A2neg*cos(aneg)^2/sin(aneg))
+#     cdneg = @. B1neg*sin(aneg)^2 + B2neg*cos(aneg)
+
+#     # # override region between -alpha_high and alpha_low (if it exists)
+#     # idx = findall(-alpha[end] .<= aneg .<= alpha[1])
+#     # @. clneg[idx] = -cl[end]*0.7 + (aneg[idx]+alpha[end])/(alpha[1]+alpha[end])*(cl[1]+cl[end]*0.7)
+#     # @. cdneg[idx] = cd[1] + (aneg[idx]-alpha[1])/(-alpha[end]-alpha[1])*(cd[end]-cd[1])
+
+
+#     # override with linear variation at ends
+#     idx = findall(apos .>= pi-a_ps)
+#     @. clpos[idx] = (apos[idx] - pi)/a_ps*cl_ps*0.7
+#     idx = findall(aneg .<= -pi-a_ns)
+#     @. clneg[idx] = (aneg[idx] + pi)/a_ns*cl_ns*0.7
+
+#     # concatenate
+#     alphafull = [aneg; alpha; apos]
+#     clfull = [clneg; cl; clpos]
+#     cdfull = [cdneg; cd; cdpos]
+
+#     # don't allow negative drag
+#     cdfull = max.(cdfull, 0.0001)
+#     return alphafull, clfull, cdfull
+# end
 # ------------- FLOWVLM <-> CCBlade FUNCTIONS ----------------------------------
 """
 Returns a CCBlade's rotor object corresponding to the i-th blade. The r position
@@ -455,12 +455,12 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
         alpha *= pi/180
 
         #extrapolate
-        alpha, cl, cd = extrapolate(alpha, cl, cd, c_75)
+        alpha, cl, cd = ccb.extrapolate(alpha, cl, cd, c_75)
         #run 3D corrections
         #note: alpha still in radians
         if tsr !== nothing
             #rotation corrections
-            cl, cd = correction3D(cl, cd, c_over_r, r_over_R, tsr, alpha)
+            cl, cd = ccb.correction3D(cl, cd, c_over_r, r_over_R, tsr, alpha)
         end
         #convert alpha back to degrees
         alpha *= 180/pi
