@@ -455,12 +455,12 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
         alpha *= pi/180
 
         #extrapolate
-        alpha, cl, cd = ccb.extrapolate(alpha, cl, cd, c_75)
+        alpha, cl, cd = ccb.viterna(alpha, cl, cd, c_75)
         #run 3D corrections
         #note: alpha still in radians
         if tsr !== nothing
             #rotation corrections
-            cl, cd = ccb.correction3D(cl, cd, c_over_r, r_over_R, tsr, alpha)
+            cl, cd = ccb.rotation_correction(ccb.DuSeligEggers(),cl, cd, c_over_r, r_over_R, tsr, alpha)
         end
         #convert alpha back to degrees
         alpha *= 180/pi
