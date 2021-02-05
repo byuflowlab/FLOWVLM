@@ -264,7 +264,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=true, return_performance::Bool=false,
                             Vref=nothing, sound_spd=nothing, Uinds=nothing,
                             _lookuptable::Bool=false, _Vinds=nothing,
-                            tiploss_correction=true, AR_to_360extrap=true)
+                            tiploss_correction=false, AR_to_360extrap=true)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -1117,7 +1117,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 Uinds=nothing,
                                 sound_spd=nothing,
                                 _lookuptable::Bool=false, _Vinds=nothing,
-                                tiploss_correction::Bool=true,
+                                tiploss_correction::Bool=false,
                                 AR_to_360extrap = true)
   data = Array{FArrWrap}[]
   if include_comps
@@ -1936,7 +1936,7 @@ and it is the effective inflow).
 function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
                                             ccbinflow::OCCBInflow,
                                             turbine_flag::Bool;
-                                            tiploss_correction::Bool=true)
+                                            tiploss_correction::Bool=false)
 
   # check if propeller
   swapsign = turbine_flag ? 1 : -1
@@ -1963,7 +1963,6 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
     # Effective angle of attack (rad)
     thetaV = atan(Vx, Vy)
     thetaeff = thetaV - twist
-    # println("angles = $([twist, thetaeff]*180/pi)\tVx,Vy=$([Vx, Vy])")
 
     # airfoil cl/cd
     cl[i], cd[i] = occb_airfoil(ccbrotor.af[i], thetaeff)
@@ -1975,26 +1974,21 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
 
         asthetaV = abs(sin(thetaV))
 
+        #original correction
         # factortip = B/2.0*(Rtip/r - 1.0)/asthetaV
         # Ftip = 2.0/pi*acos(exp(-factortip))
 
+        #updated correction
         factortip = B/2.0*((Rtip-0.8*Rtip)/(r-0.8*Rtip) - 1.0)/asthetaV
         Ftip = 2.0/pi*acos(exp(-abs(factortip)))
 
-        factorhub = B/2.0*(r/Rhub - 1.0)/asthetaV
-        Fhub = 2.0/pi*acos(exp(-factorhub))
+        # factorhub = B/2.0*(r/Rhub - 1.0)/asthetaV
+        # Fhub = 2.0/pi*acos(exp(-factorhub))
 
-        F = Ftip # * Fhub
+        # F = Ftip * Fhub
 
-        f = open("debug.csv","a+")
-        if i==1
-            write(f, "Rtip,Rhub,r,twist,thetaV,Ftip,Fhub,clraw,cdraw,Vx,Vy\n")
-        end
-        write(f, "$(Rtip),$(Rhub),$(r),$(twist),$(thetaV),$(Ftip),$(Fhub),$(cl[i]),$(cd[i]),$(Vx),$(Vy)\n")
-        close(f)
-
-        cl[i] *= F
-        cd[i] *= F
+        cl[i] *= Ftip
+        cd[i] *= Ftip
 
     end
 
