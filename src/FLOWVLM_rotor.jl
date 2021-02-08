@@ -1730,30 +1730,32 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
 
   # Plots
   fig = figure("discret_verif", figsize=[7*2,5*2]*figsize_factor)
+  axs = fig.subplots(2, 2)
+
   for (i,(lbl, cr, cchord, ctheta, cLE_x, cLE_z)) in enumerate([
               ["Element", elem_r, elem_chord, elem_theta, elem_LE_x, elem_LE_z],
               ["Lattice", vlm_r, vlm_chord, vlm_theta, vlm_LE_x, vlm_LE_z]])
-    subplot(220+2*(i-1)+1)
 
-    title("Discretization Verification - $lbl")
-    plot(r/Rtip, chord/Rtip, "ok", label="Chord data", alpha=0.75)
-    plot(cr/Rtip, cchord/Rtip, "--or", label="Chord Spline", alpha=0.75)
-    plot(r/Rtip, LE_x/Rtip, "^k", label="LE-x data", alpha=0.75)
-    plot(cr/Rtip, -cLE_x/Rtip, "--^g", label="LE-x Spline", alpha=0.75)
-    plot(r/Rtip, LE_z/Rtip, "*k", label="LE-z data", alpha=0.75)
-    plot(cr/Rtip, cLE_z/Rtip, "--*b", label="LE-z Spline", alpha=0.75)
-    xlabel(L"$r/R$")
-    ylabel(L"$c/R$, $x/R$, $z/R$")
-    legend(loc="best", frameon=false)
-    grid(true, color="0.8", linestyle="--")
+    ax = axs[2*(i-1)+1]
+    ax.title.set_text("Discretization Verification - $lbl")
+    ax.plot(r/Rtip, chord/Rtip, "ok", label="Chord data", alpha=0.75)
+    ax.plot(cr/Rtip, cchord/Rtip, "--or", label="Chord Spline", alpha=0.75)
+    ax.plot(r/Rtip, LE_x/Rtip, "^k", label="LE-x data", alpha=0.75)
+    ax.plot(cr/Rtip, -cLE_x/Rtip, "--^g", label="LE-x Spline", alpha=0.75)
+    ax.plot(r/Rtip, LE_z/Rtip, "*k", label="LE-z data", alpha=0.75)
+    ax.plot(cr/Rtip, cLE_z/Rtip, "--*b", label="LE-z Spline", alpha=0.75)
+    ax.set_xlabel(L"$r/R$")
+    ax.set_ylabel(L"$c/R$, $x/R$, $z/R$")
+    ax.legend(loc="best", frameon=false)
+    ax.grid(true, color="0.8", linestyle="--")
 
-    subplot(220+2*(i-1)+2)
-    plot(r/Rtip, theta, "ok", label="Twist data", alpha=0.75)
-    plot(cr/Rtip, ctheta, "--^r", label="Twist Spline", alpha=0.75)
-    xlabel(L"$r/R$")
-    ylabel(L"Twist $\theta$ ($^\circ$)")
-    legend(loc="best", frameon=false)
-    grid(true, color="0.8", linestyle="--")
+    ax = axs[2*(i-1)+2]
+    ax.plot(r/Rtip, theta, "ok", label="Twist data", alpha=0.75)
+    ax.plot(cr/Rtip, ctheta, "--^r", label="Twist Spline", alpha=0.75)
+    ax.set_xlabel(L"$r/R$")
+    ax.set_ylabel(L"Twist $\theta$ ($^\circ$)")
+    ax.legend(loc="best", frameon=false)
+    ax.grid(true, color="0.8", linestyle="--")
   end
 
 end
