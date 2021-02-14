@@ -42,7 +42,7 @@ function addwing(self::WingSystem, wing_name::String, wing;
   # Error case
   if wing_name in self.wing_names
     if overwrite
-      ind = findfirst(self.wing_names, wing_name)
+      ind = findfirst(x->x==wing_name, self.wing_names)
       deleteat!(self.wing_names, ind)
       deleteat!(self.wings, ind)
     else
@@ -173,7 +173,7 @@ end
 
 "Returns the wing in the system under the requested name"
 function get_wing(self::WingSystem, wing_name::String)
-  wing_i = findfirst(self.wing_names, wing_name)
+  wing_i = findfirst(x->x==wing_name, self.wing_names)
   return get_wing(self, wing_i)
 end
 
