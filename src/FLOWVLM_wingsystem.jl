@@ -234,7 +234,7 @@ end
 ##### INTERNAL FUNCTIONS #######################################################
 function _reset(self::WingSystem; verbose=false, keep_Vinf=false, keep_sol=false)
   if verbose; println("Resetting WingSystem"); end;
-  self.sol = Dict()
+
   if keep_sol==false
       self.sol = Dict()
   else

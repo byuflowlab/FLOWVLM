@@ -127,7 +127,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
 
     # Mach correction
     if sound_spd!=nothing
-      Ma = norm(inflows[i])/sound_spd
+      Ma = sqrt(inflows[i][1]^2+inflows[i][2]^2+inflows[i][3]^2)/sound_spd
       if Ma>=1
         error("Mach correction requested on Ma = $Ma >= 1.0")
       end
