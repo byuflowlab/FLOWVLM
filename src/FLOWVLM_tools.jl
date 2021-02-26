@@ -663,23 +663,33 @@ function save(self::Wing, filename::String;
                                           path::String="", comment::String="",
                                           num=nothing, t::FWrap=0.0,
                                           rnd_d=32, suff::String="_vlm")
+
+  function print_space_round(f, args...; space=" ")
+      for (i, arg) in enumerate(args)
+          print(f, round(arg, digits=rnd_d))
+          if i != length(args)
+              print(f, space)
+          end
+      end
+  end
+
   aux = num!=nothing ? ".$num" : ""
   ext = suff*aux*".vtk"
 
   if path !=""
-    _path = string(path, (path[end]!="/" ? "/" : ""))
+    _path = path*(path[end]!="/" ? "/" : "")
   else
     _path = ""
   end
 
   # HEADER
   n = get_m(self)+1 # Number of chords
-  f = open(string(_path, filename, ext), "w")
+  f = open(_path*filename*ext, "w")
   header = "# vtk DataFile Version 4.0" # File version and identifier
-  header = string(header, "\n", "[MyVLM domain - lattices] ", comment) # Title
-  header = string(header, "\n", "ASCII") # File format
-  header = string(header, "\n", "DATASET UNSTRUCTURED_GRID")
-  write(f, header)
+  header *= "\n[MyVLM domain - lattices] "*comment # Title
+  header *= "\nASCII"                   # File format
+  header *= "\nDATASET UNSTRUCTURED_GRID"
+  print(f, header)
 
   # POINTS
   nle = only_horseshoes || only_infinite_vortex ? 0 : n
@@ -693,24 +703,21 @@ function save(self::Wing, filename::String;
     nhs = 0
   end
   p_per_hs = only_infinite_vortex ? 4 : 6
-  write(f, string("\n", "POINTS ", nle+nte+ncp+nhs*p_per_hs, " float"))
+  print(f, "\n", "POINTS ", nle+nte+ncp+nhs*p_per_hs, " float")
   ## Leading edge
   for i in 1:nle
-    LE = round.(getLE(self, i); digits=rnd_d)
-    line1 = string(LE[1], " ", LE[2], " ", LE[3])
-    write(f, string("\n", line1))
+    print(f, "\n")
+    print_space_round(f, getLE(self, i)...)
   end
   ## Trailing edge
   for i in 1:nte
-    TE = round.(getTE(self, i); digits=rnd_d)
-    line2 = string(TE[1], " ", TE[2], " ", TE[3])
-    write(f, string("\n", line2))
+    print(f, "\n")
+    print_space_round(f, getTE(self, i)...)
   end
   ## Control points (m)
   for i in 1:ncp
-    CP = round.(getControlPoint(self, i); digits=rnd_d)
-    line = string(CP[1], " ", CP[2], " ", CP[3])
-    write(f, string("\n", line))
+    print(f, "\n")
+    print_space_round(f, getControlPoint(self, i)...)
   end
   ## Horseshoes
   # x_vor_end = maximum(self._xtwingdcr)*1.25
@@ -744,44 +751,42 @@ function save(self::Wing, filename::String;
 
     points = only_infinite_vortex ? [Apinf, Ap, Bp, Bpinf] : [Apinf, Ap, A, B, Bp, Bpinf]
     for point in points
-      line = string(round(point[1]; digits=rnd_d), " ", round(point[2]; digits=rnd_d), " ", round(point[3]; digits=rnd_d))
-      write(f, string("\n", line))
+      print(f, "\n")
+      print_space_round(f, point...)
     end
   end
 
   # CELLS
-  write(f, string("\n\n", "CELLS ", nlat+ncp+nhs*2^only_infinite_vortex,
-                  " ", nlat*5 + ncp*2 + nhs*(only_infinite_vortex ? 2*3 : 7)))
+  print(f, "\n\nCELLS ", nlat+ncp+nhs*2^only_infinite_vortex,
+                  " ", nlat*5 + ncp*2 + nhs*(only_infinite_vortex ? 2*3 : 7))
   ## Lattices
   for i in 0:nlat-1
-    line = string(4, " ", i, " ", i+nle, " ", i+nle+1, " ", i+1)
-    write(f, string("\n", line))
+    print(f, "\n", 4, " ", i, " ", i+nle, " ", i+nle+1, " ", i+1)
   end
   ## Control points
   for i in nle+nte:nle+nte+ncp-1
-    line = string(1, " ", i)
-    write(f, string("\n", line))
+    print(f, "\n", 1, " ", i)
   end
   ## Horseshoes
   aux1 = nle+nte+ncp+nhs*p_per_hs
   count = 1
   if only_infinite_vortex
-      line = string(2, " ")
+      line = "2 "
       for i in nle+nte+ncp:aux1-1
-        line = string(line, " ", i)
+        line *= " $i"
         if count%2==0
-          write(f, string("\n", line))
-          line = string(2, " ")
+          print(f, "\n", line)
+          line = "2 "
         end
         count += 1
       end
   else
-      line = string(6, " ")
+      line = "6 "
       for i in nle+nte+ncp:aux1-1
-        line = string(line, " ", i)
+        line *= " $i"
         if count%6==0
-          write(f, string("\n", line))
-          line = string(6, " ")
+          print(f, "\n", line)
+          line = "6 "
         end
         count += 1
       end
@@ -789,18 +794,18 @@ function save(self::Wing, filename::String;
 
 
   # CELL TYPES
-  write(f, string("\n\n", "CELL_TYPES ", nlat+ncp+nhs*2^only_infinite_vortex))
+  print(f, "\n\nCELL_TYPES ", nlat+ncp+nhs*2^only_infinite_vortex)
   ## Lattices
   for i in 0:nlat-1
-    write(f, string("\n", 9))
+    print(f, "\n", 9)
   end
   ## Control points
   for i in 1:ncp
-    write(f, string("\n", 1))
+    print(f, "\n", 1)
   end
   ## Horseshoes
   for i in 1:nhs*2^only_infinite_vortex
-    write(f, string("\n", 4))
+    print(f, "\n", 4)
   end
 
 
@@ -810,39 +815,46 @@ function save(self::Wing, filename::String;
 
   for field_name in [name for name in keys(self.sol) if name in filter]
     if false==(field_name in keys(FIELDS))
-      error(string("CRITICAL ERROR: field ", field_name, " not found in FIELDS"))
+      error("CRITICAL ERROR: field $(field_name) not found in FIELDS")
     end
 
     if initiated==false
-      write(f, string("\n\n", "CELL_DATA ", nlat+ncp+nhs*2^only_infinite_vortex))
+      print(f, "\n\nCELL_DATA ", nlat+ncp+nhs*2^only_infinite_vortex)
       initiated = true
     end
 
     if FIELDS[field_name][2]=="vector"
-      write(f, string("\n\n", "VECTORS ", field_name," float"))
+      print(f, "\n\nVECTORS ", field_name," float")
       for i in 1:nlat+ncp+nhs
-            vect = round.(self.sol[field_name][(i-1)%nCP+1]; digits=rnd_d)
-            line = string(vect[1], " ", vect[2], " ", vect[3])
-            write(f, string("\n", line))
-            if only_infinite_vortex; write(f, string("\n", line)); end;
+            print(f, "\n")
+            print_space_round(f, self.sol[field_name][(i-1)%nCP+1]...)
+            if only_infinite_vortex
+                print(f, "\n")
+                print_space_round(f, self.sol[field_name][(i-1)%nCP+1]...)
+            end
       end
     elseif FIELDS[field_name][2]=="scalar"
-      write(f, string("\n\n", "SCALARS ", field_name," float"))
-      write(f, string("\n", "LOOKUP_TABLE default"))
+      print(f, "\n\nSCALARS ", field_name," float")
+      print(f, "\nLOOKUP_TABLE default")
       for i in 1:nlat+ncp+nhs
-            sclr = round.(self.sol[field_name][(i-1)%nCP+1]; digits=rnd_d)
-            try
-              line = string(isnan(sclr) ? -1 : sclr)
-            catch
-              error(string(sclr))
+            print(f, "\n")
+            if isnan(self.sol[field_name][(i-1)%nCP+1])
+                print(f, -1)
+            else
+                print_space_round(f, self.sol[field_name][(i-1)%nCP+1]...)
             end
-
-            write(f, string("\n", line))
-            if only_infinite_vortex; write(f, string("\n", line)); end;
+            if only_infinite_vortex
+                print(f, "\n")
+                if isnan(self.sol[field_name][(i-1)%nCP+1])
+                    print(f, -1)
+                else
+                    print_space_round(f, self.sol[field_name][(i-1)%nCP+1]...)
+                end
+            end
       end
     else
-      error(string("CRITICAL ERROR: field type ", FIELDS[field_name][2],
-            " hasn't been implemented!"))
+      error("CRITICAL ERROR: field type $(FIELDS[field_name][2])"*
+                                                " hasn't been implemented!")
     end
   end
 
