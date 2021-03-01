@@ -470,6 +470,8 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
         end
         #convert alpha back to degrees
         alpha *= 180/pi
+    else
+        this_polar = polar
     end
     #reconstruct polar for injective function
     #note: alpha back in degrees
