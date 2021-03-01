@@ -429,6 +429,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
 
 
     #NEW
+    alpha, cl = ap.get_cl(polar)
     if !isapprox(alpha[1],-180.0)
 
         # Mach correction
