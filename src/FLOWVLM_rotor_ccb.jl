@@ -429,16 +429,6 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
 
 
     #NEW
-    #360 extrapolation
-    #get coeffs, note: alpha comes out in degrees
-    alpha, cl = ap.get_cl(this_polar)
-
-    cd = ap.get_cd(this_polar)[2]
-
-    c_spline1D = Spline1D(self._r / self.rotorR, self._chord; k=1)
-    c_75 = c_spline1D(0.75)
-    #run extrapolation
-    #note: convert alpha to radians on input, output in radians
     if !isapprox(alpha[1],-180.0)
 
         # Mach correction
@@ -452,8 +442,19 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
                                     ap.get_cd(polar)[2], ap.get_cm(polar)[2];
                                                   ap._get_nonpypolar_args(polar)...)
         else
-        this_polar = polar
+            this_polar = polar
         end
+
+        #360 extrapolation
+        #get coeffs, note: alpha comes out in degrees
+        alpha, cl = ap.get_cl(this_polar)
+
+        cd = ap.get_cd(this_polar)[2]
+
+        c_spline1D = Spline1D(self._r / self.rotorR, self._chord; k=1)
+        c_75 = c_spline1D(0.75)
+        #run extrapolation
+        #note: convert alpha to radians on input, output in radians
 
         #convert to radians for other corrections
         alpha *= pi/180
