@@ -407,19 +407,8 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     #   x-component of inflow. This may cause problems when the flow is reversed
     this_Vinf = abs(inflows[i][1])
     tsr = this_Vinf < 1e-4 ? nothing : (2*pi*RPM/60 * Rtip) / this_Vinf
-    # Mach correction
-    if sound_spd!==nothing
-      Ma = norm(inflows[i])/sound_spd
-      if Ma>=1
-        error("Mach correction requested on Ma = $Ma >= 1.0")
-      end
-      alpha, cl = ap.get_cl(polar)
-      this_polar = ap.Polar(ap.get_Re(polar), alpha, cl/sqrt(1-Ma^2),
-                              ap.get_cd(polar)[2], ap.get_cm(polar)[2];
-                                            ap._get_nonpypolar_args(polar)...)
-    else
-      this_polar = polar
-    end
+
+
 
     # 3D corrections
 
@@ -451,7 +440,22 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     #run extrapolation
     #note: convert alpha to radians on input, output in radians
     if !isapprox(alpha[1],-180.0)
-        #convert to radians for corrections
+
+        # Mach correction
+        if sound_spd!==nothing
+            Ma = norm(inflows[i])/sound_spd
+            if Ma>=1
+              error("Mach correction requested on Ma = $Ma >= 1.0")
+            end
+            alpha, cl = ap.get_cl(polar)
+            this_polar = ap.Polar(ap.get_Re(polar), alpha, cl/sqrt(1-Ma^2),
+                                    ap.get_cd(polar)[2], ap.get_cm(polar)[2];
+                                                  ap._get_nonpypolar_args(polar)...)
+        else
+        this_polar = polar
+        end
+
+        #convert to radians for other corrections
         alpha *= pi/180
 
         #extrapolate
