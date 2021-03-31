@@ -567,7 +567,7 @@ Returns a Wing object made of multiple sections with the specified dimensions.
 function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
                       clen::FArrWrap, twist::FArrWrap,
                       sweep::FArrWrap, dihed::FArrWrap;
-                      symmetric::Bool=true, chordalign::FWrap=0,
+                      symmetric::Bool=true, chordalign::FWrap=0.0,
                       _ign1=false)
 
   nchords = size(pos)[1]      # Number of chords
