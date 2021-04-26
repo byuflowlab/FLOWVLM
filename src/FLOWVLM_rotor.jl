@@ -1973,8 +1973,13 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
     # Tip and hub correction factor
     if tiploss_correction
         B, Rtip, Rhub, r = ccbrotor.B, ccbrotor.Rtip, ccbrotor.Rhub, ccbrotor.r[i]
-        factortip = B/2.0*(Rtip - r)/(r*abs(thetaV))
-        Ftip = 2.0/pi*acos(exp(-factortip))
+
+        # factortip = B/2.0*(Rtip - r)/(r*abs(thetaV))
+        # Ftip = 2.0/pi*acos(exp(-factortip))
+        
+        factortip = B/2.0*((Rtip-0.8*Rtip)/(r-0.8*Rtip) - 1.0)/abs(sin(thetaV))
+        Ftip = 2.0/pi*acos(exp(-abs(factortip)))
+
         factorhub = B/2.0*(r - Rhub)/(Rhub*abs(thetaV))
         Fhub = 2.0/pi*acos(exp(-factorhub))
         F = Ftip * Fhub
