@@ -1228,7 +1228,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
       #                           ccbrotor.Rtip, ccbrotor.precone, turbine_flag)
       #NOTE: Define ccboutputs
       T, Q = ccb.thrusttorque(ccbrotor, ccbsections, ccboutputs)
-      eta, CT, CQ = ccb.nondim(T, Q, Vref, 2*pi*RPM/60, rho, ccbrotor)
+      eta, CT, CQ = ccb.nondim(T, Q, Vref, 2*pi*RPM/60, rho, ccbrotor, "propeller") #! Needs to be more robust for other types of rotors (windturbine or helicopter)
       push!(coeffs, [eta,CT,CQ])
     end
 

@@ -15,4 +15,4 @@ CCBlade = "e1828068-15df-11e9-03e4-ef195ea46fa4"
 [compat]
 GeometricTools = "2.0.0"
 AirfoilPrep = "2.0.0"
-CCBlade = "0.1.0"
+CCBlade = "0.2"
