@@ -1998,7 +1998,8 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
         factortip = B/2.0*(  (Rtip/r)^2 - 1  )/abs(sin(thetaV))^0.25
         Ftip = 2.0/pi*acos(exp(-factortip))
 
-        factorhub = B/2.0*(   (r/Rhub)^0.6 - 1   )^5/abs(sin(thetaV))^0.5
+        # factorhub = B/2.0*(   (r/Rhub)^0.6 - 1   )^5/abs(sin(thetaV))^0.5
+        factorhub = B/2.0*(   (r/Rhub)^0.6 - 1   )^5/abs(sin(max(10.0*pi/180, thetaV)))^0.5
         Fhub = 2.0/pi*acos(exp(-factorhub))
 
         F = Ftip * Fhub
