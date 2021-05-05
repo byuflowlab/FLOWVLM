@@ -183,7 +183,7 @@ function OCCB2CCB(orotor::OCCBRotor, turbine::Bool, oinflow::OCCBInflow;
 
     sections = ccb.Section.(orotor.r, orotor.chord, orotor.theta, airfoil_funs) #! May need to wrap last argument with `Ref()`
 
-    ops = ccb.OperatingPoint.(oinflow.Vx, oinflow.Vy, orotor.r, oinflow.rho)
+    ops = ccb.simple_op.(oinflow.Vx, oinflow.Vy, orotor.r, oinflow.rho)
 
     return rotor, sections, ops
 end
