@@ -96,7 +96,8 @@ future development as needed.
 """
 function FLOWVLM2OCCBlade(self,#::Rotor,
                           RPM, blade_i::IWrap, turbine_flag::Bool;
-                          sound_spd=nothing, AR_to_360extrap=true, CDmax = 1.3)
+                          sound_spd=nothing, AR_to_360extrap=true, CDmax = 1.3,
+                          out_polars=nothing)
 
 
   # ERROR CASES
@@ -155,6 +156,8 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
 
     # Makes sure the polar is injective for easing the spline
     this_polar = ap.injective(this_polar)
+
+    if out_polars != nothing; push!(out_polars, this_polar); end;
 
     # Converts to CCBlade's AirfoilData object
     alpha, cl = ap.get_cl(this_polar)
