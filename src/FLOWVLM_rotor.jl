@@ -1120,6 +1120,9 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 tiploss_correction::Bool=false,
                                 AR_to_360extrap = true)
   data = Array{FArrWrap}[]
+  if _lookuptable
+      data_thetaeffdeg = FArrWrap[]
+  end
   if include_comps
     data_Np     = FArrWrap[]
     data_Tp     = FArrWrap[]
@@ -1170,10 +1173,11 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     ccbrotor, ccbsections, ccbops = OCCB2CCB(occbrotor, turbine_flag,
                                                         occbinflow; pitch=0.0)
     ccboutputs = nothing
-    Np, Tp, uvec, vvec, gamma = (nothing for i in 1:5)
+    Np, Tp, uvec, vvec, gamma, thetaeffdeg = (nothing for i in 1:6)
 
     if _lookuptable
-      Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd = _calc_distributedloads_lookuptable(occbrotor,
+      (Np, Tp, uvec, vvec, gamma,
+      cn, ct, cl, cd, thetaeffdeg) = _calc_distributedloads_lookuptable(occbrotor,
                                                         occbinflow, turbine_flag;
                                                         tiploss_correction=tiploss_correction)
       push!(gammas, gamma)
@@ -1195,6 +1199,9 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                           translate=false) for ccb_F in ccb_Fs ]
     # Stores the field
     push!(data, Fs)
+    if _lookuptable
+        push!(data_thetaeffdeg, thetaeffdeg)
+    end
     if include_comps
       push!(data_Np     , Np)
       push!(data_Tp     , Tp)
@@ -1242,6 +1249,15 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
               "field_data" => data
               )
   self.sol[field["field_name"]] = field
+  if _lookuptable
+      field = Dict(
+                  "field_name" => "ThetaEffDeg",
+                  "field_type" => "scalar",
+                  "field_data" => data_thetaeffdeg
+                  )
+      self.sol[field["field_name"]] = field
+
+  end
   if include_comps
     field = Dict(
                 "field_name" => "Np",
@@ -1518,94 +1534,6 @@ function calc_thrust_torque_coeffs(self::Rotor, rho::Real, Vinf::Real, turbine_f
   end
 end
 
-
-function plot_airfoilpolars(rotor::Rotor, Vinf::Function, RPM::Real, sound_spd;
-                                    blade_i=1, Vinds=nothing,
-                                    save_path=nothing, namepref="airfoilpolar",
-                                    rfl_figfactor=2/3,
-                                    legend_optargs=nothing,
-                                    zoom_x = [-25, 25],
-                                    max_lines=10,
-                                    optargs...)
-
-    calc_inflow(rotor, Vinf, RPM; Vinds=Vinds)
-
-    # Convert FLOWVLM Rotor to CCBlade Rotor and calculate polars
-    polars = []
-    ccb_rotor = FLOWVLM2OCCBlade(rotor, RPM, blade_i, rotor.turbine_flag;
-                                        sound_spd=sound_spd, out_polars=polars,
-                                        optargs...)
-
-    figname = nothing
-    fig = nothing
-    axs = nothing
-    axs1 = nothing
-    axs2 = nothing
-
-    figi = 0
-    linei = 0
-
-
-    # Find limits of y
-    miny, maxy = Inf*ones(3), -Inf*ones(3)
-    for polar in polars
-
-        for (ci, get_coeff) in enumerate((ap.get_cl, ap.get_cd, ap.get_cm))
-            xs, ys = get_coeff(polar)
-            this_miny = minimum(ys[yi] for yi in filter(i-> zoom_x[1]<=xs[i]<=zoom_x[2], 1:length(xs)))
-            this_maxy = maximum(ys[yi] for yi in filter(i-> zoom_x[1]<=xs[i]<=zoom_x[2], 1:length(xs)))
-
-            this_miny < miny[ci] ? miny[ci] = this_miny : nothing
-            this_maxy > maxy[ci] ? maxy[ci] = this_maxy : nothing
-        end
-    end
-    yrng = maxy .- miny
-
-    for (plri, polar) in enumerate(polars)
-
-        if (plri-1) % max_lines == 0
-            if figi != 0
-                fig.tight_layout(rect=[0, 0.03, 1, 0.98])
-            end
-            figi += 1
-            figname = namepref*"-B$(blade_i)-fig$(figi)"
-            fig = figure(figname, figsize=[7*3, 5*2]*2/3)
-            axs = fig.subplots(2, 3)
-            axs1 = [axs[1], axs[3], axs[5]]
-            axs2 = [axs[2], axs[4], axs[6]]
-            linei = 0
-        elseif plri == length(polars)
-            fig.tight_layout(rect=[0, 0.03, 1, 0.98])
-        end
-
-        linei += 1
-
-        # aux = (plri-1) / (length(polars)-1)
-        aux = (linei-1) / (max_lines - 1)
-        clr = [aux, 0, 1-aux]
-
-        pos = (ccb_rotor.r[plri] - ccb_rotor.Rhub)/(ccb_rotor.Rtip - ccb_rotor.Rhub)
-        elemmin = max_lines*(figi-1)+1
-        elemmax = min(max_lines*figi, length(polars))
-        posmin = (ccb_rotor.r[elemmin] - ccb_rotor.Rhub)/(ccb_rotor.Rtip - ccb_rotor.Rhub)
-        posmax = (ccb_rotor.r[elemmax] - ccb_rotor.Rhub)/(ccb_rotor.Rtip - ccb_rotor.Rhub)
-
-        for (xlims, this_axs) in [(zoom_x, axs1), ([-180, 180], axs2)]
-            ap.plot(polar; geometry=false, label="pos=$pos, Re=$(ap.get_Re(polar))",
-                            cdpolar=false, fig_id=figname,
-                            title_str="Polars Blade $(blade_i), elements $(elemmin) to $(elemmax) (positions $(round(posmin, digits=3)) to $(round(posmax, digits=3)))",
-                            rfl_figfactor=rfl_figfactor, fig=fig, axs=this_axs,
-                            polar_optargs=[(:color, clr), (:alpha, 0.4)], legend_optargs=legend_optargs)
-
-            if this_axs==axs1
-                for (axi, ax) in enumerate(this_axs)
-                    ax.set_xlim(xlims)
-                    ax.set_ylim([miny[axi], maxy[axi]] .+ 0.05*yrng[axi]*[-1, 1])
-                end
-            end
-        end
-    end
-end
 
 
 ##### INTERNAL FUNCTIONS #######################################################
@@ -2043,6 +1971,7 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
   uvec = fill(0.0, n)
   vvec = fill(0.0, n)
   gamma = fill(0.0, n)
+  thetaeffdeg = fill(0.0, n)
 
   for i in 1:n
     twist = swapsign*ccbrotor.theta[i]
@@ -2054,6 +1983,8 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
     # Effective angle of attack (rad)
     thetaV = atan(Vx, Vy)
     thetaeff = thetaV - twist
+
+    thetaeffdeg[i] = thetaeff*180/pi
     # println("angles = $([twist, thetaeff]*180/pi)\tVx,Vy=$([Vx, Vy])")
 
     # airfoil cl/cd
@@ -2115,7 +2046,7 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
   # Tp *= swapsign # I already reversed this
   vvec *= swapsign
 
-  return Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd
+  return Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd, thetaeffdeg
 end
 
 "Extension of WingSystem's `addwing()` function"

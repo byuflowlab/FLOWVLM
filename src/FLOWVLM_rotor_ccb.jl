@@ -97,7 +97,7 @@ future development as needed.
 function FLOWVLM2OCCBlade(self,#::Rotor,
                           RPM, blade_i::IWrap, turbine_flag::Bool;
                           sound_spd=nothing, AR_to_360extrap=true, CDmax = 1.3,
-                          out_polars=nothing)
+                          out_polars=nothing, out_ccb_polars=nothing)
 
 
   # ERROR CASES
@@ -163,6 +163,8 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     alpha, cl = ap.get_cl(this_polar)
     _, cd = ap.get_cd(this_polar)
     ccb_polar = occb_af_from_data(alpha, cl, cd; spl_k=5)
+
+    if out_ccb_polars != nothing; push!(out_ccb_polars, ccb_polar); end;
 
     push!(af, ccb_polar)
   end

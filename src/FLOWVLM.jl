@@ -28,7 +28,7 @@ ccb = CCBlade
 
 # ------------ HEADERS ---------------------------------------------------------
 for header_name in ["dt", "solver", "wing", "wingsystem",
-                            "tools", "postprocessing", "rotor_ccb", "rotor"]
+                            "postprocessing", "rotor_ccb", "rotor", "tools"]
   include("FLOWVLM_"*header_name*".jl")
 end
 

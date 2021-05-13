@@ -1120,4 +1120,201 @@ function create_path(save_path, prompt)
   end
   run(`mkdir $save_path`)
 end
+
+
+
+
+function plot_airfoilpolars(rotor::Rotor, Vinf::Function, RPM::Real, sound_spd;
+                                    blade_i=1, Vinds=nothing,
+                                    save_path=nothing, namepref="airfoilpolar",
+                                    rfl_figfactor=2/3,
+                                    legend_optargs=nothing,
+                                    zoom_x = [-25, 25],
+                                    max_lines=10,
+                                    optargs...)
+
+    calc_inflow(rotor, Vinf, RPM; Vinds=Vinds)
+
+    # Convert FLOWVLM Rotor to CCBlade Rotor and calculate polars
+    polars = []
+    ccb_rotor = FLOWVLM2OCCBlade(rotor, RPM, blade_i, rotor.turbine_flag;
+                                        sound_spd=sound_spd, out_polars=polars,
+                                        optargs...)
+
+    figname = nothing
+    fig = nothing
+    axs = nothing
+    axs1 = nothing
+    axs2 = nothing
+
+    figi = 0
+    linei = 0
+
+
+    # Find limits of y
+    miny, maxy = Inf*ones(3), -Inf*ones(3)
+    for polar in polars
+
+        for (ci, get_coeff) in enumerate((ap.get_cl, ap.get_cd, ap.get_cm))
+            xs, ys = get_coeff(polar)
+            this_miny = minimum(ys[yi] for yi in filter(i-> zoom_x[1]<=xs[i]<=zoom_x[2], 1:length(xs)))
+            this_maxy = maximum(ys[yi] for yi in filter(i-> zoom_x[1]<=xs[i]<=zoom_x[2], 1:length(xs)))
+
+            this_miny < miny[ci] ? miny[ci] = this_miny : nothing
+            this_maxy > maxy[ci] ? maxy[ci] = this_maxy : nothing
+        end
+    end
+    yrng = maxy .- miny
+
+    for (plri, polar) in enumerate(polars)
+
+        if (plri-1) % max_lines == 0
+            if figi != 0
+                fig.tight_layout(rect=[0, 0.03, 1, 0.98])
+            end
+            figi += 1
+            figname = namepref*"-B$(blade_i)-fig$(figi)"
+            fig = figure(figname, figsize=[7*3, 5*2]*2/3)
+            axs = fig.subplots(2, 3)
+            axs1 = [axs[1], axs[3], axs[5]]
+            axs2 = [axs[2], axs[4], axs[6]]
+            linei = 0
+        elseif plri == length(polars)
+            fig.tight_layout(rect=[0, 0.03, 1, 0.98])
+        end
+
+        linei += 1
+
+        # aux = (plri-1) / (length(polars)-1)
+        aux = (linei-1) / (max_lines - 1)
+        clr = [aux, 0, 1-aux]
+
+        pos = (ccb_rotor.r[plri] - ccb_rotor.Rhub)/(ccb_rotor.Rtip - ccb_rotor.Rhub)
+        elemmin = max_lines*(figi-1)+1
+        elemmax = min(max_lines*figi, length(polars))
+        posmin = (ccb_rotor.r[elemmin] - ccb_rotor.Rhub)/(ccb_rotor.Rtip - ccb_rotor.Rhub)
+        posmax = (ccb_rotor.r[elemmax] - ccb_rotor.Rhub)/(ccb_rotor.Rtip - ccb_rotor.Rhub)
+
+        for (xlims, this_axs) in [(zoom_x, axs1), ([-180, 180], axs2)]
+            ap.plot(polar; geometry=false, label="pos=$pos, Re=$(ap.get_Re(polar))",
+                            cdpolar=false, fig_id=figname,
+                            title_str="Polars Blade $(blade_i), elements $(elemmin) to $(elemmax) (positions $(round(posmin, digits=3)) to $(round(posmax, digits=3)))",
+                            rfl_figfactor=rfl_figfactor, fig=fig, axs=this_axs,
+                            polar_optargs=[(:color, clr), (:alpha, 0.4)], legend_optargs=legend_optargs)
+
+            if this_axs==axs1
+                for (axi, ax) in enumerate(this_axs)
+                    ax.set_xlim(xlims)
+                    ax.set_ylim([miny[axi], maxy[axi]] .+ 0.05*yrng[axi]*[-1, 1])
+                end
+            end
+        end
+    end
+end
+
+
+function plot_airfoilpolars_spline(rotor::Rotor, Vinf::Function, RPM::Real, sound_spd;
+                                    blade_i=1, Vinds=nothing,
+                                    save_path=nothing, namepref="airfoilpolar",
+                                    rfl_figfactor=5/9,
+                                    max_lines=10,
+                                    alphas1=-25:0.25:25,
+                                    alphas2=-180:0.25:180,
+                                    optargs...)
+
+    zoom_x = alphas1[[1, end]]
+
+    calc_inflow(rotor, Vinf, RPM; Vinds=Vinds)
+
+    # Convert FLOWVLM Rotor to CCBlade Rotor and calculate polars
+    polars = []
+    ccb_rotor = FLOWVLM2OCCBlade(rotor, RPM, blade_i, rotor.turbine_flag;
+                                        sound_spd=sound_spd, out_ccb_polars=polars,
+                                        optargs...)
+
+    figname = nothing
+    fig = nothing
+    axs = nothing
+    axs1 = nothing
+    axs2 = nothing
+
+    figi = 0
+    linei = 0
+
+    coeffs_to_plot = (:cl, :cd)
+
+    # Find limits of y
+    miny, maxy = Inf*ones(3), -Inf*ones(3)
+    for polar in polars
+
+        for (ci, get_coeff) in enumerate(coeffs_to_plot)
+            fun = getproperty(polar, get_coeff)
+            xs = alphas1
+            ys = fun.(alphas1*pi/180)
+            this_miny = minimum(ys[yi] for yi in filter(i-> zoom_x[1]<=xs[i]<=zoom_x[2], 1:length(xs)))
+            this_maxy = maximum(ys[yi] for yi in filter(i-> zoom_x[1]<=xs[i]<=zoom_x[2], 1:length(xs)))
+
+            this_miny < miny[ci] ? miny[ci] = this_miny : nothing
+            this_maxy > maxy[ci] ? maxy[ci] = this_maxy : nothing
+        end
+    end
+    yrng = maxy .- miny
+
+    for (plri, polar) in enumerate(polars)
+
+        if (plri-1) % max_lines == 0
+            if figi != 0
+                fig.tight_layout(rect=[0, 0.03, 1, 0.98])
+            end
+            figi += 1
+            figname = namepref*"-B$(blade_i)-fig$(figi)"
+            fig = figure(figname, figsize=[7*2, 5*2]*rfl_figfactor)
+            axs = fig.subplots(2, 2)
+            axs1 = [axs[1], axs[3]]
+            axs2 = [axs[2], axs[4]]
+            linei = 0
+        elseif plri == length(polars)
+            fig.tight_layout(rect=[0, 0.03, 1, 0.98])
+        end
+
+        linei += 1
+
+        # aux = (plri-1) / (length(polars)-1)
+        aux = (linei-1) / (max_lines - 1)
+        clr = [aux, 0, 1-aux]
+
+        pos = (ccb_rotor.r[plri] - ccb_rotor.Rhub)/(ccb_rotor.Rtip - ccb_rotor.Rhub)
+        elemmin = max_lines*(figi-1)+1
+        elemmax = min(max_lines*figi, length(polars))
+        posmin = (ccb_rotor.r[elemmin] - ccb_rotor.Rhub)/(ccb_rotor.Rtip - ccb_rotor.Rhub)
+        posmax = (ccb_rotor.r[elemmax] - ccb_rotor.Rhub)/(ccb_rotor.Rtip - ccb_rotor.Rhub)
+
+        fig.suptitle("Polars Blade $(blade_i), elements $(elemmin) to $(elemmax) (positions $(round(posmin, digits=3)) to $(round(posmax, digits=3)))")
+
+        for (xs, this_axs) in [(alphas1, axs1), (alphas2, axs2)]
+
+            xlims = xs[[1, end]]
+
+            for (axi, ax) in enumerate(this_axs)
+                get_coeff = coeffs_to_plot[axi]
+                fun = getproperty(polar, get_coeff)
+                ys = fun.(xs*pi/180)
+
+                ax.plot(xs, ys, color=clr, alpha=0.4, label="pos=$pos")
+
+                ax.set_xlabel(L"Angle of attack ($^\circ$)")
+                ax.set_ylabel("$(get_coeff)")
+                ax.grid(true, color="0.8", linestyle="--")
+            end
+
+            if this_axs==axs1
+                for (axi, ax) in enumerate(this_axs)
+                    ax.set_xlim(xlims)
+                    ax.set_ylim([miny[axi], maxy[axi]] .+ 0.05*yrng[axi]*[-1, 1])
+                end
+            end
+        end
+    end
+end
+
 ##### END OF MISCELLANOUS ######################################################
