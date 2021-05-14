@@ -109,6 +109,12 @@ mutable struct Rotor
         )
 end
 
+const nohubcorrection = (1, 0, Inf, 5*eps())
+const notipcorrection = (1, 0, Inf, 5*eps())
+const hubtiploss_nocorrection = ( nohubcorrection, notipcorrection )               # No correction
+const hubtiploss_correction_prandtl = ( (1, 1, 1, -Inf), (1, 1, 1, -Inf) )         # Prandtl hub/tip correction
+const hubtiploss_correction_modprandtl = ( (0.6, 5, 0.5, 10), (2, 1, 0.25, -Inf) ) # Modified Prandtl hub/tip correction
+
 "Initializes the geometry of the rotor, discretizing each blade into n lattices"
 function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
                           central=false, refinement=[], verif=false,
@@ -264,7 +270,8 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=true, return_performance::Bool=false,
                             Vref=nothing, sound_spd=nothing, Uinds=nothing,
                             _lookuptable::Bool=false, _Vinds=nothing,
-                            tiploss_correction=false, AR_to_360extrap=true)
+                            hubtiploss_correction=hubtiploss_nocorrection,
+                            AR_to_360extrap=true)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -283,7 +290,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                                         Vref=Vref, sound_spd=sound_spd,
                                         Uinds=Uinds,
                                         _lookuptable=_lookuptable, _Vinds=_Vinds,
-                                        tiploss_correction=tiploss_correction,
+                                        hubtiploss_correction=hubtiploss_correction,
                                         AR_to_360extrap=AR_to_360extrap)
 
   # Decomposes load into aerodynamic forces and calculates circulation
@@ -1117,7 +1124,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 Uinds=nothing,
                                 sound_spd=nothing,
                                 _lookuptable::Bool=false, _Vinds=nothing,
-                                tiploss_correction::Bool=false,
+                                hubtiploss_correction=hubtiploss_nocorrection,
                                 AR_to_360extrap = true)
   data = Array{FArrWrap}[]
   if _lookuptable
@@ -1179,7 +1186,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
       (Np, Tp, uvec, vvec, gamma,
       cn, ct, cl, cd, thetaeffdeg) = _calc_distributedloads_lookuptable(occbrotor,
                                                         occbinflow, turbine_flag;
-                                                        tiploss_correction=tiploss_correction)
+                                                        hubtiploss_correction=hubtiploss_correction)
       push!(gammas, gamma)
       zeroarr = zeros(size(Np))
       ccbouputs = ccb.Outputs(Np, Tp, zeroarr, zeroarr, uvec, vvec,
@@ -1955,7 +1962,7 @@ and it is the effective inflow).
 function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
                                             ccbinflow::OCCBInflow,
                                             turbine_flag::Bool;
-                                            tiploss_correction::Bool=false)
+                                            hubtiploss_correction=hubtiploss_nocorrection)
 
   # check if propeller
   swapsign = turbine_flag ? 1 : -1
@@ -1991,42 +1998,19 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
     cl[i], cd[i] = occb_airfoil(ccbrotor.af[i], thetaeff)
 
     # Tip and hub correction factor
-    if tiploss_correction
-        B, Rtip, Rhub, r = ccbrotor.B, ccbrotor.Rtip, ccbrotor.Rhub, ccbrotor.r[i]
+    B, Rtip, Rhub, r = ccbrotor.B, ccbrotor.Rtip, ccbrotor.Rhub, ccbrotor.r[i]
+    (eh1, eh2, eh3, maxah), (et1, et2, et3, maxat) = hubtiploss_correction
 
-        # factortip = B/2.0*(Rtip - r)/(r*abs(thetaV))
-        # factortip = B/2.0*(Rtip - r)/(r*abs(sin(thetaV)))
-        # factortip = B/2.0*((Rtip-Rhub)/(r-Rhub) - 1.0)/abs(sin(max(10.0*pi/180, thetaV)))
-        # Ftip = 2.0/pi*acos(exp(-factortip))
+    factorhub = B/2.0*(   (r/Rhub)^eh1 - 1   )^eh2/abs(sin(max(maxah*pi/180, abs(thetaV))))^eh3
+    Fhub = 2.0/pi*acos(exp(-factorhub))
 
-        # factortip = B/2.0*((Rtip-0.8*Rtip)/(r-0.8*Rtip) - 1.0)/abs(sin(thetaV))
-        # Ftip = 2.0/pi*acos(exp(-abs(factortip)))
+    factortip = B/2.0*(  (Rtip/r)^et1 - 1  )^et2/abs(sin(max(maxat*pi/180, abs(thetaV))))^et3
+    Ftip = 2.0/pi*acos(exp(-factortip))
 
-        # factortip = B/2.0*((Rtip-Rhub)/(r-Rhub) - 1.0)/abs(sin(thetaV))
-        # Ftip = 2.0/pi*acos(exp(-factortip))
-        # Ftip = 2.0/pi*acos(exp(-factortip^2))
-        # Ftip = 2.0/pi*acos(exp(-factortip^10))
+    F = Ftip * Fhub
 
-        # i == 1 ? println("i\tr/Rtip\tthetaV*180/pi\t(Rtip-Rhub)/(r-Rhub) - 1.0\tabs(sin(thetaV))\tfactortip\tFtip") : nothing
-        # println("$i\t$(round(r/Rtip, digits=3))\t$(round(thetaV*180/pi, digits=3))\t$(round((Rtip-Rhub)/(r-Rhub) - 1.0, digits=3))"*
-        #         "\t$(round(abs(sin(thetaV)), digits=3))\t$(round(factortip, digits=3))\t$(round(Ftip, digits=3))")
-
-        # factorhub = B/2.0*(r - Rhub)/(Rhub*abs(thetaV))
-        # factorhub = B/2.0*(r/Rhub - 1)/abs(sin(max(10.0*pi/180, thetaV)))
-        # Fhub = 2.0/pi*acos(exp(-factorhub))
-
-        factortip = B/2.0*(  (Rtip/r)^2 - 1  )/abs(sin(thetaV))^0.25
-        Ftip = 2.0/pi*acos(exp(-factortip))
-
-        # factorhub = B/2.0*(   (r/Rhub)^0.6 - 1   )^5/abs(sin(thetaV))^0.5
-        factorhub = B/2.0*(   (r/Rhub)^0.6 - 1   )^5/abs(sin(max(10.0*pi/180, thetaV)))^0.5
-        Fhub = 2.0/pi*acos(exp(-factorhub))
-
-        F = Ftip * Fhub
-
-        cl[i] *= F
-        cd[i] *= F
-    end
+    cl[i] *= F
+    cd[i] *= F
 
     # normal and tangential coefficients
     sthtV = sin(thetaV)
