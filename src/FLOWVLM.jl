@@ -26,6 +26,9 @@ gt = GeometricTools
 import CCBlade
 ccb = CCBlade
 
+import FLOWMath
+math = FLOWMath
+
 # ------------ HEADERS ---------------------------------------------------------
 for header_name in ["dt", "solver", "wing", "wingsystem",
                             "tools", "postprocessing", "rotor_ccb", "rotor"]

@@ -1575,15 +1575,24 @@ function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
   spline_bc = "error"
   # spline_s = 0.001
   spline_s = spl_s
-  _spl_chord = Dierckx.Spline1D(self.r, self.chord; k=spline_k,s=spline_s)
-  _spl_theta = Dierckx.Spline1D(self.r, self.theta; k=spline_k,s=spline_s)
-  _spl_LE_x = Dierckx.Spline1D(self.r, self.LE_x; k=spline_k,s=spline_s)
-  _spl_LE_z = Dierckx.Spline1D(self.r, self.LE_z; k=spline_k,s=spline_s)
-  spl_chord(x) = Dierckx.evaluate(_spl_chord, x)
-  spl_theta(x) = (-1)^(self.CW)*Dierckx.evaluate(_spl_theta, x)
+  # @infiltrate
+  # _spl_chord = Dierckx.Spline1D(self.r, self.chord; k=spline_k,s=spline_s)
+  # _spl_theta = Dierckx.Spline1D(self.r, self.theta; k=spline_k,s=spline_s)
+  # _spl_LE_x = Dierckx.Spline1D(self.r, self.LE_x; k=spline_k,s=spline_s)
+  # _spl_LE_z = Dierckx.Spline1D(self.r, self.LE_z; k=spline_k,s=spline_s)
+  # spl_chord(x) = Dierckx.evaluate(_spl_chord, x)
+  # spl_theta(x) = (-1)^(self.CW)*Dierckx.evaluate(_spl_theta, x)
+  # spl_theta2(x) = (-1)^(self.turbine_flag)*spl_theta(x)
+  # spl_LE_x(x) =(-1)*Dierckx.evaluate(_spl_LE_x, x)
+  # spl_LE_z(x) = (-1)^(self.CW)*Dierckx.evaluate(_spl_LE_z, x)
+
+  spl_chord(x) = math.Akima(self.r, self.chord, 0.1)(x)
+  spl_theta(x) = (-1)^(self.CW) * math.Akima(self.r, self.theta, 0.1)(x)
   spl_theta2(x) = (-1)^(self.turbine_flag)*spl_theta(x)
-  spl_LE_x(x) =(-1)*Dierckx.evaluate(_spl_LE_x, x)
-  spl_LE_z(x) = (-1)^(self.CW)*Dierckx.evaluate(_spl_LE_z, x)
+  spl_LE_x(x) = (-1) * math.Akima(self.r, self.LE_x, 0.1)(x)
+  spl_LE_z(x) = (-1)^(self.CW) * math.Akima(self.r, self.LE_z, 0.1)(x)
+
+  # chord = math.Akima(p_radii_pts, p_chord_pts, 0.1)(p_radii)
 
   # Outputs
   out_r = FWrap[]         # Radial position of each control point
