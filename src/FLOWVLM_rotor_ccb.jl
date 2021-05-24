@@ -129,7 +129,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     if sound_spd!=nothing
       Ma = sqrt(inflows[i][1]^2+inflows[i][2]^2+inflows[i][3]^2)/sound_spd
       if Ma>=1
-        error("Mach correction requested on Ma = $Ma >= 1.0")
+        # error("Mach correction requested on Ma = $Ma >= 1.0")
       end
       alpha, cl = ap.get_cl(polar)
       this_polar = ap.Polar(ap.get_Re(polar), alpha, cl/sqrt(1-Ma^2),
