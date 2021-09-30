@@ -1753,7 +1753,7 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
   end
 
   # Plots
-  fig = figure("discret_verif", figsize=[7*2,5*2]*figsize_factor)
+  fig = figure("flowvlm-discr", figsize=[7*2,5*2]*figsize_factor)
   axs = fig.subplots(2, 2)
 
   for (i,(lbl, cr, cchord, ctheta, cLE_x, cLE_z)) in enumerate([
@@ -1761,7 +1761,7 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
               ["Lattice", vlm_r, vlm_chord, vlm_theta, vlm_LE_x, vlm_LE_z]])
 
     ax = axs[2*(i-1)+1]
-    ax.title.set_text("Discretization Verification - $lbl")
+    ax.title.set_text("FLOWVLM Discretization Verification - $lbl")
     ax.plot(r/Rtip, chord/Rtip, "ok", label="Chord data", alpha=0.75)
     ax.plot(cr/Rtip, cchord/Rtip, "--or", label="Chord Spline", alpha=0.75)
     ax.plot(r/Rtip, LE_x/Rtip, "^k", label="LE-x data", alpha=0.75)
@@ -1770,7 +1770,7 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
     ax.plot(cr/Rtip, cLE_z/Rtip, "--*b", label="LE-z Spline", alpha=0.75)
     ax.set_xlabel(L"$r/R$")
     ax.set_ylabel(L"$c/R$, $x/R$, $z/R$")
-    ax.legend(loc="best", frameon=false)
+    ax.legend(loc="best", frameon=false, fontsize=6)
     ax.grid(true, color="0.8", linestyle="--")
 
     ax = axs[2*(i-1)+2]
@@ -1781,6 +1781,7 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
     ax.legend(loc="best", frameon=false)
     ax.grid(true, color="0.8", linestyle="--")
   end
+  fig.tight_layout()
 
 end
 
