@@ -70,6 +70,7 @@ const FIELDS = Dict(
     "CM_M"  =>    [["Mtot"], "vector"],  #
     "CM_N"  =>    [["Mtot"], "vector"],  #
     ################## EXTRA FIELDS ####################
+    "mu"    =>    [[], "scalar"],        # Dipole strength of dragging line
     "Vind"  =>    [[], "vector"],        # Any induced velocity field
     "Vvpm"  =>    [[], "vector"],        # Velocity induced by VPM
     "Vvpm_ApA"  =>    [[], "vector"],        # Velocity induced by VPM
