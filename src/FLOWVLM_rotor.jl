@@ -1152,6 +1152,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     #     data_F      = FArrWrap[]
     #     data_G      = FArrWrap[]
     # end
+    data_roR     = FArrWrap[]
   end
   # ccbrotors, ccbsectionss, ccbopss = [], [], []
 
@@ -1235,6 +1236,7 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
       # push!(ccbrotors, ccbrotor)
       # push!(ccbsectionss, ccbsections)
       # push!(ccbopss, ccbops)
+      push!(data_roR     , self._r/self.rotorR)
     end
 
     if return_performance
@@ -1381,6 +1383,12 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
     #             "field_data" => ccbopss
     #             )
     # self.sol[field["field_name"]] = field
+    field = Dict(
+            "field_name" => "roR",
+            "field_type" => "scalar",
+            "field_data" => data_roR
+            )
+    self.sol[field["field_name"]] = field
   end
 
   if return_performance
