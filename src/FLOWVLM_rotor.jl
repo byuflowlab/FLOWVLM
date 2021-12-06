@@ -271,7 +271,8 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             Vref=nothing, sound_spd=nothing, Uinds=nothing,
                             _lookuptable::Bool=false, _Vinds=nothing,
                             hubtiploss_correction=hubtiploss_nocorrection,
-                            AR_to_360extrap=true)
+                            AR_to_360extrap=true,
+                            debug=false)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -291,7 +292,8 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                                         Uinds=Uinds,
                                         _lookuptable=_lookuptable, _Vinds=_Vinds,
                                         hubtiploss_correction=hubtiploss_correction,
-                                        AR_to_360extrap=AR_to_360extrap)
+                                        AR_to_360extrap=AR_to_360extrap,
+                                        debug=debug)
 
   # Decomposes load into aerodynamic forces and calculates circulation
   gamma, mu_drag = calc_aerodynamicforces(self, rho; overwritegammas=gammas,
@@ -1129,32 +1131,39 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 sound_spd=nothing,
                                 _lookuptable::Bool=false, _Vinds=nothing,
                                 hubtiploss_correction=hubtiploss_nocorrection,
-                                AR_to_360extrap = true)
+                                AR_to_360extrap = true,
+                                debug=false)
   data = Array{FArrWrap}[]
-  # if _lookuptable
-  #     data_thetaeffdeg = FArrWrap[]
-  # end
+  if debug
+      if _lookuptable
+          data_thetaeffdeg = FArrWrap[]
+      end
+  end
   if include_comps
     data_Np     = FArrWrap[]
     data_Tp     = FArrWrap[]
-    # data_u      = FArrWrap[]
-    # data_v      = FArrWrap[]
-    # data_cl     = FArrWrap[]
     data_cd     = FArrWrap[]
-    # data_cn     = FArrWrap[]
-    # data_ct     = FArrWrap[]
-    # if !_lookuptable
-    #     data_a      = FArrWrap[]
-    #     data_ap     = FArrWrap[]
-    #     data_phi    = FArrWrap[]
-    #     data_alpha  = FArrWrap[]
-    #     data_W      = FArrWrap[]
-    #     data_F      = FArrWrap[]
-    #     data_G      = FArrWrap[]
-    # end
+    if debug
+        data_u      = FArrWrap[]
+        data_v      = FArrWrap[]
+        data_cl     = FArrWrap[]
+        data_cn     = FArrWrap[]
+        data_ct     = FArrWrap[]
+        if !_lookuptable
+            data_a      = FArrWrap[]
+            data_ap     = FArrWrap[]
+            data_phi    = FArrWrap[]
+            data_alpha  = FArrWrap[]
+            data_W      = FArrWrap[]
+            data_F      = FArrWrap[]
+            data_G      = FArrWrap[]
+        end
+    end
     data_roR     = FArrWrap[]
   end
-  # ccbrotors, ccbsectionss, ccbopss = [], [], []
+  if debug
+      ccbrotors, ccbsectionss, ccbopss = [], [], []
+  end
 
   gammas, mus_drag = _lookuptable ? ([], []) : (nothing, nothing)
 
@@ -1212,30 +1221,34 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                           translate=false) for ccb_F in ccb_Fs ]
     # Stores the field
     push!(data, Fs)
-    # if _lookuptable
-    #     push!(data_thetaeffdeg, thetaeffdeg)
-    # end
+    if debug
+        if _lookuptable
+            push!(data_thetaeffdeg, thetaeffdeg)
+        end
+    end
     if include_comps
       push!(data_Np     , Np)
       push!(data_Tp     , Tp)
-      # push!(data_u      , uvec)
-      # push!(data_v      , vvec)
-      # push!(data_cl     , cl)
       push!(data_cd     , cd)
-      # push!(data_cn     , cn)
-      # push!(data_ct     , ct)
-        # if !_lookuptable
-        #     push!(data_a      , a)
-        #     push!(data_ap     , ap)
-        #     push!(data_phi    , phi)
-        #     push!(data_alpha  , alpha)
-        #     push!(data_W      , W)
-        #     push!(data_F      , loss)
-        #     push!(data_G      , effloss)
-        # end
-      # push!(ccbrotors, ccbrotor)
-      # push!(ccbsectionss, ccbsections)
-      # push!(ccbopss, ccbops)
+      if debug
+          push!(data_u      , uvec)
+          push!(data_v      , vvec)
+          push!(data_cl     , cl)
+          push!(data_cn     , cn)
+          push!(data_ct     , ct)
+            if !_lookuptable
+                push!(data_a      , a)
+                push!(data_ap     , ap)
+                push!(data_phi    , phi)
+                push!(data_alpha  , alpha)
+                push!(data_W      , W)
+                push!(data_F      , loss)
+                push!(data_G      , effloss)
+            end
+          push!(ccbrotors, ccbrotor)
+          push!(ccbsectionss, ccbsections)
+          push!(ccbopss, ccbops)
+      end
       push!(data_roR     , self._r/self.rotorR)
     end
 
@@ -1263,15 +1276,17 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
               "field_data" => data
               )
   self.sol[field["field_name"]] = field
-  # if _lookuptable
-  #     field = Dict(
-  #                 "field_name" => "ThetaEffDeg",
-  #                 "field_type" => "scalar",
-  #                 "field_data" => data_thetaeffdeg
-  #                 )
-  #     self.sol[field["field_name"]] = field
-  #
-  # end
+  if debug
+      if _lookuptable
+          field = Dict(
+                      "field_name" => "ThetaEffDeg",
+                      "field_type" => "scalar",
+                      "field_data" => data_thetaeffdeg
+                      )
+          self.sol[field["field_name"]] = field
+
+      end
+  end
   if include_comps
     field = Dict(
                 "field_name" => "Np",
@@ -1285,104 +1300,106 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                 "field_data" => data_Tp
                 )
     self.sol[field["field_name"]] = field
-    # field = Dict(
-    #     "field_name" => "cl",
-    #     "field_type" => "scalar",
-    #     "field_data" => data_cl
-    #     )
-    # self.sol[field["field_name"]] = field
     field = Dict(
             "field_name" => "cd",
             "field_type" => "scalar",
             "field_data" => data_cd
             )
     self.sol[field["field_name"]] = field
-    # field = Dict(
-    #         "field_name" => "cn",
-    #         "field_type" => "scalar",
-    #         "field_data" => data_cn
-    #         )
-    # self.sol[field["field_name"]] = field
-    # field = Dict(
-    #         "field_name" => "ct",
-    #         "field_type" => "scalar",
-    #         "field_data" => data_ct
-    #         )
-    # self.sol[field["field_name"]] = field
-    # if !_lookuptable
-    #     field = Dict(
-    #             "field_name" => "u",
-    #             "field_type" => "scalar",
-    #             "field_data" => data_u
-    #             )
-    #     self.sol[field["field_name"]] = field
-    #     field = Dict(
-    #                 "field_name" => "v",
-    #                 "field_type" => "scalar",
-    #                 "field_data" => data_v
-    #                 )
-    #     self.sol[field["field_name"]] = field
-    #     field = Dict(
-    #                 "field_name" => "a",
-    #                 "field_type" => "scalar",
-    #                 "field_data" => data_a
-    #                 )
-    #     self.sol[field["field_name"]] = field
-    #     field = Dict(
-    #                 "field_name" => "ap",
-    #                 "field_type" => "scalar",
-    #                 "field_data" => data_ap
-    #                 )
-    #     self.sol[field["field_name"]] = field
-    #     field = Dict(
-    #                 "field_name" => "phi",
-    #                 "field_type" => "scalar",
-    #                 "field_data" => data_phi
-    #                 )
-    #     self.sol[field["field_name"]] = field
-    #     field = Dict(
-    #                 "field_name" => "alpha",
-    #                 "field_type" => "scalar",
-    #                 "field_data" => data_alpha
-    #                 )
-    #     self.sol[field["field_name"]] = field
-    #     field = Dict(
-    #                 "field_name" => "W",
-    #                 "field_type" => "scalar",
-    #                 "field_data" => data_W
-    #                 )
-    #     self.sol[field["field_name"]] = field
-    #     field = Dict(
-    #                 "field_name" => "F",
-    #                 "field_type" => "scalar",
-    #                 "field_data" => data_F
-    #                 )
-    #     self.sol[field["field_name"]] = field
-    #     field = Dict(
-    #                 "field_name" => "G",
-    #                 "field_type" => "scalar",
-    #                 "field_data" => data_G
-    #                 )
-    #     self.sol[field["field_name"]] = field
-    # end
-    # field = Dict(
-    #             "field_name" => "ccbrotor",
-    #             "field_type" => "not-vtk",
-    #             "field_data" => ccbrotors
-    #             )
-    # self.sol[field["field_name"]] = field
-    # field = Dict(
-    #             "field_name" => "ccbsections",
-    #             "field_type" => "not-vtk",
-    #             "field_data" => ccbsectionss
-    #             )
-    # self.sol[field["field_name"]] = field
-    # field = Dict(
-    #             "field_name" => "ccbops",
-    #             "field_type" => "not-vtk",
-    #             "field_data" => ccbopss
-    #             )
-    # self.sol[field["field_name"]] = field
+    if debug
+        field = Dict(
+            "field_name" => "cl",
+            "field_type" => "scalar",
+            "field_data" => data_cl
+            )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                "field_name" => "cn",
+                "field_type" => "scalar",
+                "field_data" => data_cn
+                )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                "field_name" => "ct",
+                "field_type" => "scalar",
+                "field_data" => data_ct
+                )
+        self.sol[field["field_name"]] = field
+        if !_lookuptable
+            field = Dict(
+                    "field_name" => "u",
+                    "field_type" => "scalar",
+                    "field_data" => data_u
+                    )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "v",
+                        "field_type" => "scalar",
+                        "field_data" => data_v
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "a",
+                        "field_type" => "scalar",
+                        "field_data" => data_a
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "ap",
+                        "field_type" => "scalar",
+                        "field_data" => data_ap
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "phi",
+                        "field_type" => "scalar",
+                        "field_data" => data_phi
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "alpha",
+                        "field_type" => "scalar",
+                        "field_data" => data_alpha
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "W",
+                        "field_type" => "scalar",
+                        "field_data" => data_W
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "F",
+                        "field_type" => "scalar",
+                        "field_data" => data_F
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "G",
+                        "field_type" => "scalar",
+                        "field_data" => data_G
+                        )
+            self.sol[field["field_name"]] = field
+        end
+        field = Dict(
+                    "field_name" => "ccbrotor",
+                    "field_type" => "not-vtk",
+                    "field_data" => ccbrotors
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "ccbsections",
+                    "field_type" => "not-vtk",
+                    "field_data" => ccbsectionss
+                    )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                    "field_name" => "ccbops",
+                    "field_type" => "not-vtk",
+                    "field_data" => ccbopss
+                    )
+        self.sol[field["field_name"]] = field
+    end
     field = Dict(
             "field_name" => "roR",
             "field_type" => "scalar",
