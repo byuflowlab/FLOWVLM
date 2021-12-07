@@ -108,12 +108,12 @@ mutable struct Rotor
             _polars, _polarroot, _polartip
         )
 end
-
+# Tip and hub loss correction parameters (eh1, eh2, eh3, maxah)
 const nohubcorrection = (1, 0, Inf, 5*eps())
 const notipcorrection = (1, 0, Inf, 5*eps())
 const hubtiploss_nocorrection = ( nohubcorrection, notipcorrection )               # No correction
-const hubtiploss_correction_prandtl = ( (1, 1, 1, -Inf), (1, 1, 1, -Inf) )         # Prandtl hub/tip correction
-const hubtiploss_correction_modprandtl = ( (0.6, 5, 0.5, 10), (2, 1, 0.25, -Inf) ) # Modified Prandtl hub/tip correction
+const hubtiploss_correction_prandtl = ( (1, 1, 1, 1.0), (1, 1, 1, 1.0) )           # Prandtl hub/tip correction
+const hubtiploss_correction_modprandtl = ( (0.6, 5, 0.5, 10), (2, 1, 0.25, 0.05) ) # Modified Prandtl hub/tip correction
 
 "Initializes the geometry of the rotor, discretizing each blade into n lattices"
 function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
