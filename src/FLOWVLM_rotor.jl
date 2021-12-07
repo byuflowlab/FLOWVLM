@@ -2058,7 +2058,8 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
     F = Ftip * Fhub
 
     cl[i] *= F
-    cd[i] *= F
+    # NOTE: Here we leave cd uncorrected assuming that it is all friction and form drag
+    # cd[i] *= F
 
     # normal and tangential coefficients
     sthtV = sin(thetaV)
