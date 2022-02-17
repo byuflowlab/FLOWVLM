@@ -78,6 +78,8 @@ const FIELDS = Dict(
     "Vvpm_BBp"  =>    [[], "vector"],        # Velocity induced by VPM
     "Vkin"  =>    [[], "vector"],        # Kinematic velocity
     "ftot"  =>    [[], "vector"],        # Aerodynamic force (D+L+S) per unit span
+    "default-vector"  =>    [[], "vector"],  # Place holder for a vector field
+    "default-scalar"  =>    [[], "scalar"],  # Place holder for a scalar field
   )
 
 
