@@ -272,7 +272,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             _lookuptable::Bool=false, _Vinds=nothing,
                             hubtiploss_correction=hubtiploss_nocorrection,
                             AR_to_360extrap=true,
-                            debug=false)
+                            debug=false, verbosewarn=true)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -280,7 +280,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
   # (Calls a HS to make sure they have been calculated)
   _ = getHorseshoe(self, 1)
 
-  if sound_spd==nothing
+  if sound_spd==nothing && verbosewarn
     @warn "No sound speed has been provided. No Mach corrections will be applied."
   end
 
