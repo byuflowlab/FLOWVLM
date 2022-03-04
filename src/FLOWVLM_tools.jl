@@ -813,17 +813,19 @@ function save(self::Wing, filename::String;
   initiated = false
   filter = only_infinite_vortex ? ["Gamma"] : keys(FIELDS)
 
-  for field_name in [name for name in keys(self.sol) if name in filter]
-    if false==(field_name in keys(FIELDS))
-      error("CRITICAL ERROR: field $(field_name) not found in FIELDS")
-    end
+  for field_name in [name for name in keys(self.sol) if (name in filter ||
+                                                         contains(name, "-vector") ||
+                                                         contains(name, "-scalar") )]
+    # if false==(field_name in keys(FIELDS))
+    #   error("CRITICAL ERROR: field $(field_name) not found in FIELDS")
+    # end
 
     if initiated==false
       print(f, "\n\nCELL_DATA ", nlat+ncp+nhs*2^only_infinite_vortex)
       initiated = true
     end
 
-    if FIELDS[field_name][2]=="vector"
+    if contains(field_name, "-vector") || FIELDS[field_name][2]=="vector"
       print(f, "\n\nVECTORS ", field_name," float")
       for i in 1:nlat+ncp+nhs
             print(f, "\n")
@@ -833,7 +835,7 @@ function save(self::Wing, filename::String;
                 print_space_round(f, self.sol[field_name][(i-1)%nCP+1]...)
             end
       end
-    elseif FIELDS[field_name][2]=="scalar"
+  elseif contains(field_name, "-scalar") || FIELDS[field_name][2]=="scalar"
       print(f, "\n\nSCALARS ", field_name," float")
       print(f, "\nLOOKUP_TABLE default")
       for i in 1:nlat+ncp+nhs
