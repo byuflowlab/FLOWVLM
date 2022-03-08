@@ -825,7 +825,7 @@ function save(self::Wing, filename::String;
       initiated = true
     end
 
-    if contains(field_name, "-vector") || FIELDS[field_name][2]=="vector"
+    if contains(field_name, "-vector") || (field_name in keys(FIELDS) && FIELDS[field_name][2]=="vector")
       print(f, "\n\nVECTORS ", field_name," float")
       for i in 1:nlat+ncp+nhs
             print(f, "\n")
@@ -835,7 +835,7 @@ function save(self::Wing, filename::String;
                 print_space_round(f, self.sol[field_name][(i-1)%nCP+1]...)
             end
       end
-  elseif contains(field_name, "-scalar") || FIELDS[field_name][2]=="scalar"
+  elseif contains(field_name, "-scalar") || (field_name in keys(FIELDS) && FIELDS[field_name][2]=="scalar")
       print(f, "\n\nSCALARS ", field_name," float")
       print(f, "\nLOOKUP_TABLE default")
       for i in 1:nlat+ncp+nhs
