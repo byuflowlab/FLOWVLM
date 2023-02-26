@@ -365,8 +365,15 @@ function save(self::Rotor, filename::String; addtiproot=true, airfoils=false,
   return strn
 end
 
-"Sets a coordinate system for the rotor. If the user is calling this function,
-give `user=true`, otherwise it won't do the automatic translation to blade c.s."
+"""
+    setcoordsystem(rotor::Rotor, O::Vector, Oaxis::Matrix; user=false)
+
+
+Redefines the local coordinate system of the rotor, where `O` is the new origin
+and `Oaxis` is the matrix of unit vectors. If the user is calling this function,
+give `user=true`, otherwise it will not do the automatic translation to blade
+coordinate system.
+"""
 function setcoordsystem(self::Rotor, O::FArrWrap,
                             Oaxis::FMWrap; user=false, args...)
   if user
@@ -378,7 +385,11 @@ function setcoordsystem(self::Rotor, O::FArrWrap,
   _resetRotor(self; keep_RPM=true)
 end
 
-"Rotates the rotor `degs` degrees in the direction of rotation"
+"""
+    rotate(rotor::Rotor, degs::Real)
+
+Rotates the rotor by `degs` degrees in the direction of rotation (`rotor.CW`).
+"""
 function rotate(self::Rotor, degs::FWrap)
   rotOaxis = gt.rotation_matrix(0.0, 0.0, (-1)^!self.CW*degs)
   newOaxis = rotOaxis*self._wingsystem.Oaxis
@@ -426,7 +437,11 @@ function get_RPM(self::Rotor)
   return self.RPM
 end
 
-"Returns total number of lattices on each blade"
+"""
+    get_mBlade(rotor::Rotor)
+
+Returns the number of horseshoes per blade
+"""
 function get_mBlade(self::Rotor)
   return self.m
 end
@@ -436,7 +451,11 @@ function get_blade(self::Rotor, blade_i::IWrap)
   return get_wing(self, blade_i)
 end
 
-"Returns total number of lattices in the rotor"
+"""
+    get_m(rotor::Rotor)
+
+Returns the total number of horseshoes in the rotor
+"""
 function get_m(self::Rotor)
   return get_m(self._wingsystem)
 end
@@ -2088,7 +2107,6 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
   return Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd, thetaeffdeg, mu_drag
 end
 
-"Extension of WingSystem's `addwing()` function"
 function addwing(self::Rotor, wing_name::String, wing; force=false, args...)
   if !force
     error("This function is preserved for development."*
@@ -2097,7 +2115,6 @@ function addwing(self::Rotor, wing_name::String, wing; force=false, args...)
   addwing(self._wingsystem, wing_name, wing; args...)
 end
 
-"Extension of WingSystem's `get_wing()` function"
 function get_wing(self::Rotor, args...; optargs...)
   return get_wing(self._wingsystem, args...; optargs...)
 end

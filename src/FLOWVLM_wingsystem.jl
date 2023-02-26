@@ -4,8 +4,9 @@
 # WINGSYSTEM CLASS
 ################################################################################
 """
-  `WingSystem()`
-Initiates a system of wings. All method applicable to a Wing object are
+    WingSystem(wings::Array{Union{Wing, WingSystem}}, wing_names::Array{String})
+
+Initiates a system of wings. All methods applicable to a Wing object are
 applicable to a WingSystem. When solved, it will calculate the interaction
 between wings.
 """
@@ -33,9 +34,10 @@ mutable struct WingSystem
 end
 
 """
-  `addwing(self::WingSystem, wing_name::String, wing::Wing)`
-Adds a wing to the system with the position and orientation of local reference
-being interpreted in relation to the local reference frame of the system.
+    addwing(self::WingSystem, wing_name::String, wing::Union{Wing, Rotor})
+
+Adds a wing (or rotor) to the system. The local reference frame of the wing
+then is then in relation to the local reference frame of the System.
 """
 function addwing(self::WingSystem, wing_name::String, wing;
                   overwrite=false, reset=true)
@@ -65,10 +67,11 @@ function addwing(self::WingSystem, wing_name::String, wing;
 end
 
 """
-  `setcoordsystem(self, O, Oaxis; check=true, wings=String[])`
+    setcoordsystem(system::WingSystem, O::Vector, Oaxis::Matrix; wings=String[])
+
 Redefines the local coordinate system of the system, where `O` is the new origin
-and `Oaxis` is the matrix [i; j; k] of unit vectors. It transforms the
-coordinates of all the wings in the system accordingly.
+and `Oaxis` is the matrix of unit vectors. It transforms the coordinates of all
+wings in the system accordingly.
 
 To change the local coordinate system of a specific wing relative to the
 system's coordinate system, give the name of the wing in an array under argument
@@ -162,7 +165,11 @@ function getHorseshoe(self::WingSystem, m::IWrap; t::FWrap=0.0, extraVinf...)
   return getHorseshoe(wing, _m; t=t, extraVinf...)
 end
 
-"Returns total number of lattices in the wing"
+"""
+    get_m(system::WingSystem)
+
+Returns the total number of horseshoes in the system
+"""
 function get_m(self::WingSystem)
   m = 0
   for wing in self.wings
@@ -171,7 +178,11 @@ function get_m(self::WingSystem)
   return m
 end
 
-"Returns the wing in the system under the requested name"
+"""
+    get_wing(self::WingSystem, wing_name::String)
+
+Returns the wing of name `wing_name`.
+"""
 function get_wing(self::WingSystem, wing_name::String)
   wing_i = findfirst(x->x==wing_name, self.wing_names)
   return get_wing(self, wing_i)
@@ -185,7 +196,11 @@ function get_wing(self::WingSystem, wing_names::Array{String,1})
   return wings
 end
 
-"Returns the i-th wing in the system"
+"""
+    get_wing(self::WingSystem, wing_i::Int)
+
+Returns the i-th wing.
+"""
 function get_wing(self::WingSystem, wing_i::IWrap)
   return self.wings[wing_i]
 end
