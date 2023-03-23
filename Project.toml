@@ -1,7 +1,7 @@
 name = "FLOWVLM"
 uuid = "1a3ff0be-0410-4572-aa62-b496bdd1f33b"
 authors = ["Eduardo J. Alvarez <Edo.AlvarezR@gmail.com>"]
-version = "2.1.1"
+version = "2.1.2"
 
 [deps]
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
