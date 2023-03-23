@@ -255,10 +255,10 @@ function addchord(self::Wing,
 end
 
 """
-  `setcoordsystem(self, O, Oaxis; check=true)`
+    setcoordsystem(wing::Wing, O::Vector, Oaxis::Matrix)
 
 Redefines the local coordinate system of the wing, where `O` is the new origin
-and `Oaxis` is the matrix [i; j; k] of unit vectors
+and `Oaxis` is the matrix of unit vectors
 """
 function setcoordsystem(self::Wing, O::FArrWrap,
                             Oaxis::FMWrap;
@@ -332,7 +332,7 @@ function getHorseshoe(self::Wing, m::IWrap; t::FWrap=0.0, extraVinf...)
   if m>self.m || m<=0
     error("Invalid m (m>self.m or m<=0)")
   elseif false==("Gamma" in keys(self.sol)) && self.Vinf==nothing
-    error("Freestream hasn't been define yet, please call function set_Vinf()")
+    error("Freestream hasn't been define yet, please call function setVinf()")
   end
 
   # Calculates horseshoes if not available
@@ -361,7 +361,11 @@ function getTE(self::Wing, n::IWrap)
   return TE
 end
 
-"Returns total number of lattices in the wing"
+"""
+    get_m(wing::Wing)
+
+Returns the number of horseshoes in the wing
+"""
 function get_m(self::Wing)
   return self.m
 end

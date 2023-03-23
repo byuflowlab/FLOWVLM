@@ -416,20 +416,20 @@ end
 
 
 """
-    `simpleWing(b, ar, tr, twist, lambda, gamma; twist_tip=twist, n=20, r=2.0)`
-  Generates a single-section wing.
+    simpleWing(b, ar, tr, twist, lambda, gamma; twist_tip=twist, n=20, r=2.0)
 
-  # Arguments
-  *   b       :   (float) span.
-  *   ar      :   (float) aspect ratio defined as the span over the tip's chord.
-  *   tr      :   (float) taper ratio (tip chord / root chord).
-  *   twist   :   (float) twist of the root in degrees.
-  *   lambda  :   (float) sweep in degrees.
-  *   gamma   :   (float) dihedral in degrees.
-  *   (OPTIONALS)
-  *   twist_tip : (float) twist of the tip if different than root.
-  *   n       :   (int)   number of horseshoes per side of the wing.
-  *   r       :   (float) horseshoes' expansion ratio
+Generates a simple wing with constant twist, sweep, dihedral, and taper ratio.
+
+# Arguments
+*   `b`       :   (float) span
+*   `ar`      :   (float) aspect ratio (span / tip chord)
+*   `tr`      :   (float) taper ratio (tip chord / root chord)
+*   `twist`   :   (float) twist of the root in degrees
+*   `lambda`  :   (float) sweep in degrees
+*   `gamma`   :   (float) dihedral in degrees
+*   `twist_tip` : (float) twist of the tip (if different than root)
+*   `n`       :   (int)   number of horseshoes per semi-span
+*   `r`       :   (float) horseshoes' expansion ratio
 """
 function simpleWing(b::FWrap, ar::FWrap, tr::FWrap,
                     twist::FWrap, lambda::FWrap, gamma::FWrap;
@@ -522,46 +522,44 @@ function ellipticWing(b::FWrap, croot::FWrap, twistroot::FWrap; elliptic="chord"
 end
 
 """
-    `complexWing(b::Float64, AR::Float64, tr::Float64, n::Int64,
-                        pos::Array{Float64,1}, twist::Array{Float64,1},
-                        sweep::Array{Float64,1}, dihed::Array{Float64,1};
-                        symmetric::Bool=true)`
+    complexWing(b, AR, tr, n, pos, twist, sweep, dihed; symmetric=true)
 
-Returns a Wing object made of multiple sections with the specified dimensions.
+Generates a wing with an abritrary distribution of twist, sweep, dihedral, and
+chord length.
 
 # Arguments
-  * `b::Float64`          : Span.
-  * `AR::Float64`         : Aspect ratio (span over tip chord).
-  * `n::Int64`            : Number of lattices in semi-span.
-  * `pos::Array{Float64,1}`   : Position of each chord along semi-span.
-  * `clen::Array{Float64,1}`  : Length of each chord as a fraction of tip chord.
-  * `twist::Array{Float64,1}` : (deg) twist of each chord.
-  * `sweep::Array{Float64,1}` : (deg) sweep of each section.
-  * `dihed::Array{Float64,1}` : (deg) dihedral of each section.
+* `b::Float64`          : Span
+* `AR::Float64`         : Reference aspect ratio (span / tip chord)
+* `n::Int64`            : Number of horseshoes per semi-span
+* `pos::Array{Float64,1}`   : Position of stations along the semi-span
+* `clen::Array{Float64,1}`  : Chord length at each station (normalized by tip chord)
+* `twist::Array{Float64,1}` : (deg) twist at each station
+* `sweep::Array{Float64,1}` : (deg) sweep between each station
+* `dihed::Array{Float64,1}` : (deg) dihedral between each station
 
 # Optional Arguments
-  * `symmetric::Bool=true`    : If false, returns only the semi-span.
-  * `chordalign::Float64=0.0` : Indicate position along chord length to align
-                                  chords. Give it 0 for alignment about leading
-                                  edge, 0.25 for alignment about quarter chord,
-                                  and 1.0 for alignment about trailing edge.
+* `symmetric::Bool=true`    : If false, generates only a half-span
+* `chordalign::Float64=0.0` : Indicate position along chord length to align
+                              chords. Give it 0 for alignment about leading
+                              edge, 0.25 for alignment about quarter chord,
+                              and 1.0 for alignment about trailing edge.
 
 # Example
 ```julia
-  # Wing Parameters
-  b = 1.0                     # (m) span
-  AR = 12.0                   # Span over tip chord
-  n = 50                      # Lattices in semi-span
+# Wing dimensions
+b = 1.0                     # (m) span
+AR = 12.0                   # Span over tip chord
+n = 50                      # Horseshoes per semi-span
 
-  # Chords
-  pos = Float64[0, 0.25, 0.75, 1]  # Position of each chord along semi-span
-  clen = Float64[2, 1.5, 1.5, 1]   # Length of each chord
-  twist = Float64[0, 0, -2, -4]    # (deg) twist at each chord
-  sweep = Float64[10, 15, 35]      # (deg) sweep of each section
-  dihed = Float64[2, 5, 7.5]       # (deg) dihedral of each section
+# Define chord, twist, sweep, and dihedral distributions
+pos = [0, 0.25, 0.75, 1]    # Position of stations along semi-span
+clen = [2.0, 1.5, 1.5, 1]   # Normalized chord length at each station
+twist = [0.0, 0.0, -2.0, -4.0]    # (deg) twist at each station
+sweep = [10.0, 15.0, 35.0]  # (deg) sweep between stations
+dihed = [2.0, 5.0, 7.5]     # (deg) dihedral between stations
 
-  # Generates the wing
-  wing = vlm.complexWing(b, AR, n, pos, clen, twist, sweep, dihed)
+# Generate the wing
+wing = vlm.complexWing(b, AR, n, pos, clen, twist, sweep, dihed)
 ```
 """
 function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
@@ -623,7 +621,7 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
         if i!=nchords
           this_n = maximum([ 1, IWrap( floor(n*(pos[i]-pos[i-1])) ) ])
         else
-          this_n = max(n-sum(ns), 1)
+          this_n = max( (symmetric ? 1 : 2)*n - sum(ns), 1)
         end
         push!(ns, this_n)
       end
@@ -813,17 +811,19 @@ function save(self::Wing, filename::String;
   initiated = false
   filter = only_infinite_vortex ? ["Gamma"] : keys(FIELDS)
 
-  for field_name in [name for name in keys(self.sol) if name in filter]
-    if false==(field_name in keys(FIELDS))
-      error("CRITICAL ERROR: field $(field_name) not found in FIELDS")
-    end
+  for field_name in [name for name in keys(self.sol) if (name in filter ||
+                                                         contains(name, "-vector") ||
+                                                         contains(name, "-scalar") )]
+    # if false==(field_name in keys(FIELDS))
+    #   error("CRITICAL ERROR: field $(field_name) not found in FIELDS")
+    # end
 
     if initiated==false
       print(f, "\n\nCELL_DATA ", nlat+ncp+nhs*2^only_infinite_vortex)
       initiated = true
     end
 
-    if FIELDS[field_name][2]=="vector"
+    if contains(field_name, "-vector") || (field_name in keys(FIELDS) && FIELDS[field_name][2]=="vector")
       print(f, "\n\nVECTORS ", field_name," float")
       for i in 1:nlat+ncp+nhs
             print(f, "\n")
@@ -833,7 +833,7 @@ function save(self::Wing, filename::String;
                 print_space_round(f, self.sol[field_name][(i-1)%nCP+1]...)
             end
       end
-    elseif FIELDS[field_name][2]=="scalar"
+  elseif contains(field_name, "-scalar") || (field_name in keys(FIELDS) && FIELDS[field_name][2]=="scalar")
       print(f, "\n\nSCALARS ", field_name," float")
       print(f, "\nLOOKUP_TABLE default")
       for i in 1:nlat+ncp+nhs

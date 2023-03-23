@@ -108,6 +108,12 @@ mutable struct Rotor
             _polars, _polarroot, _polartip
         )
 end
+# Tip and hub loss correction parameters (eh1, eh2, eh3, maxah)
+const nohubcorrection = (1, 0, Inf, 5*eps())
+const notipcorrection = (1, 0, Inf, 5*eps())
+const hubtiploss_nocorrection = ( nohubcorrection, notipcorrection )               # No correction
+const hubtiploss_correction_prandtl = ( (1, 1, 1, 1.0), (1, 1, 1, 1.0) )           # Prandtl hub/tip correction
+const hubtiploss_correction_modprandtl = ( (0.6, 5, 0.5, 10), (2, 1, 0.25, 0.05) ) # Modified Prandtl hub/tip correction
 
 "Initializes the geometry of the rotor, discretizing each blade into n lattices"
 function initialize(self::Rotor, n::IWrap; r_lat::FWrap=1.0,
@@ -264,7 +270,9 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             include_comps::Bool=true, return_performance::Bool=false,
                             Vref=nothing, sound_spd=nothing, Uinds=nothing,
                             _lookuptable::Bool=false, _Vinds=nothing,
-                            tiploss_correction=false, AR_to_360extrap=true)
+                            hubtiploss_correction=hubtiploss_nocorrection,
+                            AR_to_360extrap=true,
+                            debug=false, verbosewarn=true)
 
   setVinf(self, Vinf)
   setRPM(self, RPM)
@@ -272,24 +280,27 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
   # (Calls a HS to make sure they have been calculated)
   _ = getHorseshoe(self, 1)
 
-  if sound_spd==nothing
+  if sound_spd==nothing && verbosewarn
     @warn "No sound speed has been provided. No Mach corrections will be applied."
   end
 
   # Calculates distributed load from CCBlade
-  prfrmnc, gammas = calc_distributedloads(self, Vinf, RPM, rho; t=t,
+  prfrmnc, gammas, mus_drag = calc_distributedloads(self, Vinf, RPM, rho; t=t,
                                         include_comps=include_comps,
                                         return_performance=return_performance,
                                         Vref=Vref, sound_spd=sound_spd,
                                         Uinds=Uinds,
                                         _lookuptable=_lookuptable, _Vinds=_Vinds,
-                                        tiploss_correction=tiploss_correction,
-                                        AR_to_360extrap=AR_to_360extrap)
+                                        hubtiploss_correction=hubtiploss_correction,
+                                        AR_to_360extrap=AR_to_360extrap,
+                                        debug=debug)
 
   # Decomposes load into aerodynamic forces and calculates circulation
-  gamma = calc_aerodynamicforces(self, rho; overwritegammas=gammas)
+  gamma, mu_drag = calc_aerodynamicforces(self, rho; overwritegammas=gammas,
+                                            overwritemus=mus_drag)
 
   new_gamma = FWrap[]
+  new_mu = FWrap[]
   new_Ftot = FArrWrap[]
   new_L = FArrWrap[]
   new_D = FArrWrap[]
@@ -300,6 +311,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
 
     for j in 1:get_mBlade(self) # Iterates over lattices on blade
       push!(new_gamma, gamma[i][j])
+      push!(new_mu, mu_drag[i][j])
       push!(new_Ftot, self.sol["DistributedLoad"]["field_data"][i][j])
       push!(new_L, self.sol["Lift"]["field_data"][i][j])
       push!(new_D, self.sol["Drag"]["field_data"][i][j])
@@ -310,6 +322,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
 
   # Adds the fields as FLOWVLM solutions
   _addsolution(self._wingsystem, "Gamma", new_gamma; t=t)
+  _addsolution(self._wingsystem, "mu", new_mu; t=t)
   # (WARNING: These Ftot, L, D, and S are forces per unit length!)
   _addsolution(self._wingsystem, "Ftot", new_Ftot; t=t)
   _addsolution(self._wingsystem, "L", new_L; t=t)
@@ -352,8 +365,15 @@ function save(self::Rotor, filename::String; addtiproot=true, airfoils=false,
   return strn
 end
 
-"Sets a coordinate system for the rotor. If the user is calling this function,
-give `user=true`, otherwise it won't do the automatic translation to blade c.s."
+"""
+    setcoordsystem(rotor::Rotor, O::Vector, Oaxis::Matrix; user=false)
+
+
+Redefines the local coordinate system of the rotor, where `O` is the new origin
+and `Oaxis` is the matrix of unit vectors. If the user is calling this function,
+give `user=true`, otherwise it will not do the automatic translation to blade
+coordinate system.
+"""
 function setcoordsystem(self::Rotor, O::FArrWrap,
                             Oaxis::FMWrap; user=false, args...)
   if user
@@ -365,7 +385,11 @@ function setcoordsystem(self::Rotor, O::FArrWrap,
   _resetRotor(self; keep_RPM=true)
 end
 
-"Rotates the rotor `degs` degrees in the direction of rotation"
+"""
+    rotate(rotor::Rotor, degs::Real)
+
+Rotates the rotor by `degs` degrees in the direction of rotation (`rotor.CW`).
+"""
 function rotate(self::Rotor, degs::FWrap)
   rotOaxis = gt.rotation_matrix(0.0, 0.0, (-1)^!self.CW*degs)
   newOaxis = rotOaxis*self._wingsystem.Oaxis
@@ -413,7 +437,11 @@ function get_RPM(self::Rotor)
   return self.RPM
 end
 
-"Returns total number of lattices on each blade"
+"""
+    get_mBlade(rotor::Rotor)
+
+Returns the number of horseshoes per blade
+"""
 function get_mBlade(self::Rotor)
   return self.m
 end
@@ -423,7 +451,11 @@ function get_blade(self::Rotor, blade_i::IWrap)
   return get_wing(self, blade_i)
 end
 
-"Returns total number of lattices in the rotor"
+"""
+    get_m(rotor::Rotor)
+
+Returns the total number of horseshoes in the rotor
+"""
 function get_m(self::Rotor)
   return get_m(self._wingsystem)
 end
@@ -1117,34 +1149,42 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 Uinds=nothing,
                                 sound_spd=nothing,
                                 _lookuptable::Bool=false, _Vinds=nothing,
-                                tiploss_correction::Bool=false,
-                                AR_to_360extrap = true)
+                                hubtiploss_correction=hubtiploss_nocorrection,
+                                AR_to_360extrap = true,
+                                debug=false)
   data = Array{FArrWrap}[]
-  if _lookuptable
-      data_thetaeffdeg = FArrWrap[]
+  if debug
+      if _lookuptable
+          data_thetaeffdeg = FArrWrap[]
+      end
   end
   if include_comps
     data_Np     = FArrWrap[]
     data_Tp     = FArrWrap[]
-    data_u      = FArrWrap[]
-    data_v      = FArrWrap[]
-    data_cl     = FArrWrap[]
     data_cd     = FArrWrap[]
-    data_cn     = FArrWrap[]
-    data_ct     = FArrWrap[]
-    if !_lookuptable
-        data_a      = FArrWrap[]
-        data_ap     = FArrWrap[]
-        data_phi    = FArrWrap[]
-        data_alpha  = FArrWrap[]
-        data_W      = FArrWrap[]
-        data_F      = FArrWrap[]
-        data_G      = FArrWrap[]
+    if debug
+        data_u      = FArrWrap[]
+        data_v      = FArrWrap[]
+        data_cl     = FArrWrap[]
+        data_cn     = FArrWrap[]
+        data_ct     = FArrWrap[]
+        if !_lookuptable
+            data_a      = FArrWrap[]
+            data_ap     = FArrWrap[]
+            data_phi    = FArrWrap[]
+            data_alpha  = FArrWrap[]
+            data_W      = FArrWrap[]
+            data_F      = FArrWrap[]
+            data_G      = FArrWrap[]
+        end
     end
+    data_roR     = FArrWrap[]
   end
-  ccbrotors, ccbsectionss, ccbopss = [], [], []
+  if debug
+      ccbrotors, ccbsectionss, ccbopss = [], [], []
+  end
 
-  gammas = _lookuptable ? [] : nothing
+  gammas, mus_drag = _lookuptable ? ([], []) : (nothing, nothing)
 
   turbine_flag = self.turbine_flag
 
@@ -1177,10 +1217,11 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
 
     if _lookuptable
       (Np, Tp, uvec, vvec, gamma,
-      cn, ct, cl, cd, thetaeffdeg) = _calc_distributedloads_lookuptable(occbrotor,
+      cn, ct, cl, cd, thetaeffdeg, mu_drag) = _calc_distributedloads_lookuptable(occbrotor,
                                                         occbinflow, turbine_flag;
-                                                        tiploss_correction=tiploss_correction)
+                                                        hubtiploss_correction=hubtiploss_correction)
       push!(gammas, gamma)
+      push!(mus_drag, mu_drag)
       zeroarr = zeros(size(Np))
       ccbouputs = ccb.Outputs(Np, Tp, zeroarr, zeroarr, uvec, vvec,
                                 zeroarr, zeroarr, zeroarr, cl,
@@ -1199,30 +1240,35 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                           translate=false) for ccb_F in ccb_Fs ]
     # Stores the field
     push!(data, Fs)
-    if _lookuptable
-        push!(data_thetaeffdeg, thetaeffdeg)
+    if debug
+        if _lookuptable
+            push!(data_thetaeffdeg, thetaeffdeg)
+        end
     end
     if include_comps
       push!(data_Np     , Np)
       push!(data_Tp     , Tp)
-      push!(data_u      , uvec)
-      push!(data_v      , vvec)
-      push!(data_cl     , cl)
       push!(data_cd     , cd)
-      push!(data_cn     , cn)
-      push!(data_ct     , ct)
-        if !_lookuptable
-            push!(data_a      , a)
-            push!(data_ap     , ap)
-            push!(data_phi    , phi)
-            push!(data_alpha  , alpha)
-            push!(data_W      , W)
-            push!(data_F      , loss)
-            push!(data_G      , effloss)
-        end
-      push!(ccbrotors, ccbrotor)
-      push!(ccbsectionss, ccbsections)
-      push!(ccbopss, ccbops)
+      if debug
+          push!(data_u      , uvec)
+          push!(data_v      , vvec)
+          push!(data_cl     , cl)
+          push!(data_cn     , cn)
+          push!(data_ct     , ct)
+            if !_lookuptable
+                push!(data_a      , a)
+                push!(data_ap     , ap)
+                push!(data_phi    , phi)
+                push!(data_alpha  , alpha)
+                push!(data_W      , W)
+                push!(data_F      , loss)
+                push!(data_G      , effloss)
+            end
+          push!(ccbrotors, ccbrotor)
+          push!(ccbsectionss, ccbsections)
+          push!(ccbopss, ccbops)
+      end
+      push!(data_roR     , self._r/self.rotorR)
     end
 
     if return_performance
@@ -1249,14 +1295,16 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
               "field_data" => data
               )
   self.sol[field["field_name"]] = field
-  if _lookuptable
-      field = Dict(
-                  "field_name" => "ThetaEffDeg",
-                  "field_type" => "scalar",
-                  "field_data" => data_thetaeffdeg
-                  )
-      self.sol[field["field_name"]] = field
+  if debug
+      if _lookuptable
+          field = Dict(
+                      "field_name" => "ThetaEffDeg",
+                      "field_type" => "scalar",
+                      "field_data" => data_thetaeffdeg
+                      )
+          self.sol[field["field_name"]] = field
 
+      end
   end
   if include_comps
     field = Dict(
@@ -1272,116 +1320,125 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                 )
     self.sol[field["field_name"]] = field
     field = Dict(
-        "field_name" => "cl",
-        "field_type" => "scalar",
-        "field_data" => data_cl
-        )
-    self.sol[field["field_name"]] = field
-    field = Dict(
             "field_name" => "cd",
             "field_type" => "scalar",
             "field_data" => data_cd
             )
     self.sol[field["field_name"]] = field
-    field = Dict(
-            "field_name" => "cn",
-            "field_type" => "scalar",
-            "field_data" => data_cn
-            )
-    self.sol[field["field_name"]] = field
-    field = Dict(
-            "field_name" => "ct",
-            "field_type" => "scalar",
-            "field_data" => data_ct
-            )
-    self.sol[field["field_name"]] = field
-    if !_lookuptable
+    if debug
         field = Dict(
-                "field_name" => "u",
+            "field_name" => "cl",
+            "field_type" => "scalar",
+            "field_data" => data_cl
+            )
+        self.sol[field["field_name"]] = field
+        field = Dict(
+                "field_name" => "cn",
                 "field_type" => "scalar",
-                "field_data" => data_u
+                "field_data" => data_cn
                 )
         self.sol[field["field_name"]] = field
         field = Dict(
-                    "field_name" => "v",
+                "field_name" => "ct",
+                "field_type" => "scalar",
+                "field_data" => data_ct
+                )
+        self.sol[field["field_name"]] = field
+        if !_lookuptable
+            field = Dict(
+                    "field_name" => "u",
                     "field_type" => "scalar",
-                    "field_data" => data_v
+                    "field_data" => data_u
+                    )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "v",
+                        "field_type" => "scalar",
+                        "field_data" => data_v
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "a",
+                        "field_type" => "scalar",
+                        "field_data" => data_a
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "ap",
+                        "field_type" => "scalar",
+                        "field_data" => data_ap
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "phi",
+                        "field_type" => "scalar",
+                        "field_data" => data_phi
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "alpha",
+                        "field_type" => "scalar",
+                        "field_data" => data_alpha
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "W",
+                        "field_type" => "scalar",
+                        "field_data" => data_W
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "F",
+                        "field_type" => "scalar",
+                        "field_data" => data_F
+                        )
+            self.sol[field["field_name"]] = field
+            field = Dict(
+                        "field_name" => "G",
+                        "field_type" => "scalar",
+                        "field_data" => data_G
+                        )
+            self.sol[field["field_name"]] = field
+        end
+        field = Dict(
+                    "field_name" => "ccbrotor",
+                    "field_type" => "not-vtk",
+                    "field_data" => ccbrotors
                     )
         self.sol[field["field_name"]] = field
         field = Dict(
-                    "field_name" => "a",
-                    "field_type" => "scalar",
-                    "field_data" => data_a
+                    "field_name" => "ccbsections",
+                    "field_type" => "not-vtk",
+                    "field_data" => ccbsectionss
                     )
         self.sol[field["field_name"]] = field
         field = Dict(
-                    "field_name" => "ap",
-                    "field_type" => "scalar",
-                    "field_data" => data_ap
-                    )
-        self.sol[field["field_name"]] = field
-        field = Dict(
-                    "field_name" => "phi",
-                    "field_type" => "scalar",
-                    "field_data" => data_phi
-                    )
-        self.sol[field["field_name"]] = field
-        field = Dict(
-                    "field_name" => "alpha",
-                    "field_type" => "scalar",
-                    "field_data" => data_alpha
-                    )
-        self.sol[field["field_name"]] = field
-        field = Dict(
-                    "field_name" => "W",
-                    "field_type" => "scalar",
-                    "field_data" => data_W
-                    )
-        self.sol[field["field_name"]] = field
-        field = Dict(
-                    "field_name" => "F",
-                    "field_type" => "scalar",
-                    "field_data" => data_F
-                    )
-        self.sol[field["field_name"]] = field
-        field = Dict(
-                    "field_name" => "G",
-                    "field_type" => "scalar",
-                    "field_data" => data_G
+                    "field_name" => "ccbops",
+                    "field_type" => "not-vtk",
+                    "field_data" => ccbopss
                     )
         self.sol[field["field_name"]] = field
     end
     field = Dict(
-                "field_name" => "ccbrotor",
-                "field_type" => "not-vtk",
-                "field_data" => ccbrotors
-                )
-    self.sol[field["field_name"]] = field
-    field = Dict(
-                "field_name" => "ccbsections",
-                "field_type" => "not-vtk",
-                "field_data" => ccbsectionss
-                )
-    self.sol[field["field_name"]] = field
-    field = Dict(
-                "field_name" => "ccbops",
-                "field_type" => "not-vtk",
-                "field_data" => ccbopss
-                )
+            "field_name" => "roR",
+            "field_type" => "scalar",
+            "field_data" => data_roR
+            )
     self.sol[field["field_name"]] = field
   end
 
   if return_performance
-    return coeffs, gammas
+    return coeffs, gammas, mus_drag
   else
-    return nothing, gammas
+    return nothing, gammas, mus_drag
   end
 end
 
 "Calculates sectional aerodynamic forces in a rotor where the field
 DistributedLoad has already been solved for. It also calculates the bound
 circulation Gamma"
-function calc_aerodynamicforces(self::Rotor, rho::FWrap; overwritegammas=nothing)
+function calc_aerodynamicforces(self::Rotor, rho::FWrap;
+                                  overwritegammas=nothing, overwritemus=nothing)
   if !("DistributedLoad" in keys(self.sol))
     error("Field `DistributedLoad` not found."*
           " Call `calc_distributedloads()` before calling this function.")
@@ -1391,6 +1448,7 @@ function calc_aerodynamicforces(self::Rotor, rho::FWrap; overwritegammas=nothing
   data_D = Array{FArrWrap}[]
   data_R = Array{FArrWrap}[]
   data_gamma = FArrWrap[]
+  data_mu = FArrWrap[]
 
   for blade_i in 1:self.B
     V = self.sol["GlobInflow"]["field_data"][blade_i]   # Inflow at each element
@@ -1420,10 +1478,18 @@ function calc_aerodynamicforces(self::Rotor, rho::FWrap; overwritegammas=nothing
       gamma = (-1)^(self.CW) * Lsgn .* Lmag./(rho*Vmag)
     end
 
+    # Calculates dragging line dipole strength (see Caprace's thesis, 2020)
+    if overwritemus!=nothing
+      mu = (-1)^(self.CW) * overwritemus[blade_i]
+    else
+      mu = (-1)^(self.CW) .* norm.(D)./(rho*Vmag) ./ self._chord
+    end
+
     push!(data_L, L)
     push!(data_D, D)
     push!(data_R, R)
     push!(data_gamma, gamma)
+    push!(data_mu, mu)
   end
 
   # Adds solution fields
@@ -1451,8 +1517,14 @@ function calc_aerodynamicforces(self::Rotor, rho::FWrap; overwritegammas=nothing
               "field_data" => data_gamma
               )
   self.sol[field["field_name"]] = field
+  field = Dict(
+              "field_name" => "mu",
+              "field_type" => "scalar",
+              "field_data" => data_mu
+              )
+  self.sol[field["field_name"]] = field
 
-  return data_gamma
+  return data_gamma, data_mu
 end
 
 """
@@ -1746,7 +1818,7 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
   end
 
   # Plots
-  fig = figure("discret_verif", figsize=[7*2,5*2]*figsize_factor)
+  fig = figure("flowvlm-discr", figsize=[7*2,5*2]*figsize_factor)
   axs = fig.subplots(2, 2)
 
   for (i,(lbl, cr, cchord, ctheta, cLE_x, cLE_z)) in enumerate([
@@ -1754,7 +1826,7 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
               ["Lattice", vlm_r, vlm_chord, vlm_theta, vlm_LE_x, vlm_LE_z]])
 
     ax = axs[2*(i-1)+1]
-    ax.title.set_text("Discretization Verification - $lbl")
+    ax.title.set_text("FLOWVLM Discretization Verification - $lbl")
     ax.plot(r/Rtip, chord/Rtip, "ok", label="Chord data", alpha=0.75)
     ax.plot(cr/Rtip, cchord/Rtip, "--or", label="Chord Spline", alpha=0.75)
     ax.plot(r/Rtip, LE_x/Rtip, "^k", label="LE-x data", alpha=0.75)
@@ -1763,7 +1835,7 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
     ax.plot(cr/Rtip, cLE_z/Rtip, "--*b", label="LE-z Spline", alpha=0.75)
     ax.set_xlabel(L"$r/R$")
     ax.set_ylabel(L"$c/R$, $x/R$, $z/R$")
-    ax.legend(loc="best", frameon=false)
+    ax.legend(loc="best", frameon=false, fontsize=6)
     ax.grid(true, color="0.8", linestyle="--")
 
     ax = axs[2*(i-1)+2]
@@ -1774,6 +1846,7 @@ function _verif_discr(self, blade, elem_r, elem_chord, elem_theta,
     ax.legend(loc="best", frameon=false)
     ax.grid(true, color="0.8", linestyle="--")
   end
+  fig.tight_layout()
 
 end
 
@@ -1955,7 +2028,7 @@ and it is the effective inflow).
 function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
                                             ccbinflow::OCCBInflow,
                                             turbine_flag::Bool;
-                                            tiploss_correction::Bool=false)
+                                            hubtiploss_correction=hubtiploss_nocorrection)
 
   # check if propeller
   swapsign = turbine_flag ? 1 : -1
@@ -1971,6 +2044,7 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
   uvec = fill(0.0, n)
   vvec = fill(0.0, n)
   gamma = fill(0.0, n)
+  mu_drag = fill(0.0, n)
   thetaeffdeg = fill(0.0, n)
 
   for i in 1:n
@@ -1991,42 +2065,20 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
     cl[i], cd[i] = occb_airfoil(ccbrotor.af[i], thetaeff)
 
     # Tip and hub correction factor
-    if tiploss_correction
-        B, Rtip, Rhub, r = ccbrotor.B, ccbrotor.Rtip, ccbrotor.Rhub, ccbrotor.r[i]
+    B, Rtip, Rhub, r = ccbrotor.B, ccbrotor.Rtip, ccbrotor.Rhub, ccbrotor.r[i]
+    (eh1, eh2, eh3, maxah), (et1, et2, et3, maxat) = hubtiploss_correction
 
-        # factortip = B/2.0*(Rtip - r)/(r*abs(thetaV))
-        # factortip = B/2.0*(Rtip - r)/(r*abs(sin(thetaV)))
-        # factortip = B/2.0*((Rtip-Rhub)/(r-Rhub) - 1.0)/abs(sin(max(10.0*pi/180, thetaV)))
-        # Ftip = 2.0/pi*acos(exp(-factortip))
+    factorhub = B/2.0*(   (r/Rhub)^eh1 - 1   )^eh2/abs(sin(max(maxah*pi/180, abs(thetaV))))^eh3
+    Fhub = 2.0/pi*acos(exp(-factorhub))
 
-        # factortip = B/2.0*((Rtip-0.8*Rtip)/(r-0.8*Rtip) - 1.0)/abs(sin(thetaV))
-        # Ftip = 2.0/pi*acos(exp(-abs(factortip)))
+    factortip = B/2.0*(  (Rtip/r)^et1 - 1  )^et2/abs(sin(max(maxat*pi/180, abs(thetaV))))^et3
+    Ftip = 2.0/pi*acos(exp(-factortip))
 
-        # factortip = B/2.0*((Rtip-Rhub)/(r-Rhub) - 1.0)/abs(sin(thetaV))
-        # Ftip = 2.0/pi*acos(exp(-factortip))
-        # Ftip = 2.0/pi*acos(exp(-factortip^2))
-        # Ftip = 2.0/pi*acos(exp(-factortip^10))
+    F = Ftip * Fhub
 
-        # i == 1 ? println("i\tr/Rtip\tthetaV*180/pi\t(Rtip-Rhub)/(r-Rhub) - 1.0\tabs(sin(thetaV))\tfactortip\tFtip") : nothing
-        # println("$i\t$(round(r/Rtip, digits=3))\t$(round(thetaV*180/pi, digits=3))\t$(round((Rtip-Rhub)/(r-Rhub) - 1.0, digits=3))"*
-        #         "\t$(round(abs(sin(thetaV)), digits=3))\t$(round(factortip, digits=3))\t$(round(Ftip, digits=3))")
-
-        # factorhub = B/2.0*(r - Rhub)/(Rhub*abs(thetaV))
-        # factorhub = B/2.0*(r/Rhub - 1)/abs(sin(max(10.0*pi/180, thetaV)))
-        # Fhub = 2.0/pi*acos(exp(-factorhub))
-
-        factortip = B/2.0*(  (Rtip/r)^2 - 1  )/abs(sin(thetaV))^0.25
-        Ftip = 2.0/pi*acos(exp(-factortip))
-
-        # factorhub = B/2.0*(   (r/Rhub)^0.6 - 1   )^5/abs(sin(thetaV))^0.5
-        factorhub = B/2.0*(   (r/Rhub)^0.6 - 1   )^5/abs(sin(max(10.0*pi/180, thetaV)))^0.5
-        Fhub = 2.0/pi*acos(exp(-factorhub))
-
-        F = Ftip * Fhub
-
-        cl[i] *= F
-        cd[i] *= F
-    end
+    cl[i] *= F
+    # NOTE: Here we leave cd uncorrected assuming that it is all friction and form drag
+    # cd[i] *= F
 
     # normal and tangential coefficients
     sthtV = sin(thetaV)
@@ -2040,16 +2092,21 @@ function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor,
 
     # Circulation
     gamma[i] = cl[i]*sqrt(Vx*Vx+Vy*Vy)*ccbrotor.chord[i]/2
+
+    # Dragging line dipole strength (see Caprace's thesis, 2020)
+    # mu_drag[i] = cd[i]*sqrt(Vx*Vx+Vy*Vy)*ccbrotor.chord[i]/2
+    # NOTE: Here I'm correcting DG's model dividing by chord length and later
+    #       multiplying by the traveled distance to account for the time step
+    mu_drag[i] = cd[i]*sqrt(Vx*Vx+Vy*Vy)/2
   end
 
   # reverse sign of outputs for propellers
   # Tp *= swapsign # I already reversed this
   vvec *= swapsign
 
-  return Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd, thetaeffdeg
+  return Np, Tp, uvec, vvec, gamma, cn, ct, cl, cd, thetaeffdeg, mu_drag
 end
 
-"Extension of WingSystem's `addwing()` function"
 function addwing(self::Rotor, wing_name::String, wing; force=false, args...)
   if !force
     error("This function is preserved for development."*
@@ -2058,7 +2115,6 @@ function addwing(self::Rotor, wing_name::String, wing; force=false, args...)
   addwing(self._wingsystem, wing_name, wing; args...)
 end
 
-"Extension of WingSystem's `get_wing()` function"
 function get_wing(self::Rotor, args...; optargs...)
   return get_wing(self._wingsystem, args...; optargs...)
 end
