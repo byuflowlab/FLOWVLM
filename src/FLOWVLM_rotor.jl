@@ -514,7 +514,7 @@ function getHorseshoe(self::Rotor, m::IWrap; t::FWrap=0.0, extraVinf...)
 end
 
 "Saves the lofted surface of the blade"
-function save_loft(self::Rotor{TF,<:Any}, filename::String; addtiproot=false, path="",
+function save_loft(self::Rotor{TF}, filename::String; addtiproot=false, path="",
                       num=nothing, airfoils=false,
                       wopwop=false, wopext="wop", wopbin=true, wopv=1.0,
                       args...) where TF
