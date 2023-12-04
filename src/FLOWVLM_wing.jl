@@ -75,7 +75,7 @@ function Wing(leftxl::TF, lefty::TF, leftzl::TF, leftchord::TF, leftchordtwist::
   _yn=[lefty],
   _zn=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
   _HSs=nothing
-) where {TVinf}
+) where {TF,TVinf}
   TF = promote_type(TF, eltype(O), eltype(Oaxis), eltype(invOaxis))
   return Wing{TF,TVinf}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
       m, O, Oaxis, invOaxis, Vinf,
