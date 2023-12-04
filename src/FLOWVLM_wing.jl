@@ -322,7 +322,7 @@ function getVinfs(self::Wing{TF}; t::FWrap=0.0, target="CP",
     end
 
     this_Vinf = self.Vinf(T, t)
-    i==1 && (println(this_Vinf))
+    @show typeof(this_Vinf)
     if extraVinf!=nothing; this_Vinf += extraVinf(i, t; extraVinfArgs..., wing=self); end;
 
     push!(Vinfs, this_Vinf)
