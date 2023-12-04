@@ -23,7 +23,7 @@ mutable struct WingSystem{TF<:FWrap,TVinf}
   sol::Dict{String, Any}          # Solution fields available
 end
 
-function WingSystem( wings=[], wing_names=String[],
+function WingSystem(; wings=[], wing_names=String[],
     O=FWrap[0.0,0.0,0.0],
     Oaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
     invOaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
