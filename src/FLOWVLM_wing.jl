@@ -23,7 +23,7 @@ leading edge in the direction of the -xaxis and trailing in the direction of the
   # Example
   `julia julia> wing = Wing(0.0, 0.0, 0.0, 10.0, 3.0);`
 """
-mutable struct Wing{TF,TVinf} where TF <: FWrap
+mutable struct Wing{TF<:FWrap,TVinf}
 
   # Initialization variables (USER INPUT)
   leftxl::TF                 # x-position of leading edge of the left tip
