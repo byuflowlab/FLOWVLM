@@ -76,8 +76,8 @@ function Wing(leftxl::TF, lefty::TF, leftzl::TF, leftchord::TF, leftchordtwist::
   _zn=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
   _HSs=nothing
 ) where {TF,TVinf}
-  TF = promote_type(TF, eltype(O), eltype(Oaxis), eltype(invOaxis))
-  return Wing{TF,TVinf}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
+  TF_promoted = promote_type(TF, eltype(O), eltype(Oaxis), eltype(invOaxis))
+  return Wing{TF_promoted,TVinf}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
       m, O, Oaxis, invOaxis, Vinf,
       sol,
       _xlwingdcr, _xtwingdcr, _ywingdcr, _zlwingdcr, _ztwingdcr,
