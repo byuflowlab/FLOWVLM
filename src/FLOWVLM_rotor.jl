@@ -1084,7 +1084,7 @@ end
 "Receives the freestream velocity function V(x,t) and the current RPM of the
 rotor, and it calculates the inflow velocity field that each control point
 sees in the global coordinate system"
-function calc_inflow(self::Rotor{TF,<:Any}, Vinf, RPM; t::FWrap=0.0, Vinds=nothing) where TF
+function calc_inflow(self::Rotor{TF}, Vinf, RPM; t::FWrap=0.0, Vinds=nothing) where TF
   omega = 2*pi*RPM/60
   TF_promoted = promote_type(TF,typeof(Vinf),typeof(RPM),typeof(t))
 
