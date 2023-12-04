@@ -108,6 +108,32 @@ mutable struct Rotor{TF<:FWrap,TVinf}
             _polars, _polarroot, _polartip
         )
 end
+
+Rotor(
+    CW, r, chord, theta, LE_x, LE_z, B,
+    airfoils=Tuple{TF, ap.Polar}[],
+    turbine_flag=false,
+    RPM=nothing,
+      hubR=r[1], rotorR=r[end],
+      m=0, sol=Dict(),
+    _wingsystem=WingSystem(),
+      _r=TF[], _chord=TF[], _theta=TF[],
+      _LE_x=TF[], _LE_z=TF[],
+      _polars=ap.Polar[],
+        _polarroot=ap.dummy_polar(), _polartip=ap.dummy_polar()
+  ) where TF<:FWrap = Rotor(
+        CW, r, chord, theta, LE_x, LE_z, B,
+        airfoils,
+        turbine_flag,
+        RPM,
+          hubR, rotorR,
+          m, sol,
+        _wingsystem,
+          _r, _chord, _theta,
+          _LE_x, _LE_z,
+          _polars, _polarroot, _polartip
+      )
+
 # Tip and hub loss correction parameters (eh1, eh2, eh3, maxah)
 const nohubcorrection = (1, 0, Inf, 5*eps())
 const notipcorrection = (1, 0, Inf, 5*eps())
