@@ -57,31 +57,33 @@ mutable struct Wing{TF<:FWrap,TVinf}
   _zn::Vector{TF}                 # z-position of the bound vortex
   ## Calculation data
   _HSs::Union{Nothing,Vector{Vector{TF}}}              # Horseshoes
+end
 
-  Wing(leftxl, lefty, leftzl, leftchord, leftchordtwist,
-                  m=0,
-                    O=FWrap[0.0,0.0,0.0],
-                    Oaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
-                    invOaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
-                    Vinf=nothing,
-                  sol=Dict(),
-                  _xlwingdcr=FWrap[leftxl],
-                    _xtwingdcr=FWrap[leftxl+leftchord*cos(leftchordtwist*pi/180)],
-                    _ywingdcr=FWrap[lefty],
-                    _zlwingdcr=FWrap[leftzl],
-                    _ztwingdcr=FWrap[leftzl-leftchord*sin(leftchordtwist*pi/180)],
-                  _xm=FWrap[], _ym=FWrap[], _zm=FWrap[],
-                  _xn=FWrap[leftxl+pn*leftchord*cos(leftchordtwist*pi/180)],
-                    _yn=FWrap[lefty],
-                    _zn=FWrap[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
-                  _HSs=nothing
-              ) = new(leftxl, lefty, leftzl, leftchord, leftchordtwist,
-                      m, O, Oaxis, invOaxis, Vinf,
-                      sol,
-                      _xlwingdcr, _xtwingdcr, _ywingdcr, _zlwingdcr, _ztwingdcr,
-                      _xm, _ym, _zm, _xn, _yn, _zn,
-                      _HSs
-                      )
+function Wing(leftxl::TF, lefty::TF, leftzl::TF, leftchord::TF, leftchordtwist::TF, m=0,
+  O=[0.0,0.0,0.0],
+  Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
+  invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
+  Vinf::TVinf=nothing,
+  sol=Dict(),
+  _xlwingdcr=[leftxl],
+  _xtwingdcr=[leftxl+leftchord*cos(leftchordtwist*pi/180)],
+  _ywingdcr=[lefty],
+  _zlwingdcr=[leftzl],
+  _ztwingdcr=[leftzl-leftchord*sin(leftchordtwist*pi/180)],
+  _xm=TF[], _ym=TF[], _zm=TF[],
+  _xn=[leftxl+pn*leftchord*cos(leftchordtwist*pi/180)],
+  _yn=[lefty],
+  _zn=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
+  _HSs=nothing
+) where {TVinf}
+  TF = promote_type(TF, eltype(O), eltype(Oaxis), eltype(invOaxis))
+  return Wing{TF,TVinf}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
+      m, O, Oaxis, invOaxis, Vinf,
+      sol,
+      _xlwingdcr, _xtwingdcr, _ywingdcr, _zlwingdcr, _ztwingdcr,
+      _xm, _ym, _zm, _xn, _yn, _zn,
+      _HSs
+  )
 end
 
 
