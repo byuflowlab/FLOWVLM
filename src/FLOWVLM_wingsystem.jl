@@ -30,10 +30,9 @@ function WingSystem(; wings=[], wing_names=String[],
     Vinf=nothing,
   sol=Dict{String,Any}()
 )
-    TF_promoted = promote_type(eltype(O),eltype(Oaxis),eltype(invOaxis))
+    TF = promote_type(eltype(O),eltype(Oaxis),eltype(invOaxis))
     println("Sherlock! wingsystem")
-    @show TF TF_promoted
-    return WingSystem{TF_promoted}(wings, wing_names,
+    return WingSystem{TF}(wings, wing_names,
             O, Oaxis, invOaxis, Vinf, sol)
 end
 
