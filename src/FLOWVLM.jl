@@ -92,7 +92,7 @@ const FIELDS = Dict(
 # WING AND WINGSYSTEM COMMON FUNCTIONS
 ################################################################################
 "Solves the VLM of the Wing or WingSystem"
-function solve(wing{TF}, Vinf; t::FWrap=0.0,
+function solve(wing::AbstractWing{TF}, Vinf; t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, keep_sol=false,
                 extraVinfArgs...) where TF
 

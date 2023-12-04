@@ -2,6 +2,8 @@
 ################################################################################
 # WING CLASS
 ################################################################################
+abstract type AbstractWing{TF} end
+
 """
   `Wing(leftxl, lefty, leftz, leftchord, leftchordtwist)`
 
@@ -23,7 +25,7 @@ leading edge in the direction of the -xaxis and trailing in the direction of the
   # Example
   `julia julia> wing = Wing(0.0, 0.0, 0.0, 10.0, 3.0);`
 """
-mutable struct Wing{TF<:FWrap}
+mutable struct Wing{TF<:FWrap} <: AbstractWing{TF}
 
   # Initialization variables (USER INPUT)
   leftxl::TF                 # x-position of leading edge of the left tip
