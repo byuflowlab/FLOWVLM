@@ -2034,7 +2034,7 @@ and it is the effective inflow).
 function _calc_distributedloads_lookuptable(ccbrotor::OCCBRotor{TFr,TFC,TFt,Taf,TFrh,TFrt,TFp},
                                             ccbinflow::OCCBInflow{TFv,TFrho},
                                             turbine_flag::Bool;
-                                            hubtiploss_correction=hubtiploss_nocorrection)
+                                            hubtiploss_correction=hubtiploss_nocorrection) where {TFr,TFC,TFt,Taf,TFrh,TFrt,TFp,TFv,TFrho}
 
   TF = promote_type(TFr,TFC,TFt,TFrh,TFrt,TFp,TFv,TFrho)
   
