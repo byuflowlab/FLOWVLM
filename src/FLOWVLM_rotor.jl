@@ -82,31 +82,6 @@ mutable struct Rotor{TF<:FWrap,TVinf}
                                 #  containing the exact geometric airfoil)
   _polarroot::ap.Polar          # Polar at the root
   _polartip::ap.Polar           # Polar at the tip
-
-  Rotor(
-          CW, r, chord, theta, LE_x, LE_z, B,
-          airfoils=Tuple{TF, ap.Polar}[],
-          turbine_flag=false,
-          RPM=nothing,
-            hubR=r[1], rotorR=r[end],
-            m=0, sol=Dict(),
-          _wingsystem=WingSystem(),
-            _r=TF[], _chord=TF[], _theta=TF[],
-            _LE_x=TF[], _LE_z=TF[],
-            _polars=ap.Polar[],
-              _polarroot=ap.dummy_polar(), _polartip=ap.dummy_polar()
-        ) where TF<:FWrap = new(
-          CW, r, chord, theta, LE_x, LE_z, B,
-          airfoils,
-          turbine_flag,
-          RPM,
-            hubR, rotorR,
-            m, sol,
-          _wingsystem,
-            _r, _chord, _theta,
-            _LE_x, _LE_z,
-            _polars, _polarroot, _polartip
-        )
 end
 
 Rotor(
