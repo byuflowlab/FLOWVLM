@@ -21,16 +21,17 @@ mutable struct WingSystem{TF<:FWrap,TVinf}
 
   # Data storage
   sol::Dict{String, Any}          # Solution fields available
+end
 
-  WingSystem( wings=[], wing_names=String[],
-                O=FWrap[0.0,0.0,0.0],
-                Oaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
-                invOaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
-                Vinf=nothing,
-              sol=Dict()
-      ) = new(wings, wing_names,
-                O, Oaxis, invOaxis, Vinf,
-              sol)
+function WingSystem( wings=[], wing_names=String[],
+    O=FWrap[0.0,0.0,0.0],
+    Oaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
+    invOaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
+    Vinf=nothing,
+  sol=Dict()
+)
+    return WingSystem(wings, wing_names,
+            O, Oaxis, invOaxis, Vinf, sol)
 end
 
 """
