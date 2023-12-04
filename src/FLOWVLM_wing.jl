@@ -400,7 +400,7 @@ function _addsolution(self::Wing, field_name::String, sol_field; t::FWrap=0.0)
 end
 
 function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArgs...)
-  HSs = Array{Any,1}[]
+  HSs = Vector{Vector{TF}}(undef,0)
   for i in 1:get_m(self)
     # Horseshoe geometry
     ## Points in the local coordinate system
@@ -434,7 +434,6 @@ function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArg
   end
   @show typeof(self._HSs) typeof(HSs)
   self._HSs = HSs
-  println("Sherlock")
 end
 
 function Base.deepcopy_internal(x::Wing, stackdict::IdDict)
