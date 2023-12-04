@@ -63,7 +63,7 @@ function Wing(leftxl::TF, lefty::TF, leftzl::TF, leftchord::TF, leftchordtwist::
   O=[0.0,0.0,0.0],
   Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
   invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
-  Vinf::TVinf=nothing,
+  Vinf=nothing,
   sol=Dict(),
   _xlwingdcr=[leftxl],
   _xtwingdcr=[leftxl+leftchord*cos(leftchordtwist*pi/180)],
