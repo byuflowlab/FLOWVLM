@@ -1086,15 +1086,15 @@ rotor, and it calculates the inflow velocity field that each control point
 sees in the global coordinate system"
 function calc_inflow(self::Rotor{TF,<:Any}, Vinf, RPM; t::FWrap=0.0, Vinds=nothing) where TF
   omega = 2*pi*RPM/60
-  TF = promote_type(TF,typeof(Vinf),typeof(RPM),typeof(t))
+  TF_promoted = promote_type(TF,typeof(Vinf),typeof(RPM),typeof(t))
 
-  data_Vtots = Array{Vector{TF}}[]     # Inflow in the global c.s.
-  data_Vccbs = Array{Vector{TF}}[]     # Inflow in CCBlade's c.s.
+  data_Vtots = Array{Vector{TF_promoted}}[]     # Inflow in the global c.s.
+  data_Vccbs = Array{Vector{TF_promoted}}[]     # Inflow in CCBlade's c.s.
 
 
   for (i,blade) in enumerate(self._wingsystem.wings) # Iterates over blades
-    Vtots = Vector{TF}[]
-    Vccbs = Vector{TF}[]
+    Vtots = Vector{TF_promoted}[]
+    Vccbs = Vector{TF_promoted}[]
 
     for j in 1:get_m(blade) # Iterates over control points
       CP = getControlPoint(blade, j)
@@ -1105,7 +1105,7 @@ function calc_inflow(self::Rotor{TF,<:Any}, Vinf, RPM; t::FWrap=0.0, Vinds=nothi
       # Velocity due to rotation in FLOWVLM blade's c.s.
       this_Vrot = [omega*self._r[j], 0.0, 0.0]
       # Velocity due to rotation in global c.s.
-      this_Vrot = countertransform(this_Vrot, blade.invOaxis, zeros(TF, 3))
+      this_Vrot = countertransform(this_Vrot, blade.invOaxis, zeros(TF_promoted, 3))
 
       this_Vtot = this_Vinf + this_Vrot
 
