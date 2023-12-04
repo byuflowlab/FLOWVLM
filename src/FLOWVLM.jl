@@ -92,16 +92,16 @@ const FIELDS = Dict(
 # WING AND WINGSYSTEM COMMON FUNCTIONS
 ################################################################################
 "Solves the VLM of the Wing or WingSystem"
-function solve(wing, Vinf; t::FWrap=0.0,
+function solve(wing{TF}, Vinf; t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, keep_sol=false,
-                extraVinfArgs...)
+                extraVinfArgs...) where TF
 
   # Sets Vinf (this forces to recalculate horseshoes)
   setVinf(wing, Vinf; keep_sol=keep_sol)
 
   # Obtain horseshoes
   HSs = getHorseshoes(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
-  Vinfs = getVinfs(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
+  Vinfs::Vector{Vector{TF}} = getVinfs(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
   @show Vinfs typeof(Vinfs)
   # Calls the solver
   println("Sherlock!")
