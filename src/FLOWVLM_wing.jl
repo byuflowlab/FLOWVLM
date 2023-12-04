@@ -432,6 +432,7 @@ function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArg
     HS = [Ap, A, B, Bp, CP, infDA, infDB, Gamma]
     push!(HSs, HS)
   end
+  @show typeof(self._HSs) typeof(HSs)
   self._HSs = HSs
 end
 
