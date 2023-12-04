@@ -95,7 +95,7 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
                 t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
 
-  @show eltype(eltype(eltype(HSs))) HSs[1][1][1] HSs[1][1]
+  @show eltype(eltype(eltype(HSs))) HSs[1][1][1] HSs[1]
   TF = promote_type(typeof(t),eltype(eltype(HSs)),eltype(eltype(Vinfs)))
   n = size(HSs)[1]            # Number of horseshoes
   G = zeros(TF, n, n)      # Geometry matrix
