@@ -32,8 +32,8 @@ Returns the center of gravity of the wing, with `self` either Wing or
 WingSystem.
 """
 function get_CG(self)
-  sum_A = 0.0
-  sum_rA = fill(0.0, 3)
+  sum_A = zero(eltype(eltype(self._HSs)))
+  sum_rA = zeros(eltype(eltype(self._HSs)), 3)
   # Iterates over each panel
   for i in 1:get_m(self)
     r = get_r(self, i)
@@ -49,8 +49,9 @@ end
   Returns the mean chord length of a Wing or WingSystem
 """
 function get_barc(self)
-  sum_lA = 0.0
-  sum_A = 0.0
+  TF = eltype(eltype(self._HSs))
+  sum_lA = zero(TF)
+  sum_A = zero(TF)
 
   # Iterates over each panel
   for i in 1:get_m(self)
@@ -598,7 +599,8 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
   # Iterates over chords calculating coordinates
   prev_x = chordalign*chord_tip*clen[1]*cos(twist[1]*pi/180)
   prev_z = -chordalign*chord_tip*clen[1]*sin(twist[1]*pi/180)
-  prev_y, sec_lambda, sec_gamma = fill(0.0, 4)
+  TF = promote_type(typeof(b),eltype(pos),eltype(sweep),eltype(dihed))
+  prev_y, sec_lambda, sec_gamma = zero(TF)
   for i in 1:nchords
       cho_twist = twist[i]*pi/180       # Chord twist
       cho_len = chord_tip*clen[i]       # Chord length
@@ -1044,31 +1046,32 @@ end
 
 function check_coord_sys(M::Array{T,1} where {T<:AbstractArray}; raise_error::Bool=true)
   dims = 3
-  ad_flag = false             # Flag of automatic differentiation detected
-  ad_type = nothing           # AD dual number type
+#   ad_flag = false             # Flag of automatic differentiation detected
+#   ad_type = nothing           # AD dual number type
 
-  # Checks for automatic differentiation
-  for i in 1:dims
-    elem_type = eltype(M[i])
-    if !(supertype(elem_type) in [AbstractFloat, Signed])
-      # Case that AD was already detected: Checks for consistency of type
-      if ad_flag
-        if ad_type!=elem_type
-          error("Fail to recognize AD dual number type: Found more than one"*
-                  " ($ad_type, $elem_type)")
-        end
-      else
-        ad_flag = true
-        ad_type = elem_type
-      end
-    end
-  end
+#   # Checks for automatic differentiation
+#   for i in 1:dims
+#     elem_type = eltype(M[i])
+#     if !(supertype(elem_type) in [AbstractFloat, Signed])
+#       # Case that AD was already detected: Checks for consistency of type
+#       if ad_flag
+#         if ad_type!=elem_type
+#           error("Fail to recognize AD dual number type: Found more than one"*
+#                   " ($ad_type, $elem_type)")
+#         end
+#       else
+#         ad_flag = true
+#         ad_type = elem_type
+#       end
+#     end
+#   end
 
-  if ad_flag
-    newM = fill(zero(ad_type), dims, dims)
-  else
-    newM = fill(zero(FWrap), dims, dims)
-  end
+#   if ad_flag
+#     newM = fill(zero(ad_type), dims, dims)
+#   else
+#     newM = fill(zero(FWrap), dims, dims)
+#   end
+  newM = zeros(eltype(M), dims, dims)
 
   for i in 1:dims
     newM[i, :] = M[i]

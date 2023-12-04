@@ -176,7 +176,7 @@ function _calculate_forces(wing, rhoinf::FWrap;
   # Iterates over horseshoes
   for i in 1:m
     Ap, A, B, Bp, CP, infDA, infDB, Gamma = getHorseshoe(wing, i)
-    force = fill(0.0, 3)
+    force = zeros(promote_type(typeof(rhoinf), typeof(Gamma), eltype(Ap), eltype(A), eltype(B), eltype(Bp)), 3)
 
     # Iterates over bound vortices of the horseshoe
     for BV in [[A,B], [Ap,A], [B,Bp]]
@@ -279,7 +279,9 @@ function calculate_force_trefftz(wing, Vinf::FArrWrap, rho::FWrap;
 
   DVinf = Vinf/norm(Vinf)
 
-  Vinds = fill(zero(FWrap), m)   # Vortex sheet induced velocity at each bound vortex
+  TF = promote_type(eltype(HSs[1]),eltype(DVinf))
+
+  Vinds = zeros(TF, m)   # Vortex sheet induced velocity at each bound vortex
   for i in 1:m  # Iterates over semi-infinite vortices calculating Vind
 
     if i==1 || HSs[i-1][3]!=HSs[i][2]
@@ -325,7 +327,7 @@ function calculate_force_trefftz(wing, Vinf::FArrWrap, rho::FWrap;
   end
 
 
-  F = FArrWrap[fill(0.0, 3) for i in 1:m]
+  F = [zeros(TF, 3) for i in 1:m]
   for i in 1:m  # Iterates over bound vortex calculating induced force
     _, A, B, _, _, _, _, Gamma  = HSs[i]
     AB = B-A
@@ -344,7 +346,7 @@ end
 
 "Returns the average Vinf from all control points"
 function _aveVinf(wing; t::FWrap=0.0)
-  Vinf = fill(0.0, 3)
+  Vinf = zeros(typeof(t), 3)
   for i in 1:get_m(wing)
     Vinf += wing.Vinf(getControlPoint(wing, i), t)
   end

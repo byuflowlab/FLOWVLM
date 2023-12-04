@@ -10,14 +10,14 @@ Initiates a system of wings. All methods applicable to a Wing object are
 applicable to a WingSystem. When solved, it will calculate the interaction
 between wings.
 """
-mutable struct WingSystem
+mutable struct WingSystem{TF<:FWrap,TVinf}
   # Properties
   wings::Array{Any,1}             # Wings in the system
   wing_names::Array{String,1}     # Names of the wings
-  O::FArrWrap                     # Origin of local reference frame
-  Oaxis::FMWrap                   # Unit vectors of the local reference frame
-  invOaxis::FMWrap                # Inverse unit vectors
-  Vinf::Any                       # Vinf function used in current solution
+  O::Vector{TF}                     # Origin of local reference frame
+  Oaxis::Matrix{TF}                   # Unit vectors of the local reference frame
+  invOaxis::Matrix{TF}                # Inverse unit vectors
+  Vinf::TVinf                       # Vinf function used in current solution
 
   # Data storage
   sol::Dict{String, Any}          # Solution fields available
@@ -122,7 +122,7 @@ function setcoordsystem(self::WingSystem, O::FArrWrap,
                             Oaxis::Array{T,1} where {T<:AbstractArray};
                             check=true)
   dims = 3
-  M = fill(0.0, dims, dims)
+  M = zeros(eltype(Oaxis), dims, dims)
   for i in 1:dims
     M[i, :] = Oaxis[i]
   end
@@ -222,7 +222,7 @@ coordinate system"
 function _interpret(O2::FArrWrap, Oaxis2::FMWrap,
                     O1::FArrWrap, invOaxis1::FMWrap)
   new_O = countertransform(O2, invOaxis1, O1)
-  new_Oaxis = fill(zero(eltype(Oaxis2)), 3,3)
+  new_Oaxis = zeros(eltype(Oaxis2), 3,3)
   for i in 1:3
     unit = Oaxis2[i, :]
     new_unit = countertransform(unit, invOaxis1, [0.0, 0, 0])
@@ -237,7 +237,7 @@ coordinate system and counterinterprets it back to the 'inception1' system."
 function _counter_interpret(O2::FArrWrap, Oaxis2::FMWrap,
                     O1::FArrWrap, Oaxis1::FMWrap)
   new_O = transform(O2, Oaxis1, O1)
-  new_Oaxis = fill(zero(eltype(Oaxis2)), 3,3)
+  new_Oaxis = zeros(eltype(Oaxis2), 3,3)
   for i in 1:3
     unit = Oaxis2[i, :]
     new_unit = transform(unit, Oaxis1, [0.0, 0, 0])

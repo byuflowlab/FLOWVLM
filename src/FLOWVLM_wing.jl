@@ -23,40 +23,40 @@ leading edge in the direction of the -xaxis and trailing in the direction of the
   # Example
   `julia julia> wing = Wing(0.0, 0.0, 0.0, 10.0, 3.0);`
 """
-mutable struct Wing
+mutable struct Wing{TF<:FWrap,TVinf}
 
   # Initialization variables (USER INPUT)
-  leftxl::FWrap                 # x-position of leading edge of the left tip
-  lefty::FWrap                  # y-position of left tip
-  leftzl::FWrap                 # z-position of leading edge of the left tip
-  leftchord::FWrap              # Chord of the left tip
-  leftchordtwist::FWrap         # Angle of the chord of the left tip in degrees
+  leftxl::TF                 # x-position of leading edge of the left tip
+  lefty::TF                  # y-position of left tip
+  leftzl::TF                 # z-position of leading edge of the left tip
+  leftchord::TF              # Chord of the left tip
+  leftchordtwist::TF         # Angle of the chord of the left tip in degrees
 
   # Properties
   m::IWrap                      # Number of lattices
-  O::FArrWrap                   # Origin of local reference frame
-  Oaxis::FMWrap                 # Unit vectors of the local reference frame
-  invOaxis::FMWrap              # Inverse unit vectors
-  Vinf::Any                     # Vinf function used in current solution
+  O::Vector{TF}                   # Origin of local reference frame
+  Oaxis::Matrix{TF}                 # Unit vectors of the local reference frame
+  invOaxis::Matrix{TF}              # Inverse unit vectors
+  Vinf::TVinf                     # Vinf function used in current solution
 
   # Data storage
   ## Solved fields
   sol::Dict{String,Any}         # Dictionary storing every solved field
   ## Discretized wing geometry
-  _xlwingdcr::FArrWrap          # x-position of leading edge
-  _xtwingdcr::FArrWrap          # x-position of trailing edge
-  _ywingdcr::FArrWrap           # y-position of the chord
-  _zlwingdcr::FArrWrap          # z-position of leading edge
-  _ztwingdcr::FArrWrap          # z-position of trailing edge
+  _xlwingdcr::Vector{TF}          # x-position of leading edge
+  _xtwingdcr::Vector{TF}          # x-position of trailing edge
+  _ywingdcr::Vector{TF}           # y-position of the chord
+  _zlwingdcr::Vector{TF}          # z-position of leading edge
+  _ztwingdcr::Vector{TF}          # z-position of trailing edge
   ## VLM domain
-  _xm::FArrWrap                 # x-position of the control point
-  _ym::FArrWrap                 # y-position of the control point
-  _zm::FArrWrap                 # z-position of the control point
-  _xn::FArrWrap                 # x-position of the bound vortex
-  _yn::FArrWrap                 # y-position of the bound vortex
-  _zn::FArrWrap                 # z-position of the bound vortex
+  _xm::Vector{TF}                 # x-position of the control point
+  _ym::Vector{TF}                 # y-position of the control point
+  _zm::Vector{TF}                 # z-position of the control point
+  _xn::Vector{TF}                 # x-position of the bound vortex
+  _yn::Vector{TF}                 # y-position of the bound vortex
+  _zn::Vector{TF}                 # z-position of the bound vortex
   ## Calculation data
-  _HSs::Any              # Horseshoes
+  _HSs::Union{Nothing,Vector{Vector{TF}}}              # Horseshoes
 
   Wing(leftxl, lefty, leftzl, leftchord, leftchordtwist,
                   m=0,
@@ -277,7 +277,7 @@ function setcoordsystem(self::Wing, O::FArrWrap,
                             Oaxis::Array{T,1} where {T<:AbstractArray};
                             check=true)
   dims = 3
-  M = fill(0.0, dims, dims)
+  M = zeros(eltype(Oaxis), dims, dims)
   for i in 1:dims
     M[i, :] = Oaxis[i]
   end

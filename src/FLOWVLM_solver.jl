@@ -95,9 +95,10 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
                 t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
 
+  TF = promote_type(typeof(t),eltype(eltype(HSs)),eltype(eltype(Vinfs)))
   n = size(HSs)[1]            # Number of horseshoes
-  G = fill(zero(FWrap), n, n)      # Geometry matrix
-  Vn = fill(zero(FWrap), n)        # Normal velocity matrix
+  G = zeros(TF, n, n)      # Geometry matrix
+  Vn = zeros(TF, n)        # Normal velocity matrix
 
   ad_flag = false             # Flag of automatic differentiation detected
   ad_type = nothing           # AD dual number type
@@ -119,20 +120,20 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
       Gijn = dot(Gij, nhat)
       G[i,j] = Gijn
 
-      # Checks for automatic differentiation
-      Gijn_type = typeof(Gijn)
-      if !(supertype(Gijn_type) in [AbstractFloat, Signed])
-        # Case that AD was already detected: Checks for consistency of type
-        if ad_flag
-          if ad_type!=Gijn_type
-            error("Fail to recognize AD dual number type: Found more than one"*
-                    " ($ad_type, $Gijn_type)")
-          end
-        else
-          ad_flag = true
-          ad_type = Gijn_type
-        end
-      end
+    #   # Checks for automatic differentiation
+    #   Gijn_type = typeof(Gijn)
+    #   if !(supertype(Gijn_type) in [AbstractFloat, Signed])
+    #     # Case that AD was already detected: Checks for consistency of type
+    #     if ad_flag
+    #       if ad_type!=Gijn_type
+    #         error("Fail to recognize AD dual number type: Found more than one"*
+    #                 " ($ad_type, $Gijn_type)")
+    #       end
+    #     else
+    #       ad_flag = true
+    #       ad_type = Gijn_type
+    #     end
+    #   end
     end
 
     # Normal component of Vinf
@@ -155,15 +156,15 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
   end
 
   # ------------ SOLVES FOR GAMMA ------------
-  if ad_flag
-    adG = fill(zero(ad_type), n, n)
-    adG[:,:] = G[:,:]
-    Gamma = adG \ Vn
-  else
+#   if ad_flag
+    # adG = zeros(TF, n, n)
+    # adG[:,:] = G[:,:]
+    # Gamma = adG \ Vn
+#   else
     # invG = inv(G)
     # Gamma = invG * Vn
     Gamma = G \ Vn
-  end
+#   end
   return Gamma
 end
 
@@ -180,9 +181,10 @@ function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false,
   end
 
   Ap, A, B, Bp, CP, infDA, infDB, Gamma = HS
+  TF = eltype(HS)
 
   if only_infvortex
-      VApA, VAB, VBBp = zeros(3), zeros(3), zeros(3)
+      VApA, VAB, VBBp = zeros(TF,3), zeros(TF,3), zeros(TF,3)
   else
       VApA = _V_AB(Ap, A, C, Gamma; ign_col=ign_col)
       VAB = _V_AB(A, B, C, Gamma; ign_col=ign_col)
@@ -190,7 +192,7 @@ function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false,
   end
 
   if ign_infvortex
-    VApinf, VBpinf = zeros(3), zeros(3)
+    VApinf, VBpinf = zeros(TF,3), zeros(TF,3)
   else
     VApinf = _V_Ainf_in(Ap, infDA, C, Gamma; ign_col=ign_col)
     VBpinf = _V_Ainf_out(Bp, infDB, C, Gamma; ign_col=ign_col)
@@ -216,12 +218,14 @@ function _V_AB(A::FArrWrap, B, C, gamma; ign_col::Bool=false)
   crss = cross(r1,r2)
   magsqr = dot(crss, crss) + (regularize ? core_rad : 0)
 
+  TF = promote_type(eltype(A),eltype(B),eltype(C),typeof(gamma))
+
   # Checks colinearity
   if _check_collinear(magsqr/norm(r0), col_crit; ign_col=ign_col)
     if ign_col==false && n_col==1 && mute_warning==false
       println("\n\t magsqr:$magsqr \n\t A:$A \n\t B:$B \n\t C:$C")
     end
-    return [0.0,0.0,0.0]
+    return zeros(TF, 3)
   end
 
   F1 = crss/magsqr
@@ -261,12 +265,14 @@ function _V_Ainf_out(A::FArrWrap,
   crss = cross(infD, ApC)
   mag = sqrt(dot(crss, crss) + (regularize ? core_rad : 0) )
 
+  TF = promote_type(eltype(A),eltype(infD),eltype(C),typeof(gamma))
+
   # Checks colinearity
   if _check_collinear(mag, col_crit; ign_col=ign_col)
     if ign_col==false && n_col==1 && mute_warning==false
       println("\n\t magsqr:$magsqr \n\t A:$A \n\t infD:$infD \n\t C:$C")
     end
-    return [0.0,0.0,0.0]
+    return zeros(TF, 3)
   end
 
   h = mag/sqrt(dot(infD, infD))
