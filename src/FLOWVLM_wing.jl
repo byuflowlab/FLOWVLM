@@ -326,7 +326,6 @@ function getVinfs(self::Wing{TF}; t::FWrap=0.0, target="CP",
     Vinfs[i] = this_Vinf
   end
 
-  @show typeof(Vinfs)
   return Vinfs
 end
 

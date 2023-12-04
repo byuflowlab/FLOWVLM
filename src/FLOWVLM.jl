@@ -102,7 +102,7 @@ function solve(wing, Vinf; t::FWrap=0.0,
   # Obtain horseshoes
   HSs = getHorseshoes(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
   Vinfs = getVinfs(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
-
+  @show Vinfs typeof(Vinfs)
   # Calls the solver
   println("Sherlock!")
   @show typeof(Vinfs)
