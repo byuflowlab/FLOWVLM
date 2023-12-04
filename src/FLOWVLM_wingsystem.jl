@@ -28,7 +28,7 @@ function WingSystem(; wings=[], wing_names=String[],
     Oaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
     invOaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
     Vinf=nothing,
-  sol=Dict()
+  sol=Dict{String,Any}()
 )
     return WingSystem(wings, wing_names,
             O, Oaxis, invOaxis, Vinf, sol)
