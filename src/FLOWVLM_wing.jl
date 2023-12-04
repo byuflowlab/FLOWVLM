@@ -312,7 +312,7 @@ function getVinfs(self::Wing{TF}; t::FWrap=0.0, target="CP",
 
   # Calculates Vinf at each control point
 
-  Vinfs = Vector{Vector{TF}}(undef,0)
+  Vinfs = Vector{Vector{TF}}(undef,get_m(self))
   for i in 1:get_m(self)
     if target=="CP"
       T = getControlPoint(self, i)      # Targeted point
@@ -323,7 +323,7 @@ function getVinfs(self::Wing{TF}; t::FWrap=0.0, target="CP",
     this_Vinf = self.Vinf(T, t)
     if extraVinf!=nothing; this_Vinf += extraVinf(i, t; extraVinfArgs..., wing=self); end;
 
-    push!(Vinfs, this_Vinf)
+    Vinfs[i] = this_Vinf
   end
 
   @show typeof(Vinfs)
