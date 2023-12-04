@@ -399,7 +399,7 @@ function _addsolution(self::Wing, field_name::String, sol_field; t::FWrap=0.0)
   end
 end
 
-function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArgs...)
+function _calculateHSs(self::Wing{TF}; t::FWrap=0.0, extraVinf=nothing, extraVinfArgs...) where TF
   HSs = Vector{Vector{TF}}(undef,0)
   for i in 1:get_m(self)
     # Horseshoe geometry
