@@ -220,7 +220,7 @@ end
 transforms it into the global coordinate system. NOTE: This function only
 rotates `V` into the new axis without translating it unless otherwise indicated.
 """
-function _ccblade2global(blade::Wing{TF,<:Any}, V::FArrWrap, CW::Bool;
+function _ccblade2global(blade::Wing{TF}, V::FArrWrap, CW::Bool;
                                                         translate::Bool=false) where TF
   TF_promoted = promote_type(eltype(V), TF)
   
