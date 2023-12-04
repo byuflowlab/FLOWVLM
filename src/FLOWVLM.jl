@@ -105,7 +105,7 @@ function solve(wing, Vinf; t::FWrap=0.0,
 
   # Calls the solver
   println("Sherlock!")
-  @show Vinfs
+  @show typeof(Vinfs)
   println("Watson.")
   Gammas = VLMSolver.solve(HSs, Vinfs; t=t, vortexsheet=vortexsheet)
                             # extraVinf=extraVinf, extraVinfArgs...)
