@@ -10,14 +10,14 @@ Initiates a system of wings. All methods applicable to a Wing object are
 applicable to a WingSystem. When solved, it will calculate the interaction
 between wings.
 """
-mutable struct WingSystem{TF<:FWrap,TVinf}
+mutable struct WingSystem{TF<:FWrap}
   # Properties
   wings::Array{Any,1}             # Wings in the system
   wing_names::Array{String,1}     # Names of the wings
   O::Vector{TF}                     # Origin of local reference frame
   Oaxis::Matrix{TF}                   # Unit vectors of the local reference frame
   invOaxis::Matrix{TF}                # Inverse unit vectors
-  Vinf::TVinf                       # Vinf function used in current solution
+  Vinf::Union{Nothing,Function}                       # Vinf function used in current solution
 
   # Data storage
   sol::Dict{String, Any}          # Solution fields available

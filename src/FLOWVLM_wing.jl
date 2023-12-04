@@ -23,7 +23,7 @@ leading edge in the direction of the -xaxis and trailing in the direction of the
   # Example
   `julia julia> wing = Wing(0.0, 0.0, 0.0, 10.0, 3.0);`
 """
-mutable struct Wing{TF<:FWrap,TVinf}
+mutable struct Wing{TF<:FWrap}
 
   # Initialization variables (USER INPUT)
   leftxl::TF                 # x-position of leading edge of the left tip
@@ -37,7 +37,7 @@ mutable struct Wing{TF<:FWrap,TVinf}
   O::Vector{TF}                   # Origin of local reference frame
   Oaxis::Matrix{TF}                 # Unit vectors of the local reference frame
   invOaxis::Matrix{TF}              # Inverse unit vectors
-  Vinf::TVinf                     # Vinf function used in current solution
+  Vinf::Union{Nothing,Function}                     # Vinf function used in current solution
 
   # Data storage
   ## Solved fields
@@ -75,9 +75,9 @@ function Wing(leftxl::TF, lefty::TF, leftzl::TF, leftchord::TF, leftchordtwist::
   _yn=[lefty],
   _zn=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
   _HSs=nothing
-) where {TF,TVinf}
+) where {TF}
   TF_promoted = promote_type(TF, eltype(O), eltype(Oaxis), eltype(invOaxis))
-  return Wing{TF_promoted,TVinf}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
+  return Wing{TF_promoted}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
       m, O, Oaxis, invOaxis, Vinf,
       sol,
       _xlwingdcr, _xtwingdcr, _ywingdcr, _zlwingdcr, _ztwingdcr,

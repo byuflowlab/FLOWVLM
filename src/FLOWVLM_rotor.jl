@@ -49,7 +49,7 @@ hence the need of explicitely declaring LE_z.
 <!-- NOTE TO SELF: r is the y-direction on a wing, hence, remember to build the
                blade from root in the direction of positive y. -->
 """
-mutable struct Rotor{TF<:FWrap,TVinf}
+mutable struct Rotor{TF<:FWrap}
 
   # Initialization variables (USER INPUT)
   CW::Bool                      # True for clockwise rotation
@@ -72,7 +72,7 @@ mutable struct Rotor{TF<:FWrap,TVinf}
   sol::Dict{String,Any}         # Solution fields for CCBlade (not FLOWVLM)
 
   # Data storage
-  _wingsystem::WingSystem{TF,TVinf}       # Rotor assembly
+  _wingsystem::WingSystem{TF}       # Rotor assembly
   _r::Vector{TF}                  # Radius of each control point (on one blade)
   _chord::Vector{TF}              # Chord length at each control point
   _theta::Vector{TF}              # Angle of attack (deg) at each control point
