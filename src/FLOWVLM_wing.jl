@@ -56,7 +56,7 @@ mutable struct Wing{TF<:FWrap}
   _yn::Vector{TF}                 # y-position of the bound vortex
   _zn::Vector{TF}                 # z-position of the bound vortex
   ## Calculation data
-  _HSs::Union{Nothing,Vector{Vector{TF}}}              # Horseshoes
+  _HSs::Union{Nothing,Vector{Vector{Union{Nothing,Vector{TF}}}}}              # Horseshoes
 end
 
 function Wing(leftxl::TF, lefty::TF, leftzl::TF, leftchord::TF, leftchordtwist::TF, m=0,
