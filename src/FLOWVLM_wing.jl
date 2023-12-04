@@ -77,6 +77,8 @@ function Wing(leftxl::TF, lefty::TF, leftzl::TF, leftchord::TF, leftchordtwist::
   _HSs=nothing
 ) where {TF}
   TF_promoted = promote_type(TF, eltype(O), eltype(Oaxis), eltype(invOaxis))
+  println("Sherlock! Wing")
+  @show TF TF_promoted
   return Wing{TF_promoted}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
       m, O, Oaxis, invOaxis, Vinf,
       sol,

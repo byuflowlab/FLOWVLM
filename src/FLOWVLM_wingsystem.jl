@@ -30,7 +30,8 @@ function WingSystem(; wings=[], wing_names=String[],
     Vinf=nothing,
   sol=Dict{String,Any}()
 )
-    return WingSystem(wings, wing_names,
+    TF_promoted = promote_type(eltype(O),eltype(Oaxis),eltype(invOaxis))
+    return WingSystem{TF_promoted}(wings, wing_names,
             O, Oaxis, invOaxis, Vinf, sol)
 end
 
