@@ -434,6 +434,7 @@ function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArg
   end
   @show typeof(self._HSs) typeof(HSs)
   self._HSs = HSs
+  println("Sherlock")
 end
 
 function Base.deepcopy_internal(x::Wing, stackdict::IdDict)
