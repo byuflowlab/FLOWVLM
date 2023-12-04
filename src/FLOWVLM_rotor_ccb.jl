@@ -222,16 +222,16 @@ rotates `V` into the new axis without translating it unless otherwise indicated.
 """
 function _ccblade2global(blade::Wing{TF,<:Any}, V::FArrWrap, CW::Bool;
                                                         translate::Bool=false) where TF
-  TF = promote_type(eltype(V), TF)
+  TF_promoted = promote_type(eltype(V), TF)
   
   # CCBlade c.s. transformation matrix
   ccb_Oaxis = _ccbladeOaxis(blade, CW)
 
   # V in FLOWVLM Rotor's blade c.s.
-  V_vlm = countertransform(V, inv(ccb_Oaxis), zeros(TF, 3))
+  V_vlm = countertransform(V, inv(ccb_Oaxis), zeros(TF_promoted, 3))
 
   # V in global c.s.
-  V_glob = countertransform(V_vlm, blade.invOaxis, translate ? blade.O : zeros(TF, 3))
+  V_glob = countertransform(V_vlm, blade.invOaxis, translate ? blade.O : zeros(TF_promoted, 3))
 
   return V_glob
 end
