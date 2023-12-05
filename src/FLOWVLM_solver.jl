@@ -91,7 +91,7 @@ boundary condition of no-through flow.
                               it expects (Wing, ...).
 
 """
-function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
+function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{Vector{<:FWrap},1};
                 t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
 
@@ -210,7 +210,7 @@ end
 Returns the induced velocity of the bound vortex AB on point `C`.
 Give gamma=nothing to return the geometric factor (Fac1*Fac2).
 """
-function _V_AB(A::FArrWrap, B, C, gamma; ign_col::Bool=false)
+function _V_AB(A::Vector{<:FWrap}, B, C, gamma; ign_col::Bool=false)
 
   r0 = B-A
   r1 = C-A
@@ -250,8 +250,8 @@ Returns the induced velocity on point `C` by the semi-infinite vortex `Ainf.`
 The vortex outgoes from `A` in the direction of `infD`.
 Give `gamma=nothing` to return the geometric factor `(Fac1*Fac2)`.
 """
-function _V_Ainf_out(A::FArrWrap,
-                      infD::FArrWrap, C, gamma;
+function _V_Ainf_out(A::Vector{<:FWrap},
+                      infD::Vector{<:FWrap}, C, gamma;
                       ign_col::Bool=false)
   AC = C-A
 
@@ -296,7 +296,7 @@ Returns the induced velocity on point `C` by the semi-infinite vortex `Ainf.`
 The vortex incomes from the direction of `infD` to `A`.
 Give `gamma=nothing` to return the geometric factor `(Fac1*Fac2)`.
 """
-function _V_Ainf_in(A::FArrWrap, infD::FArrWrap, C,
+function _V_Ainf_in(A::Vector{<:FWrap}, infD::Vector{<:FWrap}, C,
                gamma; ign_col::Bool=false)
   aux = _V_Ainf_out(A, infD, C, gamma; ign_col=ign_col)
   return (-1)*aux

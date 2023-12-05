@@ -563,9 +563,9 @@ dihed = [2.0, 5.0, 7.5]     # (deg) dihedral between stations
 wing = vlm.complexWing(b, AR, n, pos, clen, twist, sweep, dihed)
 ```
 """
-function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::FArrWrap,
-                      clen::FArrWrap, twist::FArrWrap,
-                      sweep::FArrWrap, dihed::FArrWrap;
+function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::Vector{<:FWrap},
+                      clen::Vector{<:FWrap}, twist::Vector{<:FWrap},
+                      sweep::Vector{<:FWrap}, dihed::Vector{<:FWrap};
                       symmetric::Bool=true, chordalign::FWrap=0.0,
                       _ign1=false)
 
@@ -980,13 +980,13 @@ Receives the i', j', k' unit vectors of an euclidean system with origin T, and
 returns V'. (In this version, the unit vectors have been organized as a matrix
 M)
 """
-function transform(V::FArrWrap,
-                    M::FMWrap, T::FArrWrap)
+function transform(V::Vector{<:FWrap},
+                    M::Matrix{<:FWrap}, T::Vector{<:FWrap})
   return M*(V-T)
 end
 
 function transform(Vs::Array{TV,1} where {TV<:AbstractArray},
-                    M::FMWrap, T::FArrWrap)
+                    M::Matrix{<:FWrap}, T::Vector{<:FWrap})
   TF = promote_type(eltype(eltype(Vs)), eltype(M), eltype(T))
   out = Vector{TF}[]
   for V in Vs
@@ -1001,12 +1001,12 @@ into the system (i', j', k') with origin T, and returns the original V.
 To ease repetitive computation, instead of giving the unit vectors, give the
 inverse of their matrix.
 """
-function countertransform(Vp::FArrWrap, invM::FMWrap, T::FArrWrap)
+function countertransform(Vp::Vector{<:FWrap}, invM::Matrix{<:FWrap}, T::Vector{<:FWrap})
   return invM*Vp + T
 end
 
 function countertransform(Vps::Array{T,1} where {T<:AbstractArray},
-                            invM::FMWrap, T::FArrWrap)
+                            invM::Matrix{<:FWrap}, T::Vector{<:FWrap})
   TF = promote_type(eltype(eltype(Vps)), eltype(invM), eltype(T))
   out = Vector{TF}[]
   for Vp in Vps
@@ -1017,7 +1017,7 @@ end
 
 "Checks that the unit vectors given as the matrix M=[i;j;k] define a coordinate
 system"
-function check_coord_sys(M::FMWrap; raise_error::Bool=true)
+function check_coord_sys(M::Matrix{<:FWrap}; raise_error::Bool=true)
   # Checks normalization
   for i in 1:size(M)[1]
     if abs(norm(M[i,:])-1) > 0.00000001

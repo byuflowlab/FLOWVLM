@@ -264,8 +264,8 @@ end
 Redefines the local coordinate system of the wing, where `O` is the new origin
 and `Oaxis` is the matrix of unit vectors
 """
-function setcoordsystem(self::Wing, O::FArrWrap,
-                            Oaxis::FMWrap;
+function setcoordsystem(self::Wing, O::Vector{<:FWrap},
+                            Oaxis::Matrix{<:FWrap};
                             check=true)
 
   if check; check_coord_sys(Oaxis); end;
@@ -277,7 +277,7 @@ function setcoordsystem(self::Wing, O::FArrWrap,
 end
 
 
-function setcoordsystem(self::Wing, O::FArrWrap,
+function setcoordsystem(self::Wing, O::Vector{<:FWrap},
                             Oaxis::Array{T,1} where {T<:AbstractArray};
                             check=true)
   dims = 3

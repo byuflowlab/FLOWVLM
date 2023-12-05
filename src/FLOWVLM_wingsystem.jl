@@ -80,8 +80,8 @@ To change the local coordinate system of a specific wing relative to the
 system's coordinate system, give the name of the wing in an array under argument
 `wings`.
 """
-function setcoordsystem(self::WingSystem, O::FArrWrap,
-                            Oaxis::FMWrap;
+function setcoordsystem(self::WingSystem, O::Vector{<:FWrap},
+                            Oaxis::Matrix{<:FWrap};
                             check=true, wings::Array{String,1}=String[])
 
   if check; check_coord_sys(Oaxis); end;
@@ -121,7 +121,7 @@ function setcoordsystem(self::WingSystem, O::FArrWrap,
   _reset(self; keep_Vinf=true)
 end
 
-function setcoordsystem(self::WingSystem, O::FArrWrap,
+function setcoordsystem(self::WingSystem, O::Vector{<:FWrap},
                             Oaxis::Array{T,1} where {T<:AbstractArray};
                             check=true)
   dims = 3
@@ -223,8 +223,8 @@ end
 "For a coordinate system 'inception2' that is incapsulated inside another
 coordinate system 'inception1', it returns its interpretation in the global
 coordinate system"
-function _interpret(O2::FArrWrap, Oaxis2::FMWrap,
-                    O1::FArrWrap, invOaxis1::FMWrap)
+function _interpret(O2::Vector{<:FWrap}, Oaxis2::Matrix{<:FWrap},
+                    O1::Vector{<:FWrap}, invOaxis1::Matrix{<:FWrap})
   new_O = countertransform(O2, invOaxis1, O1)
   new_Oaxis = zeros(eltype(Oaxis2), 3,3)
   for i in 1:3
@@ -238,8 +238,8 @@ end
 "For a coordinate system 'inception2' that is incapsulated inside another
 coordinate system 'inception1', it receives its interpretation in the global
 coordinate system and counterinterprets it back to the 'inception1' system."
-function _counter_interpret(O2::FArrWrap, Oaxis2::FMWrap,
-                    O1::FArrWrap, Oaxis1::FMWrap)
+function _counter_interpret(O2::Vector{<:FWrap}, Oaxis2::Matrix{<:FWrap},
+                    O1::Vector{<:FWrap}, Oaxis1::Matrix{<:FWrap})
   new_O = transform(O2, Oaxis1, O1)
   new_Oaxis = zeros(eltype(Oaxis2), 3,3)
   for i in 1:3
