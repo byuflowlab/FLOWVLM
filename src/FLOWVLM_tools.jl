@@ -451,10 +451,7 @@ function simpleWing(b::FWrap, ar::FWrap, tr::FWrap,
     push!(_ref, [refinement[i][1], refinement[i][2], 1/refinement[i][3]])
   end
 
-  TF_design = promote_type(typeof(b),typeof(ar),typeof(tr),typeof(twist),typeof(lambda),typeof(gamma))
-  !isnothing(twist_tip) && (TF_design=promote_type(TF_design,typeof(twist_tip)))
-  
-  wing = Wing(x_tip, -y_tip, z_tip, c_tip, twist_t, TF_design, TF_trajectory)
+  wing = Wing(x_tip, -y_tip, z_tip, c_tip, twist_t, TF_trajectory)
   addchord(wing, 0.0, 0.0, 0.0, c_root, twist, n;
               r=r, central=central, refinement=_ref)
   addchord(wing, x_tip, y_tip, z_tip, c_tip, twist_t, n;
