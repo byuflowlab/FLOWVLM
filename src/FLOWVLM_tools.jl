@@ -32,8 +32,8 @@ Returns the center of gravity of the wing, with `self` either Wing or
 WingSystem.
 """
 function get_CG(self)
-  sum_A = zero(eltype(eltype(self._HSs)))
-  sum_rA = zeros(eltype(eltype(self._HSs)), 3)
+  sum_A = zero(eltype(self._HSs[1]))
+  sum_rA = zeros(eltype(self._HSs[1]), 3)
   # Iterates over each panel
   for i in 1:get_m(self)
     r = get_r(self, i)

@@ -182,7 +182,6 @@ function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false,
 
   Ap, A, B, Bp, CP, infDA, infDB, Gamma = HS
   TF = promote_type(eltype(Ap),eltype(A),eltype(B),eltype(Bp),eltype(infDA),eltype(infDB))
-  @show TF typeof(Ap) typeof(Gamma)
   !isnothing(Gamma) && (TF = promote_type(TF,typeof(Gamma)))
 
   if only_infvortex
