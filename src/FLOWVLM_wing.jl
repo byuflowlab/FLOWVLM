@@ -397,7 +397,6 @@ function _addsolution(self::Wing, field_name::String, sol_field; t::FWrap=0.0)
   if field_name=="Gamma"
     # _calculateHSs(self; t=t)
     for (i, gamma) in enumerate(sol_field)
-      @show self._HSs[i] typeof(self._HSs[i]) gamma
       self._HSs[i][8] = gamma
     end
   end
@@ -434,7 +433,6 @@ function _calculateHSs(self::Wing{TF}; t::FWrap=0.0, extraVinf=nothing, extraVin
     Gamma = "Gamma" in keys(self.sol) ? self.sol["Gamma"][i] : nothing
 
     HS = Union{Nothing,Vector{TF},TF}[Ap, A, B, Bp, CP, infDA, infDB, Gamma]
-    @show typeof(HS)
     push!(HSs, HS)
   end
   self._HSs = HSs
