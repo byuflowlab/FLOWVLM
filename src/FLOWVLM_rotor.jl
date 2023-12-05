@@ -66,8 +66,8 @@ mutable struct Rotor{TF_design<:FWrap,TF_trajectory<:FWrap} <: AbstractWing{TF_d
 
   # Properties
   RPM::Any                      # Current revs per minute
-  hubR::TF                   # Hub radius
-  rotorR::TF                 # Rotor radius
+  hubR::TF_design                   # Hub radius
+  rotorR::TF_design                 # Rotor radius
   m::IWrap                      # Number of control points (per blade)
   sol::Dict{String,Any}         # Solution fields for CCBlade (not FLOWVLM)
 
