@@ -179,7 +179,7 @@ of the j-th control point in the i-th blade.
 """
 function solvefromVite(self::Rotor, Vind::Array{Array{Vector{TF}, 1}, 1}, args...;
                           maxite::Int64=100, tol::Real=0.01, rlx=0.0, optargs...
-                          ) where TF<:TWrap
+                          ) where TF<:FWrap
 
                           println(rlx)
 
