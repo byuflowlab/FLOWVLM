@@ -146,7 +146,7 @@ point indicated as `target`."
 function getVinfs(self::WingSystem{TF}; t::FWrap=0.0, target="CP",
                               extraVinf=nothing, extraVinfArgs...) where TF
 
-  TF_promoted = isnothing(extraVinf) ? promote_type(TF,typeof(t)) : promote_type(TF,typeof(t),typeof(extraVinf(1,0.0)))
+  TF_promoted = isnothing(extraVinf) ? promote_type(TF,typeof(t)) : promote_type(TF,typeof(t),typeof(extraVinf(1,0.0; extraVinfArgs...)))
   Vinfs = Vector{TF_promoted}[]
   for wing in self.wings
     for V in getVinfs(wing; t=t, target=target,
