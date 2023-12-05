@@ -402,7 +402,7 @@ end
 
 "Returns the undisturbed freestream at each control point"
 function getVinfs(self::Rotor{TF}; t::FWrap=0.0, target="CP",
-                              extraVinf=nothing, extraVinfArgs...)
+                              extraVinf=nothing, extraVinfArgs...) where TF
   if !(target in keys(VLMSolver.HS_hash))
     error("Logic error! Invalid target $target.")
   end
