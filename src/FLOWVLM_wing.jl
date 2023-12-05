@@ -58,7 +58,7 @@ mutable struct Wing{TF_design<:FWrap,TF_trajectory} <: AbstractWing{TF_design,TF
   _yn::Vector{TF_design}                 # y-position of the bound vortex
   _zn::Vector{TF_design}                 # z-position of the bound vortex
   ## Calculation data
-  _HSs::Union{Nothing,Vector{Any}}              # Horseshoes
+  _HSs::Union{Nothing,Vector{Vector{Any}}}              # Horseshoes
 end
 
 function Wing(leftxl::TF_design, lefty::TF_design, leftzl::TF_design, leftchord::TF_design, leftchordtwist::TF_design, TF_trajectory=Float64; 
