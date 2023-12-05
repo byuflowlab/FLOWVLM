@@ -434,6 +434,7 @@ function _calculateHSs(self::Wing{TF}; t::FWrap=0.0, extraVinf=nothing, extraVin
     Gamma = "Gamma" in keys(self.sol) ? self.sol["Gamma"][i] : nothing
 
     HS = [Ap, A, B, Bp, CP, infDA, infDB, Gamma]
+    @show typeof(HS)
     push!(HSs, HS)
   end
   self._HSs = HSs
