@@ -123,7 +123,7 @@ end
 
 "Returns the velocity induced at point X"
 function Vind(wing::AbstractWing{TF_design,TF_trajectory}, X; t::FWrap=0.0, ign_col::Bool=false,
-                        ign_infvortex::Bool=false, only_infvortex::Bool=false) where TF
+                        ign_infvortex::Bool=false, only_infvortex::Bool=false) where {TF_design,TF_trajectory}
   TF_promoted = promote_type(TF_design,TF_trajectory,typeof(t))
   V = zeros(TF_promoted, 3)
   # Adds the velocity induced by each horseshoe
