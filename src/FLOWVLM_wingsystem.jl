@@ -81,9 +81,9 @@ To change the local coordinate system of a specific wing relative to the
 system's coordinate system, give the name of the wing in an array under argument
 `wings`.
 """
-function setcoordsystem(self::WingSystem, O::Vector{<:FWrap},
+function setcoordsystem(self::WingSystem{<:Any,TF_trajectory}, O::Vector{<:FWrap},
                             Oaxis::Matrix{<:FWrap};
-                            check=true, wings::Array{String,1}=String[])
+                            check=true, wings::Array{String,1}=String[]) where TF_trajectory
 
   if check; check_coord_sys(Oaxis); end;
 
@@ -115,9 +115,9 @@ function setcoordsystem(self::WingSystem, O::Vector{<:FWrap},
   end
 
   # Sets the new system's reference frame
-  self.O .= O
-  self.Oaxis .= Oaxis
-  self.invOaxis .= invOaxis
+  self.O .= TF_trajectory.(O)
+  self.Oaxis .= TF_trajectory.(Oaxis)
+  self.invOaxis .= TF_trajectory.(invOaxis)
 
   _reset(self; keep_Vinf=true)
 end
