@@ -63,9 +63,9 @@ end
 
 function Wing(leftxl::TF_design, lefty::TF_design, leftzl::TF_design, leftchord::TF_design, leftchordtwist::TF_design, TF_trajectory=Float64; 
   m=0,
-  O::Vector{TF_trajectory}=[0.0,0.0,0.0],
-  Oaxis::Matrix{TF_trajectory}=[1.0 0 0; 0 1 0; 0 0 1],
-  invOaxis::Matrix{TF_trajectory}=[1.0 0 0; 0 1 0; 0 0 1],
+  O=[0.0,0.0,0.0],
+  Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
+  invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
   Vinf=nothing,
   sol=Dict(),
   _xlwingdcr::Vector{TF_design}=[leftxl],
@@ -79,6 +79,9 @@ function Wing(leftxl::TF_design, lefty::TF_design, leftzl::TF_design, leftchord:
   _zn::Vector{TF_design}=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
   _HSs=nothing
 ) where {TF_design}
+  O=convert(Vector{TF_trajectory}, O)
+  Oaxis=convert(Matrix{TF_trajectory}, Oaxis)
+  invOaxis=convert(Matrix{TF_trajectory}, invOaxis)
   return Wing{TF_design, TF_trajectory}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
       m, O, Oaxis, invOaxis, Vinf,
       sol,
