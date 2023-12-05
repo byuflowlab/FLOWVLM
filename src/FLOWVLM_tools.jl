@@ -985,9 +985,10 @@ function transform(V::FArrWrap,
   return M*(V-T)
 end
 
-function transform(Vs::Array{T,1} where {T<:AbstractArray},
+function transform(Vs::Array{TV,1} where {TV<:AbstractArray},
                     M::FMWrap, T::FArrWrap)
-  out = FArrWrap[]
+  TF = promote_type(eltype(eltype(Vs)), eltype(M), eltype(T))
+  out = Vector{TF}[]
   for V in Vs
     push!(out, transform(V, M, T))
   end
@@ -1006,7 +1007,8 @@ end
 
 function countertransform(Vps::Array{T,1} where {T<:AbstractArray},
                             invM::FMWrap, T::FArrWrap)
-  out = FArrWrap[]
+  TF = promote_type(eltype(eltype(Vps)), eltype(invM), eltype(T))
+  out = Vector{TF}[]
   for Vp in Vps
     push!(out, countertransform(Vp, invM, T))
   end

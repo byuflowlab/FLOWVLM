@@ -272,7 +272,7 @@ end
 "Calculates the force induced by the wake sheet assuming it planar in the
 direction of Vinf. This method works well only for an isolated lifting surface
 and should not be used on interacting lifting surfaces."
-function calculate_force_trefftz(wing, Vinf::FArrWrap, rho::FWrap;
+function calculate_force_trefftz(wing, Vinf::Vector{<:FWrap}, rho::FWrap;
                                         per_unit_span::Bool=false)
   HSs = getHorseshoes(wing)
   m = get_m(wing)

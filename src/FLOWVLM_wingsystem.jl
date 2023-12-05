@@ -24,9 +24,9 @@ mutable struct WingSystem{TF<:FWrap} <: AbstractWing{TF}
 end
 
 function WingSystem(; wings=[], wing_names=String[],
-    O=FWrap[0.0,0.0,0.0],
-    Oaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
-    invOaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
+    O=[0.0,0.0,0.0],
+    Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
+    invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
     Vinf=nothing,
   sol=Dict{String,Any}()
 )
@@ -143,10 +143,11 @@ end
 
 "Returns the undisturbed freestream at each control point, or at the horseshoe
 point indicated as `target`."
-function getVinfs(self::WingSystem; t::FWrap=0.0, target="CP",
-                              extraVinf=nothing, extraVinfArgs...)
+function getVinfs(self::WingSystem{TF}; t::FWrap=0.0, target="CP",
+                              extraVinf=nothing, extraVinfArgs...) where TF
 
-  Vinfs = FArrWrap[]
+  TF_promoted = isnothing(extraVinf) ? promote_type(TF,typeof(t)) : promote_type(TF,typeof(t),typeof(extraVinf(1,0.0)))
+  Vinfs = Vector{TF_promoted}[]
   for wing in self.wings
     for V in getVinfs(wing; t=t, target=target,
                                   extraVinf=extraVinf, extraVinfArgs...)

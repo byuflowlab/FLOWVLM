@@ -51,16 +51,16 @@ function _regularize(booln::Bool)
   global regularize = booln
 end
 # const core_rad = FWrap(5e-10)
-const core_rad = FWrap(1e-9)
+const core_rad = 1e-9
 
 
 global blobify = false
 function _blobify(booln::Bool)
   global blobify = booln
 end
-global smoothing_rad = FWrap(1e-9)
+global smoothing_rad = 1e-9
 function _smoothing_rad(val::Real)
-  global smoothing_rad = FWrap(val)
+  global smoothing_rad = val
 end
 
 # Wincklman's regularizing function

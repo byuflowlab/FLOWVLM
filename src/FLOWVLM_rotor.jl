@@ -177,9 +177,9 @@ NOTE: Vind is expected to be in the global coordinate system.
 NOTE: Vind is expected to be formated as Vind[i][j] being the velocity vector
 of the j-th control point in the i-th blade.
 """
-function solvefromVite(self::Rotor, Vind::Array{Array{T, 1}, 1}, args...;
+function solvefromVite(self::Rotor, Vind::Array{Array{Vector{<:FWrap}, 1}, 1}, args...;
                           maxite::Int64=100, tol::Real=0.01, rlx=0.0, optargs...
-                          ) where{T<:FArrWrap}
+                          )
 
                           println(rlx)
 
@@ -243,8 +243,8 @@ NOTE: Vind is expected to be in the global coordinate system.
 NOTE: Vind is expected to be formated as Vind[i][j] being the velocity vector
 of the j-th control point in the i-th blade.
 """
-function solvefromV(self::Rotor, Vind::Array{Array{T, 1}, 1}, args...;
-                                                  optargs...) where{T<:FArrWrap}
+function solvefromV(self::Rotor, Vind::Array{Array{Vector{<:FWrap}, 1}, 1}, args...;
+                                                  optargs...)
   # ERROR CASES
   if size(Vind, 1)!=self.B
     error("Expected $(self.B) Vind entries; got $(size(Vind, 1)).")
@@ -300,12 +300,13 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
   gamma, mu_drag = calc_aerodynamicforces(self, rho; overwritegammas=gammas,
                                             overwritemus=mus_drag)
 
-  new_gamma = FWrap[]
-  new_mu = FWrap[]
-  new_Ftot = FArrWrap[]
-  new_L = FArrWrap[]
-  new_D = FArrWrap[]
-  new_S = FArrWrap[]
+  TF = promote_type(eltype(Vinf),typeof(RPM),typeof(rho),typeof(t))
+  new_gamma = TF[]
+  new_mu = TF[]
+  new_Ftot = Vector{TF}[]
+  new_L = Vector{TF}[]
+  new_D = Vector{TF}[]
+  new_S = Vector{TF}[]
 
   # Formats solution fields as a FLOWVLM solution
   for i in 1:self.B  # Iterates over blades
@@ -375,8 +376,8 @@ and `Oaxis` is the matrix of unit vectors. If the user is calling this function,
 give `user=true`, otherwise it will not do the automatic translation to blade
 coordinate system.
 """
-function setcoordsystem(self::Rotor, O::FArrWrap,
-                            Oaxis::FMWrap; user=false, args...)
+function setcoordsystem(self::Rotor, O::Vector{<:FWrap},
+                            Oaxis::Matrix{<:FWrap}; user=false, args...)
   if user
     setcoordsystem(self._wingsystem, O, Oaxis*[-1 0 0; 0 -1 0; 0 0 1.0],args...)
   else
@@ -400,7 +401,7 @@ end
 
 
 "Returns the undisturbed freestream at each control point"
-function getVinfs(self::Rotor; t::FWrap=0.0, target="CP",
+function getVinfs(self::Rotor{TF}; t::FWrap=0.0, target="CP",
                               extraVinf=nothing, extraVinfArgs...)
   if !(target in keys(VLMSolver.HS_hash))
     error("Logic error! Invalid target $target.")
@@ -408,7 +409,7 @@ function getVinfs(self::Rotor; t::FWrap=0.0, target="CP",
 
   _ = getHorseshoe(self, 1; t=t, extraVinf=extraVinf, extraVinfArgs...)
 
-  Vinfs = FArrWrap[]
+  Vinfs = Vector{TF}[]
   for i in 1:self.B
     blade_Vinfs = _calc_inflow(get_blade(self, i), get_RPM(self), t;
                                                                 target=target)
@@ -621,10 +622,10 @@ function save_loft(self::Rotor{TF}, filename::String; addtiproot=false, path="",
     this_blade = self._wingsystem.wings[i]
 
     # Transforms points from FLOWVLM blade's c.s. to global c.s.
-    this_points = FArrWrap[ gt.countertransform(p, this_blade.invOaxis,
+    this_points = Vector{TF}[ gt.countertransform(p, this_blade.invOaxis,
                                     this_blade.O) for p in points]
     if airfoils || wopwop
-      this_line_points = FArrWrap[ gt.countertransform(p, this_blade.invOaxis,
+      this_line_points = Vector{TF}[ gt.countertransform(p, this_blade.invOaxis,
                                     this_blade.O) for p in line_points]
     end
 
@@ -1146,7 +1147,7 @@ If `return_performance==true`, it returns propulsive efficiency `eta`,
 thrust coefficient `CT`, and torque coefficient `CQ` of each blade.
 
 NOTE: These loads are per unit length of span"
-function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
+function calc_distributedloads(self::Rotor{TF}, Vinf, RPM, rho::FWrap;
                                 t::FWrap=0.0, include_comps=true,
                                 return_performance=false, Vref=nothing,
                                 Uinds=nothing,
@@ -1154,34 +1155,35 @@ function calc_distributedloads(self::Rotor, Vinf, RPM, rho::FWrap;
                                 _lookuptable::Bool=false, _Vinds=nothing,
                                 hubtiploss_correction=hubtiploss_nocorrection,
                                 AR_to_360extrap = true,
-                                debug=false)
-  data = Array{FArrWrap}[]
+                                debug=false) where TF
+  TF_promoted = promote_type(TF, eltype(Vinf), typeof(RPM), typeof(rho))
+  data = Array{Vector{TF_promoted}}[]
   if debug
       if _lookuptable
-          data_thetaeffdeg = FArrWrap[]
+          data_thetaeffdeg = Vector{TF_promoted}[]
       end
   end
   if include_comps
-    data_Np     = FArrWrap[]
-    data_Tp     = FArrWrap[]
-    data_cd     = FArrWrap[]
+    data_Np     = Vector{TF_promoted}[]
+    data_Tp     = Vector{TF_promoted}[]
+    data_cd     = Vector{TF_promoted}[]
     if debug
-        data_u      = FArrWrap[]
-        data_v      = FArrWrap[]
-        data_cl     = FArrWrap[]
-        data_cn     = FArrWrap[]
-        data_ct     = FArrWrap[]
+        data_u      = Vector{TF_promoted}[]
+        data_v      = Vector{TF_promoted}[]
+        data_cl     = Vector{TF_promoted}[]
+        data_cn     = Vector{TF_promoted}[]
+        data_ct     = Vector{TF_promoted}[]
         if !_lookuptable
-            data_a      = FArrWrap[]
-            data_ap     = FArrWrap[]
-            data_phi    = FArrWrap[]
-            data_alpha  = FArrWrap[]
-            data_W      = FArrWrap[]
-            data_F      = FArrWrap[]
-            data_G      = FArrWrap[]
+            data_a      = Vector{TF_promoted}[]
+            data_ap     = Vector{TF_promoted}[]
+            data_phi    = Vector{TF_promoted}[]
+            data_alpha  = Vector{TF_promoted}[]
+            data_W      = Vector{TF_promoted}[]
+            data_F      = Vector{TF_promoted}[]
+            data_G      = Vector{TF_promoted}[]
         end
     end
-    data_roR     = FArrWrap[]
+    data_roR     = Vector{TF_promoted}[]
   end
   if debug
       ccbrotors, ccbsectionss, ccbopss = [], [], []
@@ -1440,18 +1442,19 @@ end
 "Calculates sectional aerodynamic forces in a rotor where the field
 DistributedLoad has already been solved for. It also calculates the bound
 circulation Gamma"
-function calc_aerodynamicforces(self::Rotor, rho::FWrap;
+function calc_aerodynamicforces(self::Rotor{TF}, rho::FWrap;
                                   overwritegammas=nothing, overwritemus=nothing)
   if !("DistributedLoad" in keys(self.sol))
     error("Field `DistributedLoad` not found."*
           " Call `calc_distributedloads()` before calling this function.")
   end
 
-  data_L = Array{FArrWrap}[]
-  data_D = Array{FArrWrap}[]
-  data_R = Array{FArrWrap}[]
-  data_gamma = FArrWrap[]
-  data_mu = FArrWrap[]
+  TF_promoted = promote_type(TF,typeof(rho))
+  data_L = Array{Vector{TF_promoted}}[]
+  data_D = Array{Vector{TF_promoted}}[]
+  data_R = Array{Vector{TF_promoted}}[]
+  data_gamma = Vector{TF_promoted}[]
+  data_mu = Vector{TF_promoted}[]
 
   for blade_i in 1:self.B
     V = self.sol["GlobInflow"]["field_data"][blade_i]   # Inflow at each element
@@ -1659,8 +1662,8 @@ function _resetRotor(self::Rotor; verbose=false, keep_RPM=false)
 end
 
 "Generates the blade and discretizes it into lattices"
-function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
-                          central=false, refinement=[], spl_k=5, spl_s=0.01)
+function _generate_blade(self::Rotor{TF}, n::IWrap; r::FWrap=1.0,
+                          central=false, refinement=[], spl_k=5, spl_s=0.01) where TF
 
   # Splines
   spline_k = min(size(self.r)[1]-1, spl_k)
@@ -1678,11 +1681,12 @@ function _generate_blade(self::Rotor, n::IWrap; r::FWrap=1.0,
   spl_LE_z(x) = (-1)^(self.CW)*Dierckx.evaluate(_spl_LE_z, x)
 
   # Outputs
-  out_r = FWrap[]         # Radial position of each control point
-  out_chord = FWrap[]     # Chord at each control point
-  out_theta = FWrap[]     # Angle of attach at each control point
-  out_LE_x = FWrap[]
-  out_LE_z = FWrap[]
+  TF_promoted = promote_type(TF,typeof(r))
+  out_r = TF_promoted[]         # Radial position of each control point
+  out_chord = TF_promoted[]     # Chord at each control point
+  out_theta = TF_promoted[]     # Angle of attach at each control point
+  out_LE_x = TF_promoted[]
+  out_LE_z = TF_promoted[]
 
 
   # Precalulations of complex refinement
@@ -1996,7 +2000,7 @@ end
 Returns the inflow velocity at the requested target point on all horseshoes,
 where the inflow is calculated as freestream + rotational velocity.
 """
-function _calc_inflow(blade::Wing, RPM, t::FWrap; target="CP")
+function _calc_inflow(blade::Wing{TF}, RPM, t::FWrap; target="CP") where TF
   if !(target in keys(VLMSolver.HS_hash))
     error("Logic error! Invalid target $target.")
   elseif blade._HSs==nothing
@@ -2004,8 +2008,10 @@ function _calc_inflow(blade::Wing, RPM, t::FWrap; target="CP")
   end
   t_i = VLMSolver.HS_hash[target]
 
+  TF_promoted = promote_type(TF,typeof(RPM),typeof(t))
+
   omega = 2*pi*RPM/60
-  out = FArrWrap[]
+  out = Vector{TF_promoted}[]
   O = blade.O                   # Center of rotation
   runit = blade.Oaxis[2,:]      # Radial direction
   tunit = blade.Oaxis[1,:]      # Tangential direction

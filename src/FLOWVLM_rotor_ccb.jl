@@ -199,7 +199,7 @@ CCBlade's coordinate system relative to `blade`. NOTE: This function only
 rotates `V` into the new axis without translating it unless otherwise indicated.
 (for definition of axes see notebook entry 20171202)
 """
-function _global2ccblade(blade::Wing, V::FArrWrap, CW::Bool;
+function _global2ccblade(blade::Wing, V::Vector{<:FWrap}, CW::Bool;
                                                         translate::Bool=false)
   TF = promote_type(eltype(V), eltype(eltype(blade.Oaxis)), eltype(blade.O))
 
@@ -220,7 +220,7 @@ end
 transforms it into the global coordinate system. NOTE: This function only
 rotates `V` into the new axis without translating it unless otherwise indicated.
 """
-function _ccblade2global(blade::Wing{TF}, V::FArrWrap, CW::Bool;
+function _ccblade2global(blade::Wing{TF}, V::Vector{<:FWrap}, CW::Bool;
                                                         translate::Bool=false) where TF
   TF_promoted = promote_type(eltype(V), TF)
   
