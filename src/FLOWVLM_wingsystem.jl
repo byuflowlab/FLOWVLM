@@ -115,9 +115,9 @@ function setcoordsystem(self::WingSystem{<:Any,TF_trajectory}, O::Vector{<:FWrap
   end
 
   # Sets the new system's reference frame
-  self.O .= TF_trajectory.(O)
-  self.Oaxis .= TF_trajectory.(Oaxis)
-  self.invOaxis .= TF_trajectory.(invOaxis)
+  self.O .= O
+  self.Oaxis .= Oaxis
+  self.invOaxis .= invOaxis
 
   _reset(self; keep_Vinf=true)
 end
