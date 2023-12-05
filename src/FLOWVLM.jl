@@ -114,7 +114,7 @@ end
 "Returns all the horseshoes of the Wing or WingSystem"
 function getHorseshoes(wing; t::FWrap=0.0, extraVinf...)
   m = get_m(wing)
-  HSs = Any[]
+  HSs = Array{Any,1}[]
   for i in 1:m
     push!(HSs, getHorseshoe(wing, i; t=t, extraVinf...))
   end
