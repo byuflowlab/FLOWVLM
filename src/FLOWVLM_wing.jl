@@ -406,7 +406,7 @@ function _addsolution(self::Wing, field_name::String, sol_field; t::FWrap=0.0)
 end
 
 function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArgs...)
-  HSs = []
+  HSs = Vector{Any}[]
   for i in 1:get_m(self)
     # Horseshoe geometry
     ## Points in the local coordinate system
