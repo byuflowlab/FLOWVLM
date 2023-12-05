@@ -10,7 +10,7 @@ Initiates a system of wings. All methods applicable to a Wing object are
 applicable to a WingSystem. When solved, it will calculate the interaction
 between wings.
 """
-mutable struct WingSystem{TF_design, TF_trajectory<:FWrap} <: AbstractWing{TF_design,TF_trajectory} where TF_design
+mutable struct WingSystem{TF_design, TF_trajectory<:FWrap} <: AbstractWing{TF_design,TF_trajectory}
   # Properties
   wings::Array{Any,1}             # Wings in the system
   wing_names::Array{String,1}     # Names of the wings
