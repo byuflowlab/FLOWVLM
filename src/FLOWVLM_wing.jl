@@ -405,7 +405,7 @@ function _addsolution(self::Wing, field_name::String, sol_field; t::FWrap=0.0)
   end
 end
 
-function _calculateHSs(self::Wing{TF}; t::FWrap=0.0, extraVinf=nothing, extraVinfArgs...) where TF
+function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArgs...)
   HSs = []
   for i in 1:get_m(self)
     # Horseshoe geometry
@@ -435,7 +435,7 @@ function _calculateHSs(self::Wing{TF}; t::FWrap=0.0, extraVinf=nothing, extraVin
     # Circulation
     Gamma = "Gamma" in keys(self.sol) ? self.sol["Gamma"][i] : nothing
 
-    HS = Union{Nothing,Vector{TF},TF}[Ap, A, B, Bp, CP, infDA, infDB, Gamma]
+    HS = [Ap, A, B, Bp, CP, infDA, infDB, Gamma]
     push!(HSs, HS)
   end
   self._HSs = HSs
