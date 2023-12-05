@@ -143,7 +143,7 @@ end
 "Returns the undisturbed freestream at each control point, or at the horseshoe
 point indicated as `target`."
 function getVinfs(self::WingSystem{TF_design,TF_trajectory}; t::FWrap=0.0, target="CP",
-                              extraVinf=nothing, extraVinfArgs...) where TF
+                              extraVinf=nothing, extraVinfArgs...) where {TF_design,TF_trajectory}
 
   TF_promoted = promote_type(TF_design,TF_trajectory,typeof(t))
   Vinfs = Vector{TF_promoted}[]
