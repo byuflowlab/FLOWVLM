@@ -72,7 +72,7 @@ mutable struct Rotor{TF_design<:FWrap,TF_trajectory<:FWrap} <: AbstractWing{TF_d
   sol::Dict{String,Any}         # Solution fields for CCBlade (not FLOWVLM)
 
   # Data storage
-  _wingsystem::WingSystem{TF_trajectory}       # Rotor assembly
+  _wingsystem::WingSystem{TF_design,TF_trajectory}       # Rotor assembly
   _r::Vector{TF_design}                  # Radius of each control point (on one blade)
   _chord::Vector{TF_design}              # Chord length at each control point
   _theta::Vector{TF_design}              # Angle of attack (deg) at each control point
@@ -91,7 +91,7 @@ Rotor(
     RPM=nothing,
       hubR=r[1], rotorR=r[end],
       m=0, sol=Dict(),
-    _wingsystem=WingSystem{TF_trajectory}(),
+    _wingsystem=WingSystem{TF_design,TF_trajectory}(),
       _r=TF[], _chord=TF[], _theta=TF[],
       _LE_x=TF[], _LE_z=TF[],
       _polars=ap.Polar[],

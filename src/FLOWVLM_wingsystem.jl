@@ -10,7 +10,7 @@ Initiates a system of wings. All methods applicable to a Wing object are
 applicable to a WingSystem. When solved, it will calculate the interaction
 between wings.
 """
-mutable struct WingSystem{TF_trajectory<:FWrap} <: AbstractWing{TF_design,TF_trajectory} where TF_design
+mutable struct WingSystem{TF_design, TF_trajectory<:FWrap} <: AbstractWing{TF_design,TF_trajectory} where TF_design
   # Properties
   wings::Array{Any,1}             # Wings in the system
   wing_names::Array{String,1}     # Names of the wings
@@ -23,15 +23,15 @@ mutable struct WingSystem{TF_trajectory<:FWrap} <: AbstractWing{TF_design,TF_tra
   sol::Dict{String, Any}          # Solution fields available
 end
 
-function WingSystem(; wings=[], wing_names=String[],
+function WingSystem(; TF_design=Float64, wings=[], wing_names=String[],
     O=[0.0,0.0,0.0],
     Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
     invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
     Vinf=nothing,
   sol=Dict{String,Any}()
 )
-    TF = promote_type(eltype(O),eltype(Oaxis),eltype(invOaxis))
-    return WingSystem{TF}(wings, wing_names,
+    TF_trajectory = promote_type(eltype(O),eltype(Oaxis),eltype(invOaxis))
+    return WingSystem{TF_design,TF_trajectory}(wings, wing_names,
             O, Oaxis, invOaxis, Vinf, sol)
 end
 
@@ -142,10 +142,10 @@ end
 
 "Returns the undisturbed freestream at each control point, or at the horseshoe
 point indicated as `target`."
-function getVinfs(self::WingSystem{TF}; t::FWrap=0.0, target="CP",
+function getVinfs(self::WingSystem{TF_design,TF_trajectory}; t::FWrap=0.0, target="CP",
                               extraVinf=nothing, extraVinfArgs...) where TF
 
-  TF_promoted = promote_type(TF,typeof(t))
+  TF_promoted = promote_type(TF_design,TF_trajectory,typeof(t))
   Vinfs = Vector{TF_promoted}[]
   for wing in self.wings
     for V in getVinfs(wing; t=t, target=target,
