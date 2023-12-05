@@ -308,12 +308,12 @@ function _get_Oaxis(wing)
   return wing.Oaxis
 end
 
-function Base.deepcopy_internal(x::WingSystem, stackdict::IdDict)
+function Base.deepcopy_internal(x::WingSystem{TF_design,TF_trajectory}, stackdict::IdDict) where {TF_design,TF_trajectory}
     if haskey(stackdict, x)
         return stackdict[x]
     end
 
-    y = WingSystem( Base.deepcopy_internal(x.wings, stackdict),
+    y = WingSystem{TF_design, TF_trajectory}( Base.deepcopy_internal(x.wings, stackdict),
                     Base.deepcopy_internal(x.wing_names, stackdict),
                     Base.deepcopy_internal(x.O, stackdict),
                     Base.deepcopy_internal(x.Oaxis, stackdict),
