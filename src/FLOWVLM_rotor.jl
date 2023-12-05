@@ -1443,7 +1443,7 @@ end
 DistributedLoad has already been solved for. It also calculates the bound
 circulation Gamma"
 function calc_aerodynamicforces(self::Rotor{TF}, rho::FWrap;
-                                  overwritegammas=nothing, overwritemus=nothing)
+                                  overwritegammas=nothing, overwritemus=nothing) where TF
   if !("DistributedLoad" in keys(self.sol))
     error("Field `DistributedLoad` not found."*
           " Call `calc_distributedloads()` before calling this function.")
