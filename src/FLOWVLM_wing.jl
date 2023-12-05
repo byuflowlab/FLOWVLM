@@ -2,7 +2,7 @@
 ################################################################################
 # WING CLASS
 ################################################################################
-abstract type AbstractWing{TF} end
+abstract type AbstractWing{TF_design,TF_trajectory} end
 
 """
   `Wing(leftxl, lefty, leftz, leftchord, leftchordtwist)`
@@ -25,61 +25,61 @@ leading edge in the direction of the -xaxis and trailing in the direction of the
   # Example
   `julia julia> wing = Wing(0.0, 0.0, 0.0, 10.0, 3.0);`
 """
-mutable struct Wing{TF<:FWrap} <: AbstractWing{TF}
+mutable struct Wing{TF_design<:FWrap,TF_trajectory} <: AbstractWing{TF_design,TF_trajectory}
 
   # Initialization variables (USER INPUT)
-  leftxl::TF                 # x-position of leading edge of the left tip
-  lefty::TF                  # y-position of left tip
-  leftzl::TF                 # z-position of leading edge of the left tip
-  leftchord::TF              # Chord of the left tip
-  leftchordtwist::TF         # Angle of the chord of the left tip in degrees
+  leftxl::TF_design                 # x-position of leading edge of the left tip
+  lefty::TF_design                  # y-position of left tip
+  leftzl::TF_design                 # z-position of leading edge of the left tip
+  leftchord::TF_design              # Chord of the left tip
+  leftchordtwist::TF_design         # Angle of the chord of the left tip in degrees
 
   # Properties
   m::IWrap                      # Number of lattices
-  O::Vector{TF}                   # Origin of local reference frame
-  Oaxis::Matrix{TF}                 # Unit vectors of the local reference frame
-  invOaxis::Matrix{TF}              # Inverse unit vectors
+  O::Vector{TF_trajectory}                   # Origin of local reference frame
+  Oaxis::Matrix{TF_trajectory}                 # Unit vectors of the local reference frame
+  invOaxis::Matrix{TF_trajectory}              # Inverse unit vectors
   Vinf::Union{Nothing,Function}                     # Vinf function used in current solution
 
   # Data storage
   ## Solved fields
   sol::Dict{String,Any}         # Dictionary storing every solved field
   ## Discretized wing geometry
-  _xlwingdcr::Vector{TF}          # x-position of leading edge
-  _xtwingdcr::Vector{TF}          # x-position of trailing edge
-  _ywingdcr::Vector{TF}           # y-position of the chord
-  _zlwingdcr::Vector{TF}          # z-position of leading edge
-  _ztwingdcr::Vector{TF}          # z-position of trailing edge
+  _xlwingdcr::Vector{TF_design}          # x-position of leading edge
+  _xtwingdcr::Vector{TF_design}          # x-position of trailing edge
+  _ywingdcr::Vector{TF_design}           # y-position of the chord
+  _zlwingdcr::Vector{TF_design}          # z-position of leading edge
+  _ztwingdcr::Vector{TF_design}          # z-position of trailing edge
   ## VLM domain
-  _xm::Vector{TF}                 # x-position of the control point
-  _ym::Vector{TF}                 # y-position of the control point
-  _zm::Vector{TF}                 # z-position of the control point
-  _xn::Vector{TF}                 # x-position of the bound vortex
-  _yn::Vector{TF}                 # y-position of the bound vortex
-  _zn::Vector{TF}                 # z-position of the bound vortex
+  _xm::Vector{TF_design}                 # x-position of the control point
+  _ym::Vector{TF_design}                 # y-position of the control point
+  _zm::Vector{TF_design}                 # z-position of the control point
+  _xn::Vector{TF_design}                 # x-position of the bound vortex
+  _yn::Vector{TF_design}                 # y-position of the bound vortex
+  _zn::Vector{TF_design}                 # z-position of the bound vortex
   ## Calculation data
   _HSs::Union{Nothing,Vector{Any}}              # Horseshoes
 end
 
-function Wing(leftxl::TF, lefty::TF, leftzl::TF, leftchord::TF, leftchordtwist::TF, m=0,
-  O=[0.0,0.0,0.0],
-  Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
-  invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
+function Wing(leftxl::TF_design, lefty::TF_design, leftzl::TF_design, leftchord::TF_design, leftchordtwist::TF_design, TF_trajectory=Float64; 
+  m=0,
+  O::Vector{TF_trajectory}=[0.0,0.0,0.0],
+  Oaxis::Matrix{TF_trajectory}=[1.0 0 0; 0 1 0; 0 0 1],
+  invOaxis::Matrix{TF_trajectory}=[1.0 0 0; 0 1 0; 0 0 1],
   Vinf=nothing,
   sol=Dict(),
-  _xlwingdcr=[leftxl],
-  _xtwingdcr=[leftxl+leftchord*cos(leftchordtwist*pi/180)],
-  _ywingdcr=[lefty],
-  _zlwingdcr=[leftzl],
-  _ztwingdcr=[leftzl-leftchord*sin(leftchordtwist*pi/180)],
-  _xm=TF[], _ym=TF[], _zm=TF[],
-  _xn=[leftxl+pn*leftchord*cos(leftchordtwist*pi/180)],
-  _yn=[lefty],
-  _zn=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
+  _xlwingdcr::Vector{TF_design}=[leftxl],
+  _xtwingdcr::Vector{TF_design}=[leftxl+leftchord*cos(leftchordtwist*pi/180)],
+  _ywingdcr::Vector{TF_design}=[lefty],
+  _zlwingdcr::Vector{TF_design}=[leftzl],
+  _ztwingdcr::Vector{TF_design}=[leftzl-leftchord*sin(leftchordtwist*pi/180)],
+  _xm=TF_design[], _ym=TF_design[], _zm=TF_design[],
+  _xn::Vector{TF_design}=[leftxl+pn*leftchord*cos(leftchordtwist*pi/180)],
+  _yn::Vector{TF_design}=[lefty],
+  _zn::Vector{TF_design}=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
   _HSs=nothing
-) where {TF}
-  TF_promoted = promote_type(TF, eltype(O), eltype(Oaxis), eltype(invOaxis))
-  return Wing{TF_promoted}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
+) where {TF_design}
+  return Wing{TF_design, TF_trajectory}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
       m, O, Oaxis, invOaxis, Vinf,
       sol,
       _xlwingdcr, _xtwingdcr, _ywingdcr, _zlwingdcr, _ztwingdcr,
@@ -270,9 +270,9 @@ function setcoordsystem(self::Wing, O::Vector{<:FWrap},
 
   if check; check_coord_sys(Oaxis); end;
 
-  self.O = O
-  self.Oaxis = Oaxis
-  self.invOaxis = inv(Oaxis)
+  self.O .= O
+  self.Oaxis .= Oaxis
+  self.invOaxis .= inv(Oaxis)
   _reset(self; keep_Vinf=true)
 end
 
@@ -432,7 +432,7 @@ function _calculateHSs(self::Wing{TF}; t::FWrap=0.0, extraVinf=nothing, extraVin
     # Circulation
     Gamma = "Gamma" in keys(self.sol) ? self.sol["Gamma"][i] : nothing
 
-    HS = Any[Ap, A, B, Bp, CP, infDA, infDB, Gamma]
+    HS = Union{Nothing,Vector{TF},TF}[Ap, A, B, Bp, CP, infDA, infDB, Gamma]
     push!(HSs, HS)
   end
   self._HSs = HSs

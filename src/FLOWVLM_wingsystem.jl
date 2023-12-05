@@ -10,13 +10,13 @@ Initiates a system of wings. All methods applicable to a Wing object are
 applicable to a WingSystem. When solved, it will calculate the interaction
 between wings.
 """
-mutable struct WingSystem{TF<:FWrap} <: AbstractWing{TF}
+mutable struct WingSystem{TF_trajectory<:FWrap} <: AbstractWing{TF_design,TF_trajectory}
   # Properties
   wings::Array{Any,1}             # Wings in the system
   wing_names::Array{String,1}     # Names of the wings
-  O::Vector{TF}                     # Origin of local reference frame
-  Oaxis::Matrix{TF}                   # Unit vectors of the local reference frame
-  invOaxis::Matrix{TF}                # Inverse unit vectors
+  O::Vector{TF_trajectory}                     # Origin of local reference frame
+  Oaxis::Matrix{TF_trajectory}                   # Unit vectors of the local reference frame
+  invOaxis::Matrix{TF_trajectory}                # Inverse unit vectors
   Vinf::Union{Nothing,Function}                       # Vinf function used in current solution
 
   # Data storage
@@ -113,9 +113,9 @@ function setcoordsystem(self::WingSystem, O::Vector{<:FWrap},
   end
 
   # Sets the new system's reference frame
-  self.O = O
-  self.Oaxis = Oaxis
-  self.invOaxis = invOaxis
+  self.O .= O
+  self.Oaxis .= Oaxis
+  self.invOaxis .= invOaxis
 
   _reset(self; keep_Vinf=true)
 end

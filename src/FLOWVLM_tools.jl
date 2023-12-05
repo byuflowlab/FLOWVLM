@@ -433,7 +433,7 @@ Generates a simple wing with constant twist, sweep, dihedral, and taper ratio.
 *   `r`       :   (float) horseshoes' expansion ratio
 """
 function simpleWing(b::FWrap, ar::FWrap, tr::FWrap,
-                    twist::FWrap, lambda::FWrap, gamma::FWrap;
+                    twist::FWrap, lambda::FWrap, gamma::FWrap, TF_trajectory=Float64;
                     twist_tip=nothing,
                     n::IWrap=20, r::FWrap=2.0, central=false, refinement=[])
   cr = 1/tr
@@ -451,7 +451,7 @@ function simpleWing(b::FWrap, ar::FWrap, tr::FWrap,
     push!(_ref, [refinement[i][1], refinement[i][2], 1/refinement[i][3]])
   end
 
-  wing = Wing(x_tip, -y_tip, z_tip, c_tip, twist_t)
+  wing = Wing(x_tip, -y_tip, z_tip, c_tip, twist_t, TF_design, TF_trajectory)
   addchord(wing, 0.0, 0.0, 0.0, c_root, twist, n;
               r=r, central=central, refinement=_ref)
   addchord(wing, x_tip, y_tip, z_tip, c_tip, twist_t, n;
@@ -467,7 +467,7 @@ end
 tapper). Give it `elliptic="twist"` to get an elliptic twist distribution,
 otherwise it will build an elliptic chord distribution.
 """
-function ellipticWing(b::FWrap, croot::FWrap, twistroot::FWrap; elliptic="chord",
+function ellipticWing(b::FWrap, croot::FWrap, twistroot::FWrap, TF_trajectory=Float64; elliptic="chord",
                     n::IWrap=20, r::FWrap=1/2.0, central=false, refinement=[],
                     chordalign::FWrap=0.25)
 
@@ -507,7 +507,7 @@ function ellipticWing(b::FWrap, croot::FWrap, twistroot::FWrap; elliptic="chord"
   LE_zs = chordalign*chords.*sin.(twists*pi/180)
 
   # Builds wing
-  wing = Wing(LE_xs[end], -LE_ys[end], LE_zs[end], chords[end], chords[end])
+  wing = Wing(LE_xs[end], -LE_ys[end], LE_zs[end], chords[end], chords[end], TF_trajectory)
   for (xs, ys, zs, chs, tws) in [reverse.([LE_xs, -LE_ys, LE_zs, chords, twists]),
                                                 [LE_xs, LE_ys, LE_zs, chords, twists]]
     for (i,y) in enumerate(ys)
@@ -565,7 +565,7 @@ wing = vlm.complexWing(b, AR, n, pos, clen, twist, sweep, dihed)
 """
 function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::Vector{<:FWrap},
                       clen::Vector{<:FWrap}, twist::Vector{<:FWrap},
-                      sweep::Vector{<:FWrap}, dihed::Vector{<:FWrap};
+                      sweep::Vector{<:FWrap}, dihed::Vector{<:FWrap}, TF_trajectory=Float64;
                       symmetric::Bool=true, chordalign::FWrap=0.0,
                       _ign1=false)
 
@@ -646,7 +646,7 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::Vector{<:FWrap},
   end
 
   # ------------------- BUILD WING ---------------------------------------------
-  wing = Wing(xs[1], ys[1], zs[1], cs[1], twists[1])
+  wing = Wing(xs[1], ys[1], zs[1], cs[1], twists[1], TF_trajectory)
   for i in 2:(symmetric ? 2*nchords-1 : nchords)
     addchord(wing, xs[i], ys[i], zs[i], cs[i], twists[i], ns[i-1] )
   end

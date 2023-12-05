@@ -49,15 +49,15 @@ hence the need of explicitely declaring LE_z.
 <!-- NOTE TO SELF: r is the y-direction on a wing, hence, remember to build the
                blade from root in the direction of positive y. -->
 """
-mutable struct Rotor{TF<:FWrap}
+mutable struct Rotor{TF_design<:FWrap,TF_trajectory<:FWrap} <: AbstractWing{TF_design,TF_trajectory}
 
   # Initialization variables (USER INPUT)
   CW::Bool                      # True for clockwise rotation
-  r::Vector{TF}                   # Radius position for the following variables
-  chord::Vector{TF}               # Chord length
-  theta::Vector{TF}               # Angle of attack (deg) from the rotor's axis
-  LE_x::Vector{TF}                # x-position of leading edge
-  LE_z::Vector{TF}                # z-position of leading edge (Height from plane
+  r::Vector{TF_design}                   # Radius position for the following variables
+  chord::Vector{TF_design}               # Chord length
+  theta::Vector{TF_design}               # Angle of attack (deg) from the rotor's axis
+  LE_x::Vector{TF_design}                # x-position of leading edge
+  LE_z::Vector{TF_design}                # z-position of leading edge (Height from plane
                                 #                                  of rotation)
   B::IWrap                      # Number of blades
   # Optional inputs
@@ -72,12 +72,12 @@ mutable struct Rotor{TF<:FWrap}
   sol::Dict{String,Any}         # Solution fields for CCBlade (not FLOWVLM)
 
   # Data storage
-  _wingsystem::WingSystem{TF}       # Rotor assembly
-  _r::Vector{TF}                  # Radius of each control point (on one blade)
-  _chord::Vector{TF}              # Chord length at each control point
-  _theta::Vector{TF}              # Angle of attack (deg) at each control point
-  _LE_x::Vector{TF}
-  _LE_z::Vector{TF}
+  _wingsystem::WingSystem{TF_trajectory}       # Rotor assembly
+  _r::Vector{TF_design}                  # Radius of each control point (on one blade)
+  _chord::Vector{TF_design}              # Chord length at each control point
+  _theta::Vector{TF_design}              # Angle of attack (deg) at each control point
+  _LE_x::Vector{TF_design}
+  _LE_z::Vector{TF_design}
   _polars::Array{ap.Polar, 1}   # Polar object at each control point (with x,y
                                 #  containing the exact geometric airfoil)
   _polarroot::ap.Polar          # Polar at the root
@@ -91,12 +91,12 @@ Rotor(
     RPM=nothing,
       hubR=r[1], rotorR=r[end],
       m=0, sol=Dict(),
-    _wingsystem=WingSystem(),
+    _wingsystem=WingSystem{TF_trajectory}(),
       _r=TF[], _chord=TF[], _theta=TF[],
       _LE_x=TF[], _LE_z=TF[],
       _polars=ap.Polar[],
         _polarroot=ap.dummy_polar(), _polartip=ap.dummy_polar()
-  ) where TF<:FWrap = Rotor(
+  ) where {TF<:FWrap,TF_trajectory<:FWrap} = Rotor{TF,TF_trajectory}(
         CW, r, chord, theta, LE_x, LE_z, B,
         airfoils,
         turbine_flag,
