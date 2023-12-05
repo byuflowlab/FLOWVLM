@@ -91,14 +91,14 @@ boundary condition of no-through flow.
                               it expects (Wing, ...).
 
 """
-function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{Vector{<:FWrap},1};
+function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{Vector{TF},1};
                 t::FWrap=0.0,
-                vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
+                vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...) where TF<:FWrap
 
-  TF = promote_type(typeof(t),eltype(HSs[1][1]),typeof(Vinfs[1][1]))
+  TF_promoted = promote_type(typeof(t),eltype(HSs[1][1]),TF)
   n = size(HSs)[1]            # Number of horseshoes
-  G = zeros(TF, n, n)      # Geometry matrix
-  Vn = zeros(TF, n)        # Normal velocity matrix
+  G = zeros(TF_promoted, n, n)      # Geometry matrix
+  Vn = zeros(TF_promoted, n)        # Normal velocity matrix
 
   ad_flag = false             # Flag of automatic differentiation detected
   ad_type = nothing           # AD dual number type

@@ -177,9 +177,9 @@ NOTE: Vind is expected to be in the global coordinate system.
 NOTE: Vind is expected to be formated as Vind[i][j] being the velocity vector
 of the j-th control point in the i-th blade.
 """
-function solvefromVite(self::Rotor, Vind::Array{Array{Vector{<:FWrap}, 1}, 1}, args...;
+function solvefromVite(self::Rotor, Vind::Array{Array{Vector{TF}, 1}, 1}, args...;
                           maxite::Int64=100, tol::Real=0.01, rlx=0.0, optargs...
-                          )
+                          ) where TF<:TWrap
 
                           println(rlx)
 
