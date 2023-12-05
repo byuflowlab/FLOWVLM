@@ -220,9 +220,9 @@ end
 transforms it into the global coordinate system. NOTE: This function only
 rotates `V` into the new axis without translating it unless otherwise indicated.
 """
-function _ccblade2global(blade::Wing{TF}, V::Vector{<:FWrap}, CW::Bool;
-                                                        translate::Bool=false) where TF
-  TF_promoted = promote_type(eltype(V), TF)
+function _ccblade2global(blade::Wing{TF_design,TF_trajectory}, V::Vector{<:FWrap}, CW::Bool;
+                                                        translate::Bool=false) where {TF_design,TF_trajectory}
+  TF_promoted = promote_type(eltype(V), TF_design, TF_trajectory)
   
   # CCBlade c.s. transformation matrix
   ccb_Oaxis = _ccbladeOaxis(blade, CW)

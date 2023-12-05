@@ -92,9 +92,9 @@ const FIELDS = Dict(
 # WING AND WINGSYSTEM COMMON FUNCTIONS
 ################################################################################
 "Solves the VLM of the Wing or WingSystem"
-function solve(wing::AbstractWing{TF}, Vinf; t::FWrap=0.0,
+function solve(wing::AbstractWing, Vinf; t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, keep_sol=false,
-                extraVinfArgs...) where TF
+                extraVinfArgs...)
 
   # Sets Vinf (this forces to recalculate horseshoes)
   setVinf(wing, Vinf; keep_sol=keep_sol)
@@ -122,9 +122,9 @@ function getHorseshoes(wing; t::FWrap=0.0, extraVinf...)
 end
 
 "Returns the velocity induced at point X"
-function Vind(wing::AbstractWing{TF}, X; t::FWrap=0.0, ign_col::Bool=false,
+function Vind(wing::AbstractWing{TF_design,TF_trajectory}, X; t::FWrap=0.0, ign_col::Bool=false,
                         ign_infvortex::Bool=false, only_infvortex::Bool=false) where TF
-  TF_promoted = promote_type(TF,typeof(t))
+  TF_promoted = promote_type(TF_design,TF_trajectory,typeof(t))
   V = zeros(TF_promoted, 3)
   # Adds the velocity induced by each horseshoe
   for i in 1:get_m(wing)

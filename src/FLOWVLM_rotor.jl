@@ -2000,7 +2000,7 @@ end
 Returns the inflow velocity at the requested target point on all horseshoes,
 where the inflow is calculated as freestream + rotational velocity.
 """
-function _calc_inflow(blade::Wing{TF}, RPM, t::FWrap; target="CP") where TF
+function _calc_inflow(blade::Wing{TF_design,TF_trajectory}, RPM, t::FWrap; target="CP") where {TF_design,TF_trajectory}
   if !(target in keys(VLMSolver.HS_hash))
     error("Logic error! Invalid target $target.")
   elseif blade._HSs==nothing
@@ -2008,7 +2008,7 @@ function _calc_inflow(blade::Wing{TF}, RPM, t::FWrap; target="CP") where TF
   end
   t_i = VLMSolver.HS_hash[target]
 
-  TF_promoted = promote_type(TF,typeof(RPM),typeof(t))
+  TF_promoted = promote_type(TF_design,TF_trajectory,typeof(RPM),typeof(t))
 
   omega = 2*pi*RPM/60
   out = Vector{TF_promoted}[]

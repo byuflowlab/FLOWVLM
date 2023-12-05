@@ -308,16 +308,16 @@ end
 
 "Returns the undisturbed freestream at each control point, or at the horseshoe
 point indicated as `target`."
-function getVinfs(self::Wing{TF}; t::FWrap=0.0, target="CP",
-                              extraVinf=nothing, extraVinfArgs...) where TF
+function getVinfs(self::Wing{TF_design,TF_trajectory}; t::FWrap=0.0, target="CP",
+                              extraVinf=nothing, extraVinfArgs...) where {TF_design,TF_trajectory}
   if !(target in keys(VLMSolver.HS_hash))
     error("Logic error! Invalid target $target.")
   end
   t_i = VLMSolver.HS_hash[target]
 
   # Calculates Vinf at each control point
-
-  Vinfs = Vector{Vector{TF}}(undef,get_m(self))
+  TF_promoted = promote_type(TF_design,TF_trajectory)
+  Vinfs = Vector{Vector{TF_promoted}}(undef,get_m(self))
   for i in 1:get_m(self)
     if target=="CP"
       T = getControlPoint(self, i)      # Targeted point
