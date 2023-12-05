@@ -397,7 +397,7 @@ function _addsolution(self::Wing, field_name::String, sol_field; t::FWrap=0.0)
   if field_name=="Gamma"
     # _calculateHSs(self; t=t)
     for (i, gamma) in enumerate(sol_field)
-      @show self._HSs[i][8] gamma
+      @show self._HSs[i] typeof(self._HSs[i]) gamma
       self._HSs[i][8] = gamma
     end
   end
