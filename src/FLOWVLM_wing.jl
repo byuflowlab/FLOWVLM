@@ -432,7 +432,7 @@ function _calculateHSs(self::Wing{TF}; t::FWrap=0.0, extraVinf=nothing, extraVin
     # Circulation
     Gamma = "Gamma" in keys(self.sol) ? self.sol["Gamma"][i] : nothing
 
-    HS = Union{Nothing,Vector{TF},TF}[Ap, A, B, Bp, CP, infDA, infDB, Gamma]
+    HS = Any[Ap, A, B, Bp, CP, infDA, infDB, Gamma]
     push!(HSs, HS)
   end
   self._HSs = HSs
