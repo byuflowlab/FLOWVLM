@@ -58,7 +58,7 @@ mutable struct Wing{TF<:FWrap} <: AbstractWing{TF}
   _yn::Vector{TF}                 # y-position of the bound vortex
   _zn::Vector{TF}                 # z-position of the bound vortex
   ## Calculation data
-  _HSs::Union{Nothing,Vector{Vector{Union{Nothing,TF,Vector{TF}}}}}              # Horseshoes
+  _HSs::Union{Nothing,Vector{Any}}              # Horseshoes
 end
 
 function Wing(leftxl::TF, lefty::TF, leftzl::TF, leftchord::TF, leftchordtwist::TF, m=0,
@@ -403,7 +403,7 @@ function _addsolution(self::Wing, field_name::String, sol_field; t::FWrap=0.0)
 end
 
 function _calculateHSs(self::Wing{TF}; t::FWrap=0.0, extraVinf=nothing, extraVinfArgs...) where TF
-  HSs = Vector{Vector{Union{Vector{TF},Nothing}}}(undef,0)
+  HSs = []
   for i in 1:get_m(self)
     # Horseshoe geometry
     ## Points in the local coordinate system
