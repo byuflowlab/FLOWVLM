@@ -61,7 +61,7 @@ mutable struct Rotor{TF_design<:FWrap,TF_trajectory<:FWrap} <: AbstractWing{TF_d
                                 #                                  of rotation)
   B::IWrap                      # Number of blades
   # Optional inputs
-  airfoils::Array{Tuple{TF,ap.Polar},1} # 2D airfoil properties along blade
+  airfoils::Array{Tuple{TF_design,ap.Polar},1} # 2D airfoil properties along blade
   turbine_flag::Bool            # Whether this is a wind turbine or a propeller
 
   # Properties
@@ -86,14 +86,14 @@ end
 
 Rotor(
     CW, r, chord, theta, LE_x, LE_z, B,
-    airfoils=Tuple{TF, ap.Polar}[],
+    airfoils=Tuple{TF_design, ap.Polar}[],
     turbine_flag=false,
     RPM=nothing,
       hubR=r[1], rotorR=r[end],
       m=0, sol=Dict(),
     _wingsystem=WingSystem{TF_design,TF_trajectory}(),
-      _r=TF[], _chord=TF[], _theta=TF[],
-      _LE_x=TF[], _LE_z=TF[],
+      _r=TF_design[], _chord=TF_design[], _theta=TF_design[],
+      _LE_x=TF_design[], _LE_z=TF_design[],
       _polars=ap.Polar[],
         _polarroot=ap.dummy_polar(), _polartip=ap.dummy_polar()
   ) where {TF<:FWrap,TF_trajectory<:FWrap} = Rotor{TF,TF_trajectory}(
