@@ -43,7 +43,7 @@ mutable struct Wing{TF_design<:FWrap,TF_trajectory} <: AbstractWing{TF_design,TF
 
   # Data storage
   ## Solved fields
-  sol::Dict{String,Any}         # Dictionary storing every solved field
+  sol::Dict{String,Any}                  # Dictionary storing every solved field
   ## Discretized wing geometry
   _xlwingdcr::Vector{TF_design}          # x-position of leading edge
   _xtwingdcr::Vector{TF_design}          # x-position of trailing edge
