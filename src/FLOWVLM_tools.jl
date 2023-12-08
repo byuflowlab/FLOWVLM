@@ -600,7 +600,9 @@ function complexWing(b::FWrap, AR::FWrap, n::IWrap, pos::Vector{<:FWrap},
   prev_x = chordalign*chord_tip*clen[1]*cos(twist[1]*pi/180)
   prev_z = -chordalign*chord_tip*clen[1]*sin(twist[1]*pi/180)
   TF = promote_type(typeof(b),eltype(pos),eltype(sweep),eltype(dihed))
-  prev_y, sec_lambda, sec_gamma = zero(TF)
+  prev_y = zero(TF)
+  sec_lambda = zero(TF)
+  sec_gamma = zero(TF)
   for i in 1:nchords
       cho_twist = twist[i]*pi/180       # Chord twist
       cho_len = chord_tip*clen[i]       # Chord length
