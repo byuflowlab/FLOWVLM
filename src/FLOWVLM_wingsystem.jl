@@ -37,6 +37,21 @@ function WingSystem(; TF_design=Float64, TF_trajectory=Float64, wings=[], wing_n
             O, Oaxis, invOaxis, Vinf, sol)
 end
 
+function WingSystem{TF_design,TF_trajectory}(; wings=[], wing_names=String[],
+    O=[0.0,0.0,0.0],
+    Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
+    invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
+    Vinf=nothing,
+    sol=Dict{String,Any}()
+) where {TF_design,TF_trajectory}
+    O = TF_trajectory.(O)
+    Oaxis = TF_trajectory.(Oaxis)
+    invOaxis = TF_trajectory.(invOaxis)
+
+    return WingSystem{TF_design,TF_trajectory}(wings, wing_names,
+            O, Oaxis, invOaxis, Vinf, sol)
+end
+
 """
     addwing(self::WingSystem, wing_name::String, wing::Union{Wing, Rotor})
 

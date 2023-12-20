@@ -86,17 +86,17 @@ end
 
 Rotor(
     CW, r, chord, theta, LE_x, LE_z, B,
-    airfoils=Tuple{TF_design, ap.Polar}[],
+    airfoils=Tuple{Float64, ap.Polar}[],
     turbine_flag=false,
     RPM=nothing,
       hubR=r[1], rotorR=r[end],
       m=0, sol=Dict(),
-    _wingsystem=WingSystem{TF_design,TF_trajectory}(),
-      _r=TF_design[], _chord=TF_design[], _theta=TF_design[],
-      _LE_x=TF_design[], _LE_z=TF_design[],
+    _wingsystem::WingSystem{TF_design,TF_trajectory}=WingSystem{Float64,Float64}(),
+      _r::Vector{TF_design}=Float64[], _chord::Vector{TF_design}=Float64[], _theta::Vector{TF_design}=Float64[],
+      _LE_x::Vector{TF_design}=Float64[], _LE_z::Vector{TF_design}=Float64[],
       _polars=ap.Polar[],
         _polarroot=ap.dummy_polar(), _polartip=ap.dummy_polar()
-  ) where {TF<:FWrap,TF_trajectory<:FWrap} = Rotor{TF,TF_trajectory}(
+  ) where {TF_design<:FWrap,TF_trajectory<:FWrap} = Rotor{TF_design,TF_trajectory}(
         CW, r, chord, theta, LE_x, LE_z, B,
         airfoils,
         turbine_flag,
