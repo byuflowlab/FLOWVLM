@@ -115,7 +115,6 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
   Rtip = self.rotorR
   precone = 0.0
   inflows = self.sol["CCBInflow"]["field_data"][blade_i]
-
   # Prepares airfoil polars
   af = OCCBAirfoilData[]
   for (i,polar) in enumerate(self._polars)

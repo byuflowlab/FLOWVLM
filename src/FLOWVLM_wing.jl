@@ -270,9 +270,7 @@ and `Oaxis` is the matrix of unit vectors
 function setcoordsystem(self::Wing, O::Vector{<:FWrap},
                             Oaxis::Matrix{<:FWrap};
                             check=true)
-
   if check; check_coord_sys(Oaxis); end;
-
   self.O .= O
   self.Oaxis .= Oaxis
   self.invOaxis .= inv(Oaxis)
