@@ -94,6 +94,7 @@ const FIELDS = Dict(
 "Solves the VLM of the Wing or WingSystem"
 function solve(wing, Vinf; t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, keep_sol=false,
+                mirror=false, mirror_point=[0.0,0.0,0.0], mirror_normal=[0.0,0.0,1.0],
                 extraVinfArgs...)
 
   # Sets Vinf (this forces to recalculate horseshoes)
@@ -104,7 +105,7 @@ function solve(wing, Vinf; t::FWrap=0.0,
   Vinfs = getVinfs(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
 
   # Calls the solver
-  Gammas = VLMSolver.solve(HSs, Vinfs; t=t, vortexsheet=vortexsheet)
+  Gammas = VLMSolver.solve(HSs, Vinfs; t=t, vortexsheet=vortexsheet, mirror, mirror_point, mirror_normal)
                             # extraVinf=extraVinf, extraVinfArgs...)
 
   _addsolution(wing, "Gamma", Gammas; t=t)

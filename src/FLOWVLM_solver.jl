@@ -93,6 +93,7 @@ boundary condition of no-through flow.
 """
 function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
                 t::FWrap=0.0,
+                mirror=false, mirror_point=[0.0,0.0,0.0], mirror_normal=[0.0,0.0,1.0],
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...)
 
   n = size(HSs)[1]            # Number of horseshoes
@@ -114,7 +115,7 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
     # Iterates over horseshoes
     for j in 1:n
       HS = HSs[j]
-      GeomFac = V(HS, CPi; ign_infvortex=(vortexsheet!=nothing))
+      GeomFac = V(HS, CPi; ign_infvortex=(vortexsheet!=nothing), mirror, mirror_point, mirror_normal)
       Gij = (1/4/pi)*GeomFac
       Gijn = dot(Gij, nhat)
       G[i,j] = Gijn
@@ -167,19 +168,32 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{FArrWrap,1};
   return Gamma
 end
 
+function mirror_pt(pt, mirror_point, mirror_normal)
+    distance_to_plane = dot(pt - mirror_point,mirror_normal)
+    return pt + 2 * distance_to_plane * mirror_normal
+end
+
+function mirror_HS(Ap, A, B, Bp, mirror_point, mirror_normal)
+    return mirror_pt(Ap, mirror_point, mirror_normal), mirror_pt(A, mirror_point, mirror_normal), mirror_pt(B, mirror_point, mirror_normal), mirror_pt(Bp, mirror_point, mirror_normal)
+end
 
 """
 Returns the induced velocity at `C` by horseshoe `HS`.
 It returns the geometric factor if `Gamma`==nothing.
 """
 # function V(HS::Array{Any,1}, C; ign_col::Bool=false, ign_infvortex::Bool=false)
-function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false, only_infvortex::Bool=false)
+function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false, only_infvortex::Bool=false,
+                mirror=false, mirror_point = zeros(3), mirror_normal = [0,0,1.0],
+    )
 
   if ign_infvortex && only_infvortex
       @warn("Requested only infinite wake while ignoring infinite wake.")
   end
 
   Ap, A, B, Bp, CP, infDA, infDB, Gamma = HS
+  if mirror
+      Ap_mirror, A_mirror, B_mirror, Bp_mirror = mirror_HS(Ap, A, B, Bp)
+  end
 
   if only_infvortex
       VApA, VAB, VBBp = zeros(3), zeros(3), zeros(3)
@@ -187,13 +201,22 @@ function V(HS::AbstractArray, C; ign_col::Bool=false, ign_infvortex::Bool=false,
       VApA = _V_AB(Ap, A, C, Gamma; ign_col=ign_col)
       VAB = _V_AB(A, B, C, Gamma; ign_col=ign_col)
       VBBp = _V_AB(B, Bp, C, Gamma; ign_col=ign_col)
+      if mirror
+          VApA += _V_AB(A_mirror, Ap_mirror, C, Gamma; ign_col=ign_col)  
+          VAB += _V_AB(B_mirror, A_mirror, C, Gamma; ign_col=ign_col)  
+          VBBp += _V_AB(Bp_mirror, B_mirror, C, Gamma; ign_col=ign_col)  
+      end
   end
 
   if ign_infvortex
-    VApinf, VBpinf = zeros(3), zeros(3)
+      VApinf, VBpinf = zeros(3), zeros(3)
   else
-    VApinf = _V_Ainf_in(Ap, infDA, C, Gamma; ign_col=ign_col)
-    VBpinf = _V_Ainf_out(Bp, infDB, C, Gamma; ign_col=ign_col)
+      VApinf = _V_Ainf_in(Ap, infDA, C, Gamma; ign_col=ign_col)
+      VBpinf = _V_Ainf_out(Bp, infDB, C, Gamma; ign_col=ign_col)
+      if mirror
+          VApinf += _V_Ainf_out(Ap_mirror, infDA, C, Gamma; ign_col=ign_col)
+          VBpinf += _V_Ainf_in(Bp_mirror, infDB, C, Gamma; ign_col=ign_col)
+      end
   end
 
   V = VApinf + VApA + VAB + VBBp + VBpinf
