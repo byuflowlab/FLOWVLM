@@ -92,7 +92,7 @@ const FIELDS = Dict(
 # WING AND WINGSYSTEM COMMON FUNCTIONS
 ################################################################################
 "Solves the VLM of the Wing or WingSystem"
-function solve(wing, Vinf; t::FWrap=0.0,
+function solve(wing::AbstractWing, Vinf; t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, keep_sol=false,
                 mirror=false, mirror_point=[0.0,0.0,0.0], mirror_normal=[0.0,0.0,1.0],
                 extraVinfArgs...)
@@ -103,7 +103,7 @@ function solve(wing, Vinf; t::FWrap=0.0,
   # Obtain horseshoes
   HSs = getHorseshoes(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
   Vinfs = getVinfs(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
-
+  
   # Calls the solver
   Gammas = VLMSolver.solve(HSs, Vinfs; t=t, vortexsheet=vortexsheet, mirror, mirror_point, mirror_normal)
                             # extraVinf=extraVinf, extraVinfArgs...)
@@ -123,9 +123,10 @@ function getHorseshoes(wing; t::FWrap=0.0, extraVinf...)
 end
 
 "Returns the velocity induced at point X"
-function Vind(wing, X; t::FWrap=0.0, ign_col::Bool=false,
-                        ign_infvortex::Bool=false, only_infvortex::Bool=false)
-  V = fill(0.0, 3)
+function Vind(wing::AbstractWing{TF_design,TF_trajectory}, X; t::FWrap=0.0, ign_col::Bool=false,
+                        ign_infvortex::Bool=false, only_infvortex::Bool=false) where {TF_design,TF_trajectory}
+  TF_promoted = promote_type(TF_design,TF_trajectory,typeof(t))
+  V = zeros(TF_promoted, 3)
   # Adds the velocity induced by each horseshoe
   for i in 1:get_m(wing)
     HS = getHorseshoe(wing, i; t=t)

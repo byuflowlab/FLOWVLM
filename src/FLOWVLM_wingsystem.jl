@@ -10,27 +10,46 @@ Initiates a system of wings. All methods applicable to a Wing object are
 applicable to a WingSystem. When solved, it will calculate the interaction
 between wings.
 """
-mutable struct WingSystem
+mutable struct WingSystem{TF_design, TF_trajectory<:FWrap} <: AbstractWing{TF_design,TF_trajectory}
   # Properties
   wings::Array{Any,1}             # Wings in the system
   wing_names::Array{String,1}     # Names of the wings
-  O::FArrWrap                     # Origin of local reference frame
-  Oaxis::FMWrap                   # Unit vectors of the local reference frame
-  invOaxis::FMWrap                # Inverse unit vectors
-  Vinf::Any                       # Vinf function used in current solution
+  O::Vector{TF_trajectory}                     # Origin of local reference frame
+  Oaxis::Matrix{TF_trajectory}                   # Unit vectors of the local reference frame
+  invOaxis::Matrix{TF_trajectory}                # Inverse unit vectors
+  Vinf::Union{Nothing,Function}                       # Vinf function used in current solution
 
   # Data storage
   sol::Dict{String, Any}          # Solution fields available
+end
 
-  WingSystem( wings=[], wing_names=String[],
-                O=FWrap[0.0,0.0,0.0],
-                Oaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
-                invOaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
-                Vinf=nothing,
-              sol=Dict()
-      ) = new(wings, wing_names,
-                O, Oaxis, invOaxis, Vinf,
-              sol)
+function WingSystem(; TF_design=Float64, TF_trajectory=Float64, wings=[], wing_names=String[],
+    O=[0.0,0.0,0.0],
+    Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
+    invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
+    Vinf=nothing,
+  sol=Dict{String,Any}()
+)
+    O = TF_trajectory.(O)
+    Oaxis = TF_trajectory.(Oaxis)
+    invOaxis = TF_trajectory.(invOaxis)
+    return WingSystem{TF_design,TF_trajectory}(wings, wing_names,
+            O, Oaxis, invOaxis, Vinf, sol)
+end
+
+function WingSystem{TF_design,TF_trajectory}(; wings=[], wing_names=String[],
+    O=[0.0,0.0,0.0],
+    Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
+    invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
+    Vinf=nothing,
+    sol=Dict{String,Any}()
+) where {TF_design,TF_trajectory}
+    O = TF_trajectory.(O)
+    Oaxis = TF_trajectory.(Oaxis)
+    invOaxis = TF_trajectory.(invOaxis)
+
+    return WingSystem{TF_design,TF_trajectory}(wings, wing_names,
+            O, Oaxis, invOaxis, Vinf, sol)
 end
 
 """
@@ -77,9 +96,9 @@ To change the local coordinate system of a specific wing relative to the
 system's coordinate system, give the name of the wing in an array under argument
 `wings`.
 """
-function setcoordsystem(self::WingSystem, O::FArrWrap,
-                            Oaxis::FMWrap;
-                            check=true, wings::Array{String,1}=String[])
+function setcoordsystem(self::WingSystem{<:Any,TF_trajectory}, O::Vector{<:FWrap},
+                            Oaxis::Matrix{<:FWrap};
+                            check=true, wings::Array{String,1}=String[]) where TF_trajectory
 
   if check; check_coord_sys(Oaxis); end;
 
@@ -111,18 +130,18 @@ function setcoordsystem(self::WingSystem, O::FArrWrap,
   end
 
   # Sets the new system's reference frame
-  self.O = O
-  self.Oaxis = Oaxis
-  self.invOaxis = invOaxis
+  self.O .= O
+  self.Oaxis .= Oaxis
+  self.invOaxis .= invOaxis
 
   _reset(self; keep_Vinf=true)
 end
 
-function setcoordsystem(self::WingSystem, O::FArrWrap,
+function setcoordsystem(self::WingSystem, O::Vector{<:FWrap},
                             Oaxis::Array{T,1} where {T<:AbstractArray};
                             check=true)
   dims = 3
-  M = fill(0.0, dims, dims)
+  M = zeros(eltype(Oaxis), dims, dims)
   for i in 1:dims
     M[i, :] = Oaxis[i]
   end
@@ -140,10 +159,11 @@ end
 
 "Returns the undisturbed freestream at each control point, or at the horseshoe
 point indicated as `target`."
-function getVinfs(self::WingSystem; t::FWrap=0.0, target="CP",
-                              extraVinf=nothing, extraVinfArgs...)
+function getVinfs(self::WingSystem{TF_design,TF_trajectory}; t::FWrap=0.0, target="CP",
+                              extraVinf=nothing, extraVinfArgs...) where {TF_design,TF_trajectory}
 
-  Vinfs = FArrWrap[]
+  TF_promoted = promote_type(TF_design,TF_trajectory,typeof(t))
+  Vinfs = Vector{TF_promoted}[]
   for wing in self.wings
     for V in getVinfs(wing; t=t, target=target,
                                   extraVinf=extraVinf, extraVinfArgs...)
@@ -219,10 +239,10 @@ end
 "For a coordinate system 'inception2' that is incapsulated inside another
 coordinate system 'inception1', it returns its interpretation in the global
 coordinate system"
-function _interpret(O2::FArrWrap, Oaxis2::FMWrap,
-                    O1::FArrWrap, invOaxis1::FMWrap)
+function _interpret(O2::Vector{<:FWrap}, Oaxis2::Matrix{<:FWrap},
+                    O1::Vector{<:FWrap}, invOaxis1::Matrix{<:FWrap})
   new_O = countertransform(O2, invOaxis1, O1)
-  new_Oaxis = fill(zero(eltype(Oaxis2)), 3,3)
+  new_Oaxis = zeros(eltype(Oaxis2), 3,3)
   for i in 1:3
     unit = Oaxis2[i, :]
     new_unit = countertransform(unit, invOaxis1, [0.0, 0, 0])
@@ -234,10 +254,10 @@ end
 "For a coordinate system 'inception2' that is incapsulated inside another
 coordinate system 'inception1', it receives its interpretation in the global
 coordinate system and counterinterprets it back to the 'inception1' system."
-function _counter_interpret(O2::FArrWrap, Oaxis2::FMWrap,
-                    O1::FArrWrap, Oaxis1::FMWrap)
+function _counter_interpret(O2::Vector{<:FWrap}, Oaxis2::Matrix{<:FWrap},
+                    O1::Vector{<:FWrap}, Oaxis1::Matrix{<:FWrap})
   new_O = transform(O2, Oaxis1, O1)
-  new_Oaxis = fill(zero(eltype(Oaxis2)), 3,3)
+  new_Oaxis = zeros(eltype(Oaxis2), 3,3)
   for i in 1:3
     unit = Oaxis2[i, :]
     new_unit = transform(unit, Oaxis1, [0.0, 0, 0])
@@ -305,12 +325,12 @@ function _get_Oaxis(wing)
   return wing.Oaxis
 end
 
-function Base.deepcopy_internal(x::WingSystem, stackdict::IdDict)
+function Base.deepcopy_internal(x::WingSystem{TF_design,TF_trajectory}, stackdict::IdDict) where {TF_design,TF_trajectory}
     if haskey(stackdict, x)
         return stackdict[x]
     end
 
-    y = WingSystem( Base.deepcopy_internal(x.wings, stackdict),
+    y = WingSystem{TF_design, TF_trajectory}( Base.deepcopy_internal(x.wings, stackdict),
                     Base.deepcopy_internal(x.wing_names, stackdict),
                     Base.deepcopy_internal(x.O, stackdict),
                     Base.deepcopy_internal(x.Oaxis, stackdict),

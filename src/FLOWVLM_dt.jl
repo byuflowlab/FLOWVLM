@@ -8,15 +8,11 @@ const dev_flag = true
 if dev_flag
   const FWrap = Float64             # Float wrapper
   const IWrap = Int64               # Int wrapper
-  const FArrWrap = Array{FWrap,1}   # Float array wrapper
   const IArrWrap = Array{IWrap,1}   # Int array wrapper
-  const FMWrap = Array{FWrap,2}     # Float matrix wrapper
   const IMWrap = Array{IWrap,2}     # Int matrix wrapper
 else
-  const FWrap = Real
+  const FWrap = Number
   const IWrap = Int64
-  const FArrWrap = Array{T,1} where {T<:FWrap}
   const IArrWrap = Array{IWrap,1}
-  const FMWrap = Array{T,2} where {T<:FWrap}
-  const IMWrap = Array{IWrap,2}
+  const IMWrap = AbstractArray{IWrap,2}
 end
