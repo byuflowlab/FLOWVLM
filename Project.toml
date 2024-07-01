@@ -4,15 +4,16 @@ authors = ["Eduardo J. Alvarez <Edo.AlvarezR@gmail.com>"]
 version = "2.1.2"
 
 [deps]
-PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
-Dierckx = "39dd38d3-220a-591b-8e3c-4c3a8c710a94"
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
-GeometricTools = "83792f5e-c6a1-11e8-2e0a-93511f02ae5f"
 AirfoilPrep = "008c61af-3522-4e14-81c5-9301d18a9f66"
 CCBlade = "e1828068-15df-11e9-03e4-ef195ea46fa4"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Dierckx = "39dd38d3-220a-591b-8e3c-4c3a8c710a94"
+FLOWMath = "6cb5d3fb-0fe8-4cc2-bd89-9fe0b19a99d3"
+GeometricTools = "83792f5e-c6a1-11e8-2e0a-93511f02ae5f"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 
 [compat]
-GeometricTools = "2.1.1"
 AirfoilPrep = "2.1.2"
 CCBlade = "0.1.0"
+GeometricTools = "2.1.1"
