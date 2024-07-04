@@ -243,8 +243,8 @@ NOTE: Vind is expected to be in the global coordinate system.
 NOTE: Vind is expected to be formated as Vind[i][j] being the velocity vector
 of the j-th control point in the i-th blade.
 """
-function solvefromV(self::Rotor, Vind::Array{Array{Vector{<:FWrap}, 1}, 1}, args...;
-                                                  optargs...)
+function solvefromV(self::Rotor, Vind::Vector{Vector{Vector{TF}}}, args...;
+                                                  optargs...) where TF<:Number
   # ERROR CASES
   if size(Vind, 1)!=self.B
     error("Expected $(self.B) Vind entries; got $(size(Vind, 1)).")
@@ -1087,7 +1087,7 @@ rotor, and it calculates the inflow velocity field that each control point
 sees in the global coordinate system"
 function calc_inflow(self::Rotor{TF}, Vinf, RPM; t::FWrap=0.0, Vinds=nothing) where TF
   omega = 2*pi*RPM/60
-  TF_promoted = promote_type(TF,typeof(Vinf),typeof(RPM),typeof(t))
+  TF_promoted = promote_type(TF,typeof(RPM),typeof(t))
 
   data_Vtots = Array{Vector{TF_promoted}}[]     # Inflow in the global c.s.
   data_Vccbs = Array{Vector{TF_promoted}}[]     # Inflow in CCBlade's c.s.

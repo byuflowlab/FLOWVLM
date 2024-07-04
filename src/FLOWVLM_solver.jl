@@ -95,7 +95,7 @@ function solve(HSs::Array{Array{Any,1},1}, Vinfs::Array{Vector{TF},1};
                 t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, extraVinfArgs...) where TF<:FWrap
 
-  TF_promoted = promote_type(typeof(t),eltype(HSs[1][1]),TF)
+  TF_promoted = length(HSs) > 0 ? promote_type(typeof(t),eltype(HSs[1][1]),TF) : promote_type(typeof(t),TF)
   n = size(HSs)[1]            # Number of horseshoes
   G = zeros(TF_promoted, n, n)      # Geometry matrix
   Vn = zeros(TF_promoted, n)        # Normal velocity matrix
