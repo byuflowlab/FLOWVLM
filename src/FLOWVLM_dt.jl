@@ -3,7 +3,7 @@
 # input types, however, in order to get automatic gradients types must be
 # dynamic. The following flag turns number inputs into hard types (floats or
 # ints) if true, or into dynamic types if false.
-const dev_flag = true
+const dev_flag = false
 
 if dev_flag
   const FWrap = Float64             # Float wrapper

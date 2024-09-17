@@ -125,14 +125,15 @@ function setcoordsystem(self::WingSystem{<:Any,TF_trajectory}, O::Vector{<:FWrap
                                                       self.O, self.Oaxis)
     # New frame in global coordinates
     new_O, new_Oaxis = _interpret(local_curr_O, local_curr_Oaxis, O, invOaxis)
-
     setcoordsystem(wing, new_O, new_Oaxis)
   end
+
 
   # Sets the new system's reference frame
   self.O .= O
   self.Oaxis .= Oaxis
   self.invOaxis .= invOaxis
+
 
   _reset(self; keep_Vinf=true)
 end
@@ -163,7 +164,7 @@ function getVinfs(self::WingSystem{TF_design,TF_trajectory}; t::FWrap=0.0, targe
                               extraVinf=nothing, extraVinfArgs...) where {TF_design,TF_trajectory}
 
   TF_promoted = promote_type(TF_design,TF_trajectory,typeof(t))
-  Vinfs = Vector{TF_promoted}[]
+  Vinfs = Vector{TF_promoted}[] 
   for wing in self.wings
     for V in getVinfs(wing; t=t, target=target,
                                   extraVinf=extraVinf, extraVinfArgs...)
@@ -242,7 +243,8 @@ coordinate system"
 function _interpret(O2::Vector{<:FWrap}, Oaxis2::Matrix{<:FWrap},
                     O1::Vector{<:FWrap}, invOaxis1::Matrix{<:FWrap})
   new_O = countertransform(O2, invOaxis1, O1)
-  new_Oaxis = zeros(eltype(Oaxis2), 3,3)
+  T = promote_type(eltype(O2), eltype(Oaxis2), eltype(O1), eltype(invOaxis1))
+  new_Oaxis = zeros(T, 3,3)
   for i in 1:3
     unit = Oaxis2[i, :]
     new_unit = countertransform(unit, invOaxis1, [0.0, 0, 0])
@@ -285,10 +287,13 @@ end
 function _addsolution(self::WingSystem, field_name::String, sol_field; t::FWrap=0.0)
   self.sol[field_name] = sol_field
   prev_m = 0
-  for wing in self.wings
-    this_m = get_m(wing)
-    _addsolution(wing, field_name, sol_field[ (prev_m+1) : prev_m+this_m ]; t=t)
-    prev_m += this_m
+  if length(sol_field) > 1 
+    for wing in self.wings
+      this_m = get_m(wing)
+      # @show field_name prev_m+1 prev_m+this_m sol_field
+      _addsolution(wing, field_name, sol_field[ (prev_m+1) : prev_m+this_m ]; t=t)
+      prev_m += this_m
+    end
   end
 end
 

@@ -270,9 +270,7 @@ and `Oaxis` is the matrix of unit vectors
 function setcoordsystem(self::Wing, O::Vector{<:FWrap},
                             Oaxis::Matrix{<:FWrap};
                             check=true)
-
   if check; check_coord_sys(Oaxis); end;
-
   self.O .= O
   self.Oaxis .= Oaxis
   self.invOaxis .= inv(Oaxis)
@@ -340,7 +338,7 @@ function getHorseshoe(self::Wing, m::IWrap; t::FWrap=0.0, extraVinf...)
   if m>self.m || m<=0
     error("Invalid m (m>self.m or m<=0)")
   elseif false==("Gamma" in keys(self.sol)) && self.Vinf==nothing
-    error("Freestream hasn't been define yet, please call function setVinf()")
+    error("Freestream hasn't been defined yet, please call function setVinf()")
   end
 
   # Calculates horseshoes if not available
