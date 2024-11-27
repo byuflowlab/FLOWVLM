@@ -287,11 +287,13 @@ end
 function _addsolution(self::WingSystem, field_name::String, sol_field; t::FWrap=0.0)
   self.sol[field_name] = sol_field
   prev_m = 0
-  for wing in self.wings
-    this_m = get_m(wing)
-    # @show field_name prev_m+1 prev_m+this_m sol_field
-    _addsolution(wing, field_name, sol_field[ (prev_m+1) : prev_m+this_m ]; t=t)
-    prev_m += this_m
+  if length(sol_field) > 1 
+    for wing in self.wings
+      this_m = get_m(wing)
+      # @show field_name prev_m+1 prev_m+this_m sol_field
+      _addsolution(wing, field_name, sol_field[ (prev_m+1) : prev_m+this_m ]; t=t)
+      prev_m += this_m
+    end
   end
 end
 

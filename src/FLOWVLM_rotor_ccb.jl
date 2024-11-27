@@ -2,8 +2,8 @@
 
 # pretabulated cl/cd data
 struct OCCBAirfoilData
-    cl::Dierckx.Spline1D
-    cd::Dierckx.Spline1D
+    cl::fm.Akima
+    cd::fm.Akima
 end
 
 """
@@ -54,8 +54,11 @@ function occb_af_from_data(alpha, cl, cd; spl_k=3)
     k = min(length(alpha)-1, spl_k)  # can't use cubic spline if number of entries in alpha is small
 
     # 1D interpolations for now.  ignoring Re dependence (which is very minor)
-    afcl = Dierckx.Spline1D(alpha*pi/180.0, cl; k=k, s=0.1)
-    afcd = Dierckx.Spline1D(alpha*pi/180.0, cd; k=k, s=0.001)
+    # afcl = Dierckx.Spline1D(alpha*pi/180.0, cl; k=k, s=0.1)
+    # afcd = Dierckx.Spline1D(alpha*pi/180.0, cd; k=k, s=0.001)
+    afcl = fm.Akima(alpha*pi/180.0, cl)
+    afcd = fm.Akima(alpha*pi/180.0, cd)
+
     af = OCCBAirfoilData(afcl, afcd)
 
     return af
@@ -117,7 +120,7 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
   inflows = self.sol["CCBInflow"]["field_data"][blade_i]
   # Prepares airfoil polars
   af = OCCBAirfoilData[]
-  for (i,polar) in enumerate(self._polars)
+  for (i,this_polar) in enumerate(self._polars)
     r_over_R = self._r[i] / Rtip
     c_over_r = self._chord[i] / self._r[i]
     #   NOTE: Here I'm taking the freestream to be the absolute value CCBlade's
@@ -126,21 +129,22 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     tsr = this_Vinf < 1e-4 ? nothing : (2*pi*RPM/60 * Rtip) / this_Vinf
 
     # Mach correction
-    if sound_spd!=nothing
-      Ma = sqrt(inflows[i][1]^2+inflows[i][2]^2+inflows[i][3]^2)/sound_spd
-      if Ma>=1
-        error("Mach correction requested on Ma = $Ma >= 1.0")
-      end
-      alpha, cl = ap.get_cl(polar)
-      this_polar = ap.Polar(ap.get_Re(polar), alpha, cl/sqrt(1-Ma^2),
-                              ap.get_cd(polar)[2], ap.get_cm(polar)[2];
-                                            ap._get_nonpypolar_args(polar)...)
-    else
-      this_polar = polar
-    end
+    # if sound_spd!=nothing
+    #   Ma = sqrt(inflows[i][1]^2+inflows[i][2]^2+inflows[i][3]^2)/sound_spd
+    #   if Ma>=1
+    #     error("Mach correction requested on Ma = $Ma >= 1.0")
+    #   end
+    #   alpha, cl = ap.get_cl(polar)
+    #   this_polar = ap.Polar(ap.get_Re(polar), alpha, cl/sqrt(1-Ma^2),
+    #                           ap.get_cd(polar)[2], ap.get_cm(polar)[2];
+    #                                         ap._get_nonpypolar_args(polar)...)
+    # else
+    #   this_polar = polar
+    # end
+
 
     # 3D corrections
-    this_polar = ap.correction3D(this_polar, r_over_R, c_over_r, tsr)
+    # this_polar = ap.correction3D(this_polar, r_over_R, c_over_r, tsr)
 
     # 360 extrapolation
     if AR_to_360extrap
@@ -161,6 +165,22 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     # Converts to CCBlade's AirfoilData object
     alpha, cl = ap.get_cl(this_polar)
     _, cd = ap.get_cd(this_polar)
+
+    # Mach correction
+
+    # Mach correction
+    if sound_spd!=nothing
+      Ma = sqrt(inflows[i][1]^2+inflows[i][2]^2+inflows[i][3]^2)/sound_spd
+      if Ma<1
+          cl = cl/sqrt(1-Ma^2)
+      end
+    end
+
+
+
+    # 3D correction
+    
+
     ccb_polar = occb_af_from_data(alpha, cl, cd; spl_k=5)
 
     if out_ccb_polars != nothing; push!(out_ccb_polars, ccb_polar); end;

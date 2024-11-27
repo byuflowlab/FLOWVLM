@@ -26,6 +26,9 @@ gt = GeometricTools
 import CCBlade
 ccb = CCBlade
 
+import FLOWMath
+fm = FLOWMath
+
 # ------------ HEADERS ---------------------------------------------------------
 for header_name in ["dt", "solver", "wing", "wingsystem",
                             "postprocessing", "rotor_ccb", "rotor", "tools"]
@@ -95,20 +98,38 @@ const FIELDS = Dict(
 function solve(wing::AbstractWing, Vinf; t::FWrap=0.0,
                 vortexsheet=nothing, extraVinf=nothing, keep_sol=false,
                 extraVinfArgs...)
-
+  # if haskey(wing.sol, "Gamma")
+  #   @show "1" wing.sol["Gamma"][1].partials
+  # end
   # Sets Vinf (this forces to recalculate horseshoes)
   setVinf(wing, Vinf; keep_sol=keep_sol)
+
+  # if haskey(wing.sol, "Gamma")
+  #   @show "2" wing.sol["Gamma"][1].partials
+  # end
 
   # Obtain horseshoes
   HSs = getHorseshoes(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
   Vinfs = getVinfs(wing; t=t, extraVinf=extraVinf, extraVinfArgs...)
-  
+
+  # if haskey(wing.sol, "Gamma")
+  #   @show "3" wing.sol["Gamma"][1].partials
+  # end
+
   # Calls the solver
   Gammas = VLMSolver.solve(HSs, Vinfs; t=t, vortexsheet=vortexsheet)
                             # extraVinf=extraVinf, extraVinfArgs...)
 
+  # if haskey(wing.sol, "Gamma")
+  #   @show "4" wing.sol["Gamma"][1].partials
+  # end
+
   _addsolution(wing, "Gamma", Gammas; t=t)
   _addsolution(wing, "Vinf", Vinfs; t=t)
+
+  # if haskey(wing.sol, "Gamma")
+  #   @show "5" wing.sol["Gamma"][1].partials
+  # end
 end
 
 "Returns all the horseshoes of the Wing or WingSystem"
