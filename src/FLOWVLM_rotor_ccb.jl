@@ -186,9 +186,19 @@ function OCCB2CCB(orotor::OCCBRotor, turbine::Bool, oinflow::OCCBInflow;
 
     airfoil_funs = [(alpha, Re, Mach) -> occb_airfoil(af, alpha) for af in orotor.af]
 
-    sections = ccb.Section.(orotor.r, orotor.chord, orotor.theta, airfoil_funs)
+    # sections = ccb.Section.(orotor.r, orotor.chord, orotor.theta, airfoil_funs)
+    # sections = [ccb.Section(r, c, tht, rfl) for (r, c, tht, rfl) in zip(orotor.r, orotor.chord, orotor.theta, airfoil_funs)]
+    sections = []
+    for (r, c, tht, rfl) in zip(orotor.r, orotor.chord, orotor.theta, airfoil_funs)
+        push!(sections, ccb.Section(r, c, tht, rfl))
+    end
 
-    ops = ccb.OperatingPoint.(oinflow.Vx, oinflow.Vy, oinflow.rho)
+    # ops = ccb.OperatingPoint.(oinflow.Vx, oinflow.Vy, oinflow.rho)
+    # ops = [ccb.OperatingPoint(Vx, Vy, oinflow.rho) for (Vx, Vy) in zip(oinflow.Vx, oinflow.Vy)]
+    ops = []
+    for (Vx, Vy) in zip(oinflow.Vx, oinflow.Vy)
+        push!(ops, ccb.OperatingPoint(Vx, Vy, oinflow.rho))
+    end
 
     return rotor, sections, ops
 end
