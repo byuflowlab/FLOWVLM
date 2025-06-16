@@ -1,7 +1,7 @@
 name = "FLOWVLM"
 uuid = "1a3ff0be-0410-4572-aa62-b496bdd1f33b"
 authors = ["Eduardo J. Alvarez <Edo.AlvarezR@gmail.com>"]
-version = "2.1.3"
+version = "2.1.4"
 
 [deps]
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
@@ -13,6 +13,6 @@ AirfoilPrep = "008c61af-3522-4e14-81c5-9301d18a9f66"
 CCBlade = "e1828068-15df-11e9-03e4-ef195ea46fa4"
 
 [compat]
-GeometricTools = "2.1.1"
-AirfoilPrep = "2.1.2"
+GeometricTools = "2.3"
+AirfoilPrep = "2.1.3"
 CCBlade = "0.1.0"
