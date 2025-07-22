@@ -98,7 +98,7 @@ system's coordinate system, give the name of the wing in an array under argument
 """
 function setcoordsystem(self::WingSystem{<:Any,TF_trajectory}, O::Vector{<:FWrap},
                             Oaxis::Matrix{<:FWrap};
-                            check=true, wings::Array{String,1}=String[]) where TF_trajectory
+                            check=true, wings::Array{String,1}=String[], reset=true) where TF_trajectory
 
   if check; check_coord_sys(Oaxis); end;
 
@@ -106,10 +106,12 @@ function setcoordsystem(self::WingSystem{<:Any,TF_trajectory}, O::Vector{<:FWrap
   if size(wings)[1]!=0
     for wing_name in wings
       wing = get_wing(self, wing_name)
-      setcoordsystem(wing, O, Oaxis; check=false)
+      setcoordsystem(wing, O, Oaxis; check=false, reset=reset)
       addwing(self, wing_name, wing; overwrite=true)
     end
-    _reset(self; keep_Vinf=true)
+    if reset
+      _reset(self; keep_Vinf=true)
+    end
     return
   end
 
@@ -125,7 +127,7 @@ function setcoordsystem(self::WingSystem{<:Any,TF_trajectory}, O::Vector{<:FWrap
                                                       self.O, self.Oaxis)
     # New frame in global coordinates
     new_O, new_Oaxis = _interpret(local_curr_O, local_curr_Oaxis, O, invOaxis)
-    setcoordsystem(wing, new_O, new_Oaxis)
+    setcoordsystem(wing, new_O, new_Oaxis, reset=reset)
   end
 
 
@@ -134,8 +136,9 @@ function setcoordsystem(self::WingSystem{<:Any,TF_trajectory}, O::Vector{<:FWrap
   self.Oaxis .= Oaxis
   self.invOaxis .= invOaxis
 
-
-  _reset(self; keep_Vinf=true)
+  if reset
+    _reset(self; keep_Vinf=true)
+  end
 end
 
 function setcoordsystem(self::WingSystem, O::Vector{<:FWrap},

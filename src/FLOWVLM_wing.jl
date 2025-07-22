@@ -269,12 +269,14 @@ and `Oaxis` is the matrix of unit vectors
 """
 function setcoordsystem(self::Wing, O::Vector{<:FWrap},
                             Oaxis::Matrix{<:FWrap};
-                            check=true)
+                            check=true,reset=true)
   if check; check_coord_sys(Oaxis); end;
   self.O .= O
   self.Oaxis .= Oaxis
   self.invOaxis .= inv(Oaxis)
-  _reset(self; keep_Vinf=true)
+  if reset
+    _reset(self; keep_Vinf=true)
+  end
 end
 
 

@@ -417,14 +417,16 @@ give `user=true`, otherwise it will not do the automatic translation to blade
 coordinate system.
 """
 function setcoordsystem(self::Rotor, O::Vector{<:FWrap},
-                            Oaxis::Matrix{<:FWrap}; user=false, args...)
+                            Oaxis::Matrix{<:FWrap}; user=false, reset=true, args...)
   if user
-    setcoordsystem(self._wingsystem, O, Oaxis*[-1 0 0; 0 -1 0; 0 0 1.0],args...)
+    setcoordsystem(self._wingsystem, O, Oaxis*[-1 0 0; 0 -1 0; 0 0 1.0], args...; reset=reset)
   else
-    setcoordsystem(self._wingsystem, O, Oaxis ,args...)
+    setcoordsystem(self._wingsystem, O, Oaxis ,args...; reset=reset)
   end
 
-  _resetRotor(self; keep_RPM=true)
+  if reset
+    _resetRotor(self; keep_RPM=true)
+  end
 end
 
 """
@@ -1127,7 +1129,7 @@ sees in the global coordinate system"
 function calc_inflow(self::Rotor{TF_design, TF_trajectory}, Vinf, RPM; t::FWrap=0.0, Vinds=nothing) where {TF_design, TF_trajectory}
   omega = 2*pi*RPM/60
   # TF_promoted = promote_type(TF,typeof(Vinf),typeof(RPM),typeof(t))
-  TF_promoted = promote_type(TF_design, TF_trajectory, eltype(Vinf(zero(TF_design),t)),eltype(RPM),eltype(t))
+  TF_promoted = promote_type(TF_design, TF_trajectory, eltype(Vinf(zeros(TF_design, 3),t)),eltype(RPM),eltype(t))
 
   data_Vtots = Array{Vector{TF_promoted}}[]     # Inflow in the global c.s.
   data_Vccbs = Array{Vector{TF_promoted}}[]     # Inflow in CCBlade's c.s.
