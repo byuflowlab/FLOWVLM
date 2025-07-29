@@ -2,6 +2,8 @@
 ################################################################################
 # WING CLASS
 ################################################################################
+abstract type AbstractWing{TF_design,TF_trajectory} end
+
 """
   `Wing(leftxl, lefty, leftz, leftchord, leftchordtwist)`
 
@@ -23,65 +25,70 @@ leading edge in the direction of the -xaxis and trailing in the direction of the
   # Example
   `julia julia> wing = Wing(0.0, 0.0, 0.0, 10.0, 3.0);`
 """
-mutable struct Wing
+mutable struct Wing{TF_design<:FWrap,TF_trajectory} <: AbstractWing{TF_design,TF_trajectory}
 
   # Initialization variables (USER INPUT)
-  leftxl::FWrap                 # x-position of leading edge of the left tip
-  lefty::FWrap                  # y-position of left tip
-  leftzl::FWrap                 # z-position of leading edge of the left tip
-  leftchord::FWrap              # Chord of the left tip
-  leftchordtwist::FWrap         # Angle of the chord of the left tip in degrees
+  leftxl::TF_design                 # x-position of leading edge of the left tip
+  lefty::TF_design                  # y-position of left tip
+  leftzl::TF_design                 # z-position of leading edge of the left tip
+  leftchord::TF_design              # Chord of the left tip
+  leftchordtwist::TF_design         # Angle of the chord of the left tip in degrees
 
   # Properties
   m::IWrap                      # Number of lattices
-  O::FArrWrap                   # Origin of local reference frame
-  Oaxis::FMWrap                 # Unit vectors of the local reference frame
-  invOaxis::FMWrap              # Inverse unit vectors
-  Vinf::Any                     # Vinf function used in current solution
+  O::Vector{TF_trajectory}                   # Origin of local reference frame
+  Oaxis::Matrix{TF_trajectory}                 # Unit vectors of the local reference frame
+  invOaxis::Matrix{TF_trajectory}              # Inverse unit vectors
+  Vinf::Union{Nothing,Function}                     # Vinf function used in current solution
 
   # Data storage
   ## Solved fields
-  sol::Dict{String,Any}         # Dictionary storing every solved field
+  sol::Dict{String,Any}                  # Dictionary storing every solved field
   ## Discretized wing geometry
-  _xlwingdcr::FArrWrap          # x-position of leading edge
-  _xtwingdcr::FArrWrap          # x-position of trailing edge
-  _ywingdcr::FArrWrap           # y-position of the chord
-  _zlwingdcr::FArrWrap          # z-position of leading edge
-  _ztwingdcr::FArrWrap          # z-position of trailing edge
+  _xlwingdcr::Vector{TF_design}          # x-position of leading edge
+  _xtwingdcr::Vector{TF_design}          # x-position of trailing edge
+  _ywingdcr::Vector{TF_design}           # y-position of the chord
+  _zlwingdcr::Vector{TF_design}          # z-position of leading edge
+  _ztwingdcr::Vector{TF_design}          # z-position of trailing edge
   ## VLM domain
-  _xm::FArrWrap                 # x-position of the control point
-  _ym::FArrWrap                 # y-position of the control point
-  _zm::FArrWrap                 # z-position of the control point
-  _xn::FArrWrap                 # x-position of the bound vortex
-  _yn::FArrWrap                 # y-position of the bound vortex
-  _zn::FArrWrap                 # z-position of the bound vortex
+  _xm::Vector{TF_design}                 # x-position of the control point
+  _ym::Vector{TF_design}                 # y-position of the control point
+  _zm::Vector{TF_design}                 # z-position of the control point
+  _xn::Vector{TF_design}                 # x-position of the bound vortex
+  _yn::Vector{TF_design}                 # y-position of the bound vortex
+  _zn::Vector{TF_design}                 # z-position of the bound vortex
   ## Calculation data
-  _HSs::Any              # Horseshoes
+  _HSs::Union{Nothing,Vector{Vector{Any}}}              # Horseshoes
+end
 
-  Wing(leftxl, lefty, leftzl, leftchord, leftchordtwist,
-                  m=0,
-                    O=FWrap[0.0,0.0,0.0],
-                    Oaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
-                    invOaxis=FWrap[1.0 0 0; 0 1 0; 0 0 1],
-                    Vinf=nothing,
-                  sol=Dict(),
-                  _xlwingdcr=FWrap[leftxl],
-                    _xtwingdcr=FWrap[leftxl+leftchord*cos(leftchordtwist*pi/180)],
-                    _ywingdcr=FWrap[lefty],
-                    _zlwingdcr=FWrap[leftzl],
-                    _ztwingdcr=FWrap[leftzl-leftchord*sin(leftchordtwist*pi/180)],
-                  _xm=FWrap[], _ym=FWrap[], _zm=FWrap[],
-                  _xn=FWrap[leftxl+pn*leftchord*cos(leftchordtwist*pi/180)],
-                    _yn=FWrap[lefty],
-                    _zn=FWrap[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
-                  _HSs=nothing
-              ) = new(leftxl, lefty, leftzl, leftchord, leftchordtwist,
-                      m, O, Oaxis, invOaxis, Vinf,
-                      sol,
-                      _xlwingdcr, _xtwingdcr, _ywingdcr, _zlwingdcr, _ztwingdcr,
-                      _xm, _ym, _zm, _xn, _yn, _zn,
-                      _HSs
-                      )
+function Wing(leftxl::TF_design, lefty::TF_design, leftzl::TF_design, leftchord::TF_design, leftchordtwist::TF_design, TF_trajectory=Float64; 
+  m=0,
+  O=[0.0,0.0,0.0],
+  Oaxis=[1.0 0 0; 0 1 0; 0 0 1],
+  invOaxis=[1.0 0 0; 0 1 0; 0 0 1],
+  Vinf=nothing,
+  sol=Dict(),
+  _xlwingdcr::Vector{TF_design}=[leftxl],
+  _xtwingdcr::Vector{TF_design}=[leftxl+leftchord*cos(leftchordtwist*pi/180)],
+  _ywingdcr::Vector{TF_design}=[lefty],
+  _zlwingdcr::Vector{TF_design}=[leftzl],
+  _ztwingdcr::Vector{TF_design}=[leftzl-leftchord*sin(leftchordtwist*pi/180)],
+  _xm=TF_design[], _ym=TF_design[], _zm=TF_design[],
+  _xn::Vector{TF_design}=[leftxl+pn*leftchord*cos(leftchordtwist*pi/180)],
+  _yn::Vector{TF_design}=[lefty],
+  _zn::Vector{TF_design}=[leftzl-pn*leftchord*sin(leftchordtwist*pi/180)],
+  _HSs=nothing
+) where {TF_design}
+  O=convert(Vector{TF_trajectory}, O)
+  Oaxis=convert(Matrix{TF_trajectory}, Oaxis)
+  invOaxis=convert(Matrix{TF_trajectory}, invOaxis)
+  return Wing{TF_design, TF_trajectory}(leftxl, lefty, leftzl, leftchord, leftchordtwist,
+      m, O, Oaxis, invOaxis, Vinf,
+      sol,
+      _xlwingdcr, _xtwingdcr, _ywingdcr, _zlwingdcr, _ztwingdcr,
+      _xm, _ym, _zm, _xn, _yn, _zn,
+      _HSs
+  )
 end
 
 
@@ -260,24 +267,24 @@ end
 Redefines the local coordinate system of the wing, where `O` is the new origin
 and `Oaxis` is the matrix of unit vectors
 """
-function setcoordsystem(self::Wing, O::FArrWrap,
-                            Oaxis::FMWrap;
+function setcoordsystem(self::Wing, O::Vector{<:FWrap},
+                            Oaxis::Matrix{<:FWrap};
                             check=true)
 
   if check; check_coord_sys(Oaxis); end;
 
-  self.O = O
-  self.Oaxis = Oaxis
-  self.invOaxis = inv(Oaxis)
+  self.O .= O
+  self.Oaxis .= Oaxis
+  self.invOaxis .= inv(Oaxis)
   _reset(self; keep_Vinf=true)
 end
 
 
-function setcoordsystem(self::Wing, O::FArrWrap,
+function setcoordsystem(self::Wing, O::Vector{<:FWrap},
                             Oaxis::Array{T,1} where {T<:AbstractArray};
                             check=true)
   dims = 3
-  M = fill(0.0, dims, dims)
+  M = zeros(eltype(Oaxis), dims, dims)
   for i in 1:dims
     M[i, :] = Oaxis[i]
   end
@@ -301,15 +308,16 @@ end
 
 "Returns the undisturbed freestream at each control point, or at the horseshoe
 point indicated as `target`."
-function getVinfs(self::Wing; t::FWrap=0.0, target="CP",
-                              extraVinf=nothing, extraVinfArgs...)
+function getVinfs(self::Wing{TF_design,TF_trajectory}; t::FWrap=0.0, target="CP",
+                              extraVinf=nothing, extraVinfArgs...) where {TF_design,TF_trajectory}
   if !(target in keys(VLMSolver.HS_hash))
     error("Logic error! Invalid target $target.")
   end
   t_i = VLMSolver.HS_hash[target]
 
   # Calculates Vinf at each control point
-  Vinfs = FArrWrap[]
+  TF_promoted = promote_type(TF_design,TF_trajectory)
+  Vinfs = Vector{Vector{TF_promoted}}(undef,get_m(self))
   for i in 1:get_m(self)
     if target=="CP"
       T = getControlPoint(self, i)      # Targeted point
@@ -320,7 +328,7 @@ function getVinfs(self::Wing; t::FWrap=0.0, target="CP",
     this_Vinf = self.Vinf(T, t)
     if extraVinf!=nothing; this_Vinf += extraVinf(i, t; extraVinfArgs..., wing=self); end;
 
-    push!(Vinfs, this_Vinf)
+    Vinfs[i] = this_Vinf
   end
 
   return Vinfs
@@ -398,7 +406,7 @@ function _addsolution(self::Wing, field_name::String, sol_field; t::FWrap=0.0)
 end
 
 function _calculateHSs(self::Wing; t::FWrap=0.0, extraVinf=nothing, extraVinfArgs...)
-  HSs = Array{Any,1}[]
+  HSs = Vector{Any}[]
   for i in 1:get_m(self)
     # Horseshoe geometry
     ## Points in the local coordinate system

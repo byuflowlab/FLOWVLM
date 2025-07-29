@@ -21,22 +21,22 @@ Define rotor geometry.
 - `B::Int64`: number of blades
 - `precone::Float64`: precone angle (rad)
 """
-struct OCCBRotor
-    r#::Array{Float64, 1}
-    chord#::Array{Float64, 1}
-    theta#::Array{Float64, 1}
-    af#::Array{AirfoilData, 1}
-    Rhub#::Float64
-    Rtip#::Float64
-    B#::Int64
-    precone#::Float64
+struct OCCBRotor{TFr,TFC,TFt,Taf,TFrh,TFrt,TFp}
+    r::Vector{TFr}
+    chord::Vector{TFC}
+    theta::Vector{TFt}
+    af::Taf
+    Rhub::TFrh
+    Rtip::TFrt
+    B::IWrap
+    precone::TFp
 end
 
 # operating point for the turbine/propeller
-struct OCCBInflow
-    Vx#::Array{Float64, 1}
-    Vy#::Array{Float64, 1}
-    rho#::Float64
+struct OCCBInflow{TFv,TFrho}
+    Vx::Vector{TFv}
+    Vy::Vector{TFv}
+    rho::TFrho
 end
 
 """
@@ -54,8 +54,8 @@ function occb_af_from_data(alpha, cl, cd; spl_k=3)
     k = min(length(alpha)-1, spl_k)  # can't use cubic spline if number of entries in alpha is small
 
     # 1D interpolations for now.  ignoring Re dependence (which is very minor)
-    afcl = Dierckx.Spline1D(alpha*pi/180.0, cl; k=k, s=0.1)
-    afcd = Dierckx.Spline1D(alpha*pi/180.0, cd; k=k, s=0.001)
+    afcl = Dierckx.Spline1D(alpha*pi/180.0, cl; k=k, s=0.0)
+    afcd = Dierckx.Spline1D(alpha*pi/180.0, cd; k=k, s=0.0)
     af = OCCBAirfoilData(afcl, afcd)
 
     return af
@@ -209,16 +209,18 @@ CCBlade's coordinate system relative to `blade`. NOTE: This function only
 rotates `V` into the new axis without translating it unless otherwise indicated.
 (for definition of axes see notebook entry 20171202)
 """
-function _global2ccblade(blade::Wing, V::FArrWrap, CW::Bool;
+function _global2ccblade(blade::Wing, V::Vector{<:FWrap}, CW::Bool;
                                                         translate::Bool=false)
+  TF = promote_type(eltype(V), eltype(eltype(blade.Oaxis)), eltype(blade.O))
+
   # V in FLOWVLM Rotor's blade c.s.
-  V_vlm = transform(V, blade.Oaxis, translate ? blade.O : fill(0.0, 3))
+  V_vlm = transform(V, blade.Oaxis, translate ? blade.O : zeros(TF, 3))
 
   # CCBlade c.s. transformation matrix
   ccb_Oaxis = _ccbladeOaxis(blade, CW)
 
   # V in CCBlade's c.s.
-  V_ccb = transform(V_vlm, ccb_Oaxis, fill(0.0, 3))
+  V_ccb = transform(V_vlm, ccb_Oaxis, zeros(TF, 3))
 
   return V_ccb
 end
@@ -228,16 +230,18 @@ end
 transforms it into the global coordinate system. NOTE: This function only
 rotates `V` into the new axis without translating it unless otherwise indicated.
 """
-function _ccblade2global(blade::Wing, V::FArrWrap, CW::Bool;
-                                                        translate::Bool=false)
+function _ccblade2global(blade::Wing{TF_design,TF_trajectory}, V::Vector{<:FWrap}, CW::Bool;
+                                                        translate::Bool=false) where {TF_design,TF_trajectory}
+  TF_promoted = promote_type(eltype(V), TF_design, TF_trajectory)
+  
   # CCBlade c.s. transformation matrix
   ccb_Oaxis = _ccbladeOaxis(blade, CW)
 
   # V in FLOWVLM Rotor's blade c.s.
-  V_vlm = countertransform(V, inv(ccb_Oaxis), fill(0.0, 3))
+  V_vlm = countertransform(V, inv(ccb_Oaxis), zeros(TF_promoted, 3))
 
   # V in global c.s.
-  V_glob = countertransform(V_vlm, blade.invOaxis, translate ? blade.O : fill(0.0, 3))
+  V_glob = countertransform(V_vlm, blade.invOaxis, translate ? blade.O : zeros(TF_promoted, 3))
 
   return V_glob
 end
