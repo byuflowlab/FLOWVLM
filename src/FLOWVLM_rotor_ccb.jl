@@ -54,8 +54,8 @@ function occb_af_from_data(alpha, cl, cd; spl_k=3)
     k = min(length(alpha)-1, spl_k)  # can't use cubic spline if number of entries in alpha is small
 
     # 1D interpolations for now.  ignoring Re dependence (which is very minor)
-    afcl = Dierckx.Spline1D(alpha*pi/180.0, cl; k=k, s=0.1)
-    afcd = Dierckx.Spline1D(alpha*pi/180.0, cd; k=k, s=0.001)
+    afcl = Dierckx.Spline1D(alpha*pi/180.0, cl; k=k, s=0.0)
+    afcd = Dierckx.Spline1D(alpha*pi/180.0, cd; k=k, s=0.0)
     af = OCCBAirfoilData(afcl, afcd)
 
     return af
