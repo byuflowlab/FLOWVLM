@@ -181,8 +181,11 @@ Convert a rotor object from the old-CCBlade format to the new CCBlade type.
 """
 function OCCB2CCB(orotor::OCCBRotor, turbine::Bool, oinflow::OCCBInflow;
                                                                 pitch::Real=0.0)
-    rotor = ccb.Rotor(orotor.Rhub, orotor.Rtip, orotor.B,
-                                    turbine, pitch, orotor.precone)
+    # rotor = ccb.Rotor(orotor.Rhub, orotor.Rtip, orotor.B,
+    #                                 turbine, pitch, orotor.precone)
+
+    rotor = ccb.Rotor(orotor.Rhub, orotor.Rtip, orotor.B;
+                                    turbine, precone=orotor.precone)
 
     airfoil_funs = [(alpha, Re, Mach) -> occb_airfoil(af, alpha) for af in orotor.af]
 
