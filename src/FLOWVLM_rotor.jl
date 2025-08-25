@@ -398,11 +398,11 @@ function save(self::Rotor, filename::String; addtiproot=true, airfoils=false,
 
   strn = save(self._wingsystem, filename; save_horseshoes=save_horseshoes, args...)
 
-  # if size(self.airfoils)[1]!=0
-  #   strn *= save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils,
-  #                               wopwop=wopwop, wopbin=wopbin, wopext=wopext,
-  #                               wopv=wopv, args...)
-  # end
+  if size(self.airfoils)[1]!=0
+    strn *= save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils,
+                                wopwop=wopwop, wopbin=wopbin, wopext=wopext,
+                                wopv=wopv, args...)
+  end
 
   return strn
 end
