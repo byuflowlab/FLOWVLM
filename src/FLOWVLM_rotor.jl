@@ -327,6 +327,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                             _lookuptable::Bool=false, _Vinds=nothing,
                             hubtiploss_correction=hubtiploss_nocorrection,
                             AR_to_360extrap=true,
+                            apply_correction3D=true, apply_extrapolate=true,
                             debug=false, verbosewarn=true)
 
   setVinf(self, Vinf)
@@ -348,6 +349,7 @@ function solvefromCCBlade(self::Rotor, Vinf, RPM, rho::FWrap; t::FWrap=0.0,
                                         _lookuptable=_lookuptable, _Vinds=_Vinds,
                                         hubtiploss_correction=hubtiploss_correction,
                                         AR_to_360extrap=AR_to_360extrap,
+                                        apply_correction3D=apply_correction3D, apply_extrapolate=apply_extrapolate,
                                         debug=debug)
 
   # Decomposes load into aerodynamic forces and calculates circulation
@@ -1209,6 +1211,7 @@ function calc_distributedloads(self::Rotor{TF}, Vinf, RPM, rho::FWrap;
                                 _lookuptable::Bool=false, _Vinds=nothing,
                                 hubtiploss_correction=hubtiploss_nocorrection,
                                 AR_to_360extrap = true,
+                                apply_correction3D=true, apply_extrapolate=true,
                                 debug=false) where TF
   TF_promoted = promote_type(TF, eltype(Vinf), typeof(RPM), typeof(rho))
   data = Array{Vector{TF_promoted}}[]
@@ -1267,7 +1270,8 @@ function calc_distributedloads(self::Rotor{TF}, Vinf, RPM, rho::FWrap;
 
     # Generates old-CCBlade Rotor object
     occbrotor = FLOWVLM2OCCBlade(self, RPM, blade_i, turbine_flag;
-                                                            sound_spd=sound_spd, AR_to_360extrap=AR_to_360extrap)
+                                                            sound_spd=sound_spd, AR_to_360extrap=AR_to_360extrap,
+                                                            apply_correction3D=apply_correction3D, apply_extrapolate=apply_extrapolate)
     # Convert old-CCBlade rotor to current CCBlade rotor type
     ccbrotor, ccbsections, ccbops = OCCB2CCB(occbrotor, turbine_flag,
                                                         occbinflow; pitch=0.0)

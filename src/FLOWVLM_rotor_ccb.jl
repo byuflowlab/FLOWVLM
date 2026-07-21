@@ -97,6 +97,7 @@ future development as needed.
 function FLOWVLM2OCCBlade(self,#::Rotor,
                           RPM, blade_i::IWrap, turbine_flag::Bool;
                           sound_spd=nothing, AR_to_360extrap=true, CDmax = 1.3,
+                          apply_correction3D=true, apply_extrapolate=true,
                           out_polars=nothing, out_ccb_polars=nothing)
 
 
@@ -141,17 +142,21 @@ function FLOWVLM2OCCBlade(self,#::Rotor,
     end
 
     # 3D corrections
-    this_polar = ap.correction3D(this_polar, r_over_R, c_over_r, tsr)
+    if apply_correction3D
+        this_polar = ap.correction3D(this_polar, r_over_R, c_over_r, tsr)
+    end
 
     # 360 extrapolation
-    if AR_to_360extrap
-        # use a linear interpolation instead of Splines; then don't expose this flag in FLOWUnsteady
-        c_spline1D = Spline1D(self._r / self.rotorR, self._chord; k=1)
-        c_75 = c_spline1D(0.75)
-        AR = c_75 / self.rotorR
-        this_polar = ap.extrapolate(this_polar, CDmax, AR=AR)
-    else
-        this_polar = ap.extrapolate(this_polar, CDmax)
+    if apply_extrapolate
+        if AR_to_360extrap
+            # use a linear interpolation instead of Splines; then don't expose this flag in FLOWUnsteady
+            c_spline1D = Spline1D(self._r / self.rotorR, self._chord; k=1)
+            c_75 = c_spline1D(0.75)
+            AR = c_75 / self.rotorR
+            this_polar = ap.extrapolate(this_polar, CDmax, AR=AR)
+        else
+            this_polar = ap.extrapolate(this_polar, CDmax)
+        end
     end
 
     # Makes sure the polar is injective for easing the spline
