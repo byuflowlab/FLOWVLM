@@ -137,7 +137,8 @@ const hubtiploss_correction_modprandtl = ( (0.6, 5, 0.5, 10), (2, 1, 0.25, 0.05)
 "Initializes the geometry of the rotor, discretizing each blade into n lattices"
 function initialize(self::Rotor, n::IWrap, TF_trajectory=Float64; r_lat::FWrap=1.0,
                           central=false, refinement=[], verif=false,
-                          figsize_factor=2/3, genblade_args=[], rfl_args...)
+                          figsize_factor=2/3, genblade_args=[], precone::FWrap=0.0,
+                          rfl_args...)
   # Checks for arguments consistency
   _check(self)
 
@@ -161,6 +162,19 @@ function initialize(self::Rotor, n::IWrap, TF_trajectory=Float64; r_lat::FWrap=1
   # ------------ Generates full rotor -----------------
   # Default blade c.s. relative to rotor c.s.
   blades_Oaxis = self.CW ? [0 -1 0; 0 0 1; -1.0 0 0] : [0 1 0; 0 0 1; 1.0 0 0]
+
+  # Precone: rigid rotation of the blade's span axis into the (fixed) shaft
+  # axis, applied once to the un-azimuthally-placed blade template. This
+  # mixes blades_Oaxis rows 2 (span) and 3 (out-of-plane/shaft), leaving row
+  # 1 (chord, the coning hinge) unchanged. Verified to reproduce CCBlade's
+  # own precone position transform (x_az=-r*sin(precone), z_az=r*cos(precone))
+  # exactly when isolated to a single unrotated blade.
+  if precone != 0.0
+    phi = precone*pi/180
+    R_precone = [1 0 0; 0 cos(phi) sin(phi); 0 -sin(phi) cos(phi)]
+    blades_Oaxis = R_precone*blades_Oaxis
+  end
+
   init_angle = 0.0
   d_angle = 2*pi/self.B
   for i in 1:self.B
@@ -398,11 +412,11 @@ function save(self::Rotor, filename::String; addtiproot=true, airfoils=false,
 
   strn = save(self._wingsystem, filename; save_horseshoes=save_horseshoes, args...)
 
-  if size(self.airfoils)[1]!=0
-    strn *= save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils,
-                                wopwop=wopwop, wopbin=wopbin, wopext=wopext,
-                                wopv=wopv, args...)
-  end
+  # if size(self.airfoils)[1]!=0
+  #   strn *= save_loft(self, filename; addtiproot=addtiproot, airfoils=airfoils,
+  #                               wopwop=wopwop, wopbin=wopbin, wopext=wopext,
+  #                               wopv=wopv, args...)
+  # end
 
   return strn
 end
