@@ -70,6 +70,21 @@ gw(r, sgm) = (r/sgm)^3 * ((r/sgm)^2 + 2.5) / ((r/sgm)^2 + 1)^2.5
 ################################################################################
 # SOLVER
 ################################################################################
+# Caches of the geometry matrix G and normal-velocity vector Vn, reused across
+# calls to avoid reallocating an n x n matrix every timestep when the number
+# of horseshoes n doesn't change (the common case: same lattice, same solve
+# type, called every step). Keyed by (n, eltype) since AD dual-number types
+# can vary the promoted element type between calls.
+const _G_cache = Dict{Tuple{Int, DataType}, Matrix}()
+const _Vn_cache = Dict{Tuple{Int, DataType}, Vector}()
+
+function _get_G_Vn(n::Int, ::Type{T}) where T
+    key = (n, T)
+    G = get!(() -> zeros(T, n, n), _G_cache, key)
+    Vn = get!(() -> zeros(T, n), _Vn_cache, key)
+    return G, Vn
+end
+
 """
   `VLMsolve(HSs, Vinf[, t=0])`
 Solves for the circulation of a collection of horseshoe vortices with the
